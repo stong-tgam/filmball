@@ -1,0 +1,26 @@
+{
+  "container": {
+    "shape": "triangle",
+    "radius": 350,
+    "rotation_speed": 0.015,
+    "color": [0, 200, 255],
+    "thickness": 4,
+    "glow": true
+  },
+  "balls": {
+    "count": 1,
+    "radius": 15,
+    "color": [0, 255, 255],
+    "glow": true,
+    "speed": 350
+  },
+  "physics": {
+    "elasticity": 1.0,
+    "gravity": [0, 0]
+  },
+  "rules": {
+    "on_collision": "spawn_ball",
+    "max_balls": 50
+  },
+  "background_color": [5, 5, 15]
+}

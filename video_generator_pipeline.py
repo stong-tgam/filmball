@@ -3,7 +3,6 @@ import re
 import json
 import subprocess
 import sys
-import ast
 import yaml
 from openai import OpenAI
 import wave
@@ -15,68 +14,57 @@ local_client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
 LOCAL_MODEL = "gemma4:26b"
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-SIM_RAW_VIDEO = "simulation_raw.mp4"   # silent video from generated sim
-OUTPUT_VIDEO = "output.mp4"            # final muxed video with audio
+SIM_RAW_VIDEO = "simulation_raw.mp4"
+OUTPUT_VIDEO = "output.mp4"
+SCENE_FILE = "scene.json"
 WIDTH, HEIGHT, FPS = 720, 1280, 60
 
-# ── Agent System Prompts ───────────────────────────────────────────────────────
+VALID_SHAPES = {"circle", "triangle", "square", "pentagon", "hexagon",
+                "octagon", "star", "rectangle"}
+VALID_RULES = {"spawn_ball", "change_color", "increase_speed", "none"}
 
-DIRECTOR_PROMPT = """
-You are a technical director.
-1. Break the user's concept into a JSON object with keys "visual_logic" and "sfx_prompt".
-2. "sfx_prompt" MUST be an extremely concise, descriptive sound effect name (max 5 words).
-   Example: "Glass ping reverb", "Metallic hollow thud".
-3. NEVER use sentences, descriptions, or explanations in the SFX prompt.
-4. STRICTLY AVOID any character repetition or stuttering.
-Return ONLY valid JSON.
-"""
+# ── Scene Generation Prompt ────────────────────────────────────────────────────
 
-CODER_PROMPT_TEMPLATE = """
-You are an expert Python developer using Pygame and Pymunk 7.0+.
-Write an executable Python script for a physics simulation.
+SCENE_PROMPT = """
+You are a scene config generator for a 2D ball-bounce physics animation engine.
+Convert the user's video concept into a JSON scene configuration.
 
-CRITICAL REQUIREMENTS:
-1. Window must be 720x1280 (vertical format). FPS = 60.
-2. Use Pymunk for perfect elastic collisions (elasticity = 1.0) and zero gravity.
-3. Include an automated exit condition after EXACTLY {duration} seconds that cleanly calls pygame.quit() then sys.exit().
-4. You MUST use pygame.mixer.Sound('collision.wav') and play it on every Pymunk collision.
-5. VERY IMPORTANT PYMUNK 7 SYNTAX: You MUST NOT use `space.add_collision_handler`. Use `space.on_collision(0, 0, begin=your_callback_function)`.
-6. THE COLLISION CALLBACK FUNCTION signature MUST be exactly: `def collision_begin(arbiter, space, data):` or `def collision_begin(arbiter, space):`.
-7. NEVER attach a shape directly to the space. Static boundary shapes MUST be attached to `space.static_body`. Dynamic shapes MUST be attached to a `pymunk.Body`.
-8. Write standard, clean Python. No improper type hints.
-9. Output raw, executable Python code only. No markdown formatting.
-10. Do NOT include any video recording, ffmpeg, or file-writing code. Just render to the Pygame window.
-"""
+Return ONLY valid JSON matching this exact schema:
+{
+  "container": {
+    "shape": "circle|triangle|square|pentagon|hexagon|octagon|star|rectangle",
+    "radius": 100-500 (size of the container),
+    "rotation_speed": 0.0-0.05 (radians per frame, 0 = static),
+    "color": [r, g, b] (0-255),
+    "thickness": 2-8,
+    "glow": true/false
+  },
+  "balls": {
+    "count": 1-5 (starting balls),
+    "radius": 5-40,
+    "color": [r, g, b] (0-255),
+    "glow": true/false,
+    "speed": 150-500 (initial speed)
+  },
+  "physics": {
+    "elasticity": 0.8-1.0,
+    "gravity": [0, 0] (use [0, 0] for zero-g, [0, 500] for downward)
+  },
+  "rules": {
+    "on_collision": "spawn_ball|change_color|increase_speed|none",
+    "max_balls": 20-100
+  },
+  "background_color": [r, g, b] (dark colors work best),
+  "sfx_description": "2-4 word sound effect name"
+}
 
-REPAIR_PROMPT = (
-    "You are a Python code repair assistant. "
-    "The user will give you broken Python code and the error. "
-    "Return ONLY the complete fixed Python code. "
-    "No markdown fences, no explanations."
-)
-
-REVIEWER_PROMPT = """
-You are a code reviewer for Pygame/Pymunk physics simulations.
-The user will give you the original video concept and the generated Python code.
-
-Verify:
-1. Are the correct shapes present (e.g., sphere, triangle, hexagon)?
-2. Are visual effects described in the concept implemented (e.g., glowing, neon, colors)?
-3. Does the physics behavior match (e.g., bouncing, spawning, gravity)?
-4. Does the code look like it will run without runtime errors?
-5. Does it call pygame.quit() and sys.exit() after the duration elapses?
-6. The code should NOT contain any ffmpeg or video recording logic — that is handled externally.
-
-Return ONLY a JSON object with:
-- "passed": true/false
-- "issues": ["list of specific problems found"] (empty list if passed)
+Use neon/bright colors for container and balls on a dark background.
 """
 
 
 # ── Utility Functions ──────────────────────────────────────────────────────────
 
 def llm_call(system_prompt, user_content, temperature=0.1, json_mode=False):
-    """Shared LLM call wrapper."""
     kwargs = {
         "model": LOCAL_MODEL,
         "messages": [
@@ -91,36 +79,64 @@ def llm_call(system_prompt, user_content, temperature=0.1, json_mode=False):
     return response.choices[0].message.content.strip()
 
 
-def strip_markdown_fences(code):
-    """Remove markdown code fences the LLM may wrap around the output."""
-    code = re.sub(r'^\s*```[a-zA-Z]*\s*\n', '', code)
-    code = re.sub(r'\n\s*```\s*$', '', code)
-    return code.strip()
-
-
-def validate_syntax(code_string):
-    """Return None if code is valid Python, or the error message if not."""
-    try:
-        ast.parse(code_string)
-        return None
-    except SyntaxError as e:
-        return f"SyntaxError at line {e.lineno}: {e.msg}"
-
-
 def load_config(filepath="config.yaml"):
-    """Reads the YAML configuration file."""
     print(f"Loading configuration from {filepath}...")
     try:
         with open(filepath, 'r') as file:
             return yaml.safe_load(file)
     except FileNotFoundError:
-        print(f"Error: Could not find {filepath}. Please create it first.")
+        print(f"Error: Could not find {filepath}.")
         sys.exit(1)
 
 
-def generate_sfx(sfx_prompt):
+def clamp_color(c):
+    if not isinstance(c, list) or len(c) != 3:
+        return [0, 200, 255]
+    return [max(0, min(255, int(v))) for v in c]
+
+
+def sanitize_scene(scene):
+    """Apply defaults and clamp values so any LLM output becomes valid."""
+    cont = scene.setdefault("container", {})
+    cont.setdefault("shape", "circle")
+    if cont["shape"] not in VALID_SHAPES:
+        cont["shape"] = "circle"
+    cont["radius"] = max(100, min(500, int(cont.get("radius", 300))))
+    cont["rotation_speed"] = max(-0.1, min(0.1, float(cont.get("rotation_speed", 0))))
+    cont["color"] = clamp_color(cont.get("color", [0, 200, 255]))
+    cont["thickness"] = max(1, min(10, int(cont.get("thickness", 3))))
+    cont.setdefault("glow", False)
+
+    balls = scene.setdefault("balls", {})
+    balls["count"] = max(1, min(10, int(balls.get("count", 1))))
+    balls["radius"] = max(5, min(50, int(balls.get("radius", 20))))
+    balls["color"] = clamp_color(balls.get("color", [0, 255, 255]))
+    balls.setdefault("glow", True)
+    balls["speed"] = max(100, min(600, int(balls.get("speed", 300))))
+
+    phys = scene.setdefault("physics", {})
+    phys["elasticity"] = max(0.5, min(1.0, float(phys.get("elasticity", 1.0))))
+    grav = phys.get("gravity", [0, 0])
+    if not isinstance(grav, list) or len(grav) != 2:
+        grav = [0, 0]
+    phys["gravity"] = [max(-500, min(500, float(grav[0]))),
+                       max(-500, min(500, float(grav[1])))]
+
+    rules = scene.setdefault("rules", {})
+    rules.setdefault("on_collision", "none")
+    if rules["on_collision"] not in VALID_RULES:
+        rules["on_collision"] = "none"
+    rules["max_balls"] = max(10, min(200, int(rules.get("max_balls", 50))))
+
+    scene["background_color"] = clamp_color(scene.get("background_color", [5, 5, 15]))
+    scene.setdefault("sfx_description", "impact thud")
+
+    return scene
+
+
+def generate_sfx(description):
     """Creates a valid sine wave WAV file with decay envelope."""
-    print(f"  [SFX] Generating collision.wav for: '{sfx_prompt}'")
+    print(f"  [SFX] Generating collision.wav for: '{description}'")
     sample_rate = 44100
     duration = 0.5
     frequency = 440.0
@@ -136,70 +152,52 @@ def generate_sfx(sfx_prompt):
             sample = int(32767.0 * math.sin(2.0 * math.pi * frequency * t) * envelope)
             wav_file.writeframesraw(struct.pack('<h', sample))
 
-    # Verify the generated file
     with wave.open("collision.wav", "rb") as f:
-        params = f.getparams()
-        print(f"  [SFX] Valid WAV: {params}")
+        print(f"  [SFX] Valid WAV: {f.getparams()}")
 
 
-# ── Agent Functions ────────────────────────────────────────────────────────────
+# ── Scene Config Generator ─────────────────────────────────────────────────────
 
-def director_agent(concept):
-    """Breaks a concept into visual_logic and sfx_prompt."""
-    print("\n[Director] Breaking down concept...")
-    raw = llm_call(DIRECTOR_PROMPT, concept, temperature=0.1, json_mode=True)
-    result = json.loads(raw)
-    print(f"[Director] Visual: {result['visual_logic']}")
-    print(f"[Director] SFX:    {result['sfx_prompt']}")
-    return result
+def generate_scene_config(concept, max_retries=3):
+    """Ask the LLM to produce a scene config from the user concept."""
+    print("\n[Scene Generator] Converting concept to scene config...")
 
-
-def coder_agent(visual_logic, duration):
-    """Generates the simulation code from a visual description."""
-    print("\n[Coder] Generating Pygame/Pymunk script...")
-    prompt = CODER_PROMPT_TEMPLATE.format(duration=duration)
-    raw = llm_call(prompt, visual_logic, temperature=0.1)
-    return strip_markdown_fences(raw)
-
-
-def coder_agent_repair(code, error_msg, max_retries=3):
-    """Fixes broken code by feeding the error back to the LLM."""
     for attempt in range(1, max_retries + 1):
-        print(f"  [Coder/Repair] Attempt {attempt}/{max_retries} — {error_msg}")
-        raw = llm_call(
-            REPAIR_PROMPT,
-            f"Error:\n{error_msg}\n\nFull code:\n{code}",
-            temperature=0.0,
-        )
-        code = strip_markdown_fences(raw)
-        error_msg = validate_syntax(code)
-        if error_msg is None:
-            print("  [Coder/Repair] Syntax fixed.")
-            return code
-    print("  [Coder/Repair] Failed after all retries.")
-    return None
+        try:
+            raw = llm_call(SCENE_PROMPT, concept, temperature=0.1, json_mode=True)
+            # Strip markdown fences if present
+            raw = re.sub(r'^\s*```[a-zA-Z]*\s*\n', '', raw)
+            raw = re.sub(r'\n\s*```\s*$', '', raw)
+            scene = json.loads(raw.strip())
+            scene = sanitize_scene(scene)
+            print(f"[Scene Generator] Config generated (attempt {attempt})")
+            return scene
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            print(f"  [!] Attempt {attempt}/{max_retries}: Invalid JSON — {e}")
+
+    print("[Scene Generator] All retries failed. Using defaults.")
+    return sanitize_scene({})
 
 
-def tester_agent(code, duration):
-    """Writes the simulation, runs it with the recorder wrapper, validates output."""
-    print("\n[Tester] Executing simulation with recorder...")
-    with open("generated_simulation.py", "w", encoding="utf-8") as f:
-        f.write(code)
+# ── Simulation Runner ──────────────────────────────────────────────────────────
 
-    # Clean up stale output
+def run_simulation(duration):
+    """Run the fixed engine with the recorder wrapper."""
+    print("\n[Runner] Starting simulation with video recording...")
+
     for stale in (SIM_RAW_VIDEO, OUTPUT_VIDEO):
         if os.path.exists(stale):
             os.remove(stale)
 
-    # Build a wrapper that starts the recorder, runs the sim, stops recording.
-    # The generated code never needs to know about ffmpeg.
     wrapper_code = (
         "import recorder\n"
-        "import sys\n"
+        "import simulation_engine\n"
         "\n"
-        f"recorder.start(\"{SIM_RAW_VIDEO}\", {WIDTH}, {HEIGHT}, {FPS})\n"
+        f'recorder.start("{SIM_RAW_VIDEO}", {WIDTH}, {HEIGHT}, {FPS})\n'
         "try:\n"
-        "    exec(open(\"generated_simulation.py\").read())\n"
+        f'    scene = simulation_engine.load_scene("{SCENE_FILE}")\n'
+        f"    engine = simulation_engine.SimulationEngine(scene, {duration})\n"
+        "    engine.run()\n"
         "except SystemExit:\n"
         "    pass\n"
         "finally:\n"
@@ -217,92 +215,67 @@ def tester_agent(code, duration):
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        msg = f"Simulation timed out after {timeout}s (expected {duration}s)"
-        print(f"[Tester] FAIL: {msg}")
-        return False, msg
+        print(f"[Runner] Timed out after {timeout}s")
+        return False
     finally:
         if os.path.exists(wrapper_path):
             os.remove(wrapper_path)
 
-    # Check for runtime errors
     if result.returncode != 0:
         stderr = result.stderr.strip()
         lines = stderr.splitlines()
-        short = "\n".join(lines[-15:]) if len(lines) > 15 else stderr
-        print(f"[Tester] Runtime error (exit {result.returncode}):\n{short}")
-        return False, short
+        short = "\n".join(lines[-10:]) if len(lines) > 10 else stderr
+        print(f"[Runner] Error:\n{short}")
+        return False
 
-    # ── Validate the output video ───────────────────────────────────────
+    # Validate output video
     if not os.path.exists(SIM_RAW_VIDEO):
-        msg = f"Simulation exited but '{SIM_RAW_VIDEO}' was not created. Recorder may have failed."
-        print(f"[Tester] FAIL: {msg}")
-        return False, msg
+        print(f"[Runner] '{SIM_RAW_VIDEO}' not created.")
+        return False
 
-    file_size = os.path.getsize(SIM_RAW_VIDEO)
-    if file_size < 1024:
-        msg = f"'{SIM_RAW_VIDEO}' is only {file_size} bytes — likely corrupt."
-        print(f"[Tester] FAIL: {msg}")
-        return False, msg
+    size = os.path.getsize(SIM_RAW_VIDEO)
+    if size < 1024:
+        print(f"[Runner] '{SIM_RAW_VIDEO}' too small ({size} bytes)")
+        return False
 
-    probe_ok, probe_msg = validate_video_with_ffprobe(SIM_RAW_VIDEO)
-    if not probe_ok:
-        print(f"[Tester] FAIL: {probe_msg}")
-        return False, probe_msg
-
-    print(f"[Tester] PASSED — '{SIM_RAW_VIDEO}' ({file_size:,} bytes)")
-    return True, ""
-
-
-def validate_video_with_ffprobe(filepath):
-    """Use ffprobe to check a video file has at least one video stream."""
+    # ffprobe validation (optional)
     try:
-        result = subprocess.run(
+        probe = subprocess.run(
             ["ffprobe", "-v", "error", "-select_streams", "v:0",
-             "-show_entries", "stream=width,height,duration,nb_frames",
-             "-of", "json", filepath],
+             "-show_entries", "stream=width,height,nb_frames",
+             "-of", "json", SIM_RAW_VIDEO],
             capture_output=True, text=True, timeout=10,
         )
-        if result.returncode != 0:
-            return False, f"ffprobe error: {result.stderr.strip()}"
-        info = json.loads(result.stdout)
-        streams = info.get("streams", [])
-        if not streams:
-            return False, "ffprobe found no video streams in the file"
-        s = streams[0]
-        print(f"  [ffprobe] {s.get('width')}x{s.get('height')}, "
-              f"frames={s.get('nb_frames', '?')}, dur={s.get('duration', '?')}s")
-        return True, ""
-    except FileNotFoundError:
-        # ffprobe not installed — skip deep validation
-        print("  [ffprobe] not found, skipping deep validation")
-        return True, ""
-    except Exception as e:
-        return False, f"ffprobe exception: {e}"
+        if probe.returncode == 0:
+            info = json.loads(probe.stdout)
+            streams = info.get("streams", [])
+            if streams:
+                s = streams[0]
+                print(f"  [ffprobe] {s.get('width')}x{s.get('height')}, "
+                      f"frames={s.get('nb_frames', '?')}")
+    except (FileNotFoundError, Exception):
+        pass
+
+    print(f"[Runner] Video recorded ({size:,} bytes)")
+    return True
 
 
 def mux_audio_video():
-    """Mux the silent simulation video with collision.wav into the final output."""
+    """Mux the silent video with collision.wav into the final output."""
     print("\n[Muxer] Combining video + audio...")
     if not os.path.exists(SIM_RAW_VIDEO):
-        print("[Muxer] No raw video to mux.")
+        print("[Muxer] No raw video found.")
         return False
 
-    audio_file = "collision.wav"
-    cmd = [
+    result = subprocess.run([
         "ffmpeg", "-y",
-        "-i", SIM_RAW_VIDEO,
-        "-i", audio_file,
-        "-c:v", "copy",
-        "-c:a", "aac", "-b:a", "192k",
-        "-shortest",
-        OUTPUT_VIDEO,
-    ]
+        "-i", SIM_RAW_VIDEO, "-i", "collision.wav",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        "-shortest", OUTPUT_VIDEO,
+    ], capture_output=True, text=True)
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        # If audio mux fails, fall back to video-only copy
-        print(f"[Muxer] Audio mux failed: {result.stderr.strip()[:200]}")
-        print("[Muxer] Falling back to video-only output...")
+        print(f"[Muxer] Audio mux failed, falling back to video-only...")
         subprocess.run(
             ["ffmpeg", "-y", "-i", SIM_RAW_VIDEO, "-c:v", "copy", OUTPUT_VIDEO],
             capture_output=True,
@@ -310,119 +283,60 @@ def mux_audio_video():
 
     if os.path.exists(OUTPUT_VIDEO) and os.path.getsize(OUTPUT_VIDEO) > 1024:
         size = os.path.getsize(OUTPUT_VIDEO)
-        print(f"[Muxer] DONE — '{OUTPUT_VIDEO}' ({size:,} bytes)")
-        # Clean up intermediate file
+        print(f"[Muxer] Done — '{OUTPUT_VIDEO}' ({size:,} bytes)")
         if os.path.exists(SIM_RAW_VIDEO):
             os.remove(SIM_RAW_VIDEO)
         return True
-    else:
-        print("[Muxer] Output file missing or too small.")
+
+    print("[Muxer] Output file missing or too small.")
+    return False
+
+
+# ── Main Pipeline ──────────────────────────────────────────────────────────────
+
+def run_pipeline(concept, duration):
+    """Generate scene config from concept → render with fixed engine → mux audio."""
+    # 1. LLM converts concept to scene config
+    scene = generate_scene_config(concept)
+    print(f"\n[Config] Scene:\n{json.dumps(scene, indent=2)}")
+
+    # 2. Save scene config
+    with open(SCENE_FILE, "w") as f:
+        json.dump(scene, f, indent=2)
+
+    # 3. Generate sound effect
+    sfx_desc = scene.pop("sfx_description", "impact thud")
+    generate_sfx(sfx_desc)
+
+    # Re-save without sfx_description (engine doesn't need it)
+    with open(SCENE_FILE, "w") as f:
+        json.dump(scene, f, indent=2)
+
+    # 4. Run simulation with recording
+    if not run_simulation(duration):
+        print("\n[Pipeline] Simulation failed.")
         return False
 
+    # 5. Mux audio + video
+    if not mux_audio_video():
+        print("\n[Pipeline] Muxing failed.")
+        return False
 
-def reviewer_agent(concept, code):
-    """Reviews generated code against the original concept."""
-    print("\n[Reviewer] Checking code against concept...")
-    raw = llm_call(
-        REVIEWER_PROMPT,
-        f"Concept: {concept}\n\nGenerated code:\n{code}",
-        temperature=0.1,
-        json_mode=True,
-    )
-    result = json.loads(raw)
-    if result.get("passed"):
-        print("[Reviewer] PASSED — code matches concept.")
-    else:
-        issues = result.get("issues", [])
-        print(f"[Reviewer] FAILED — {len(issues)} issue(s):")
-        for i, issue in enumerate(issues, 1):
-            print(f"  {i}. {issue}")
-    return result
-
-
-# ── Conductor Loop ─────────────────────────────────────────────────────────────
-
-def run_pipeline(concept, duration, max_cycles=3):
-    """Main orchestration loop that coordinates all agents."""
-    # Step 1: Director breaks down the concept
-    breakdown = director_agent(concept)
-    generate_sfx(breakdown["sfx_prompt"])
-
-    feedback = None  # Accumulated feedback for regeneration
-
-    for cycle in range(1, max_cycles + 1):
-        print(f"\n{'='*60}")
-        print(f"PIPELINE CYCLE {cycle}/{max_cycles}")
-        print(f"{'='*60}")
-
-        # Step 2: Coder generates (or regenerates with feedback)
-        visual_input = breakdown["visual_logic"]
-        if feedback:
-            visual_input += (
-                "\n\nPREVIOUS ATTEMPT FAILED. Fix these issues:\n"
-                + "\n".join(f"- {f}" for f in feedback)
-            )
-        code = coder_agent(visual_input, duration)
-
-        # Step 3: Syntax validation + repair
-        error = validate_syntax(code)
-        if error:
-            print(f"  [!] Syntax error in generated code: {error}")
-            code = coder_agent_repair(code, error)
-            if code is None:
-                print("[Conductor] Coder could not fix syntax. Retrying full generation...")
-                feedback = (feedback or []) + ["Code had unfixable syntax errors"]
-                continue
-
-        # Step 4: Reviewer checks concept alignment
-        review = reviewer_agent(concept, code)
-        if not review.get("passed"):
-            issues = review.get("issues", ["Unknown issue"])
-            feedback = issues
-            print(f"[Conductor] Reviewer rejected code. Regenerating...")
-            continue
-
-        # Step 5: Tester runs the simulation and validates video output
-        success, stderr = tester_agent(code, duration)
-        if success:
-            # Step 6: Mux audio into the final video
-            if mux_audio_video():
-                print(f"\n[Conductor] Pipeline completed successfully on cycle {cycle}.")
-                print(f"[Conductor] Output: {os.path.abspath(OUTPUT_VIDEO)}")
-                return True
-            else:
-                feedback = (feedback or []) + ["Video muxing failed"]
-                continue
-
-        # Runtime failure — feed error back to coder for repair
-        print("[Conductor] Runtime error. Attempting repair...")
-        code = coder_agent_repair(code, stderr)
-        if code is not None:
-            # Re-test the repaired code
-            success, stderr = tester_agent(code, duration)
-            if success:
-                if mux_audio_video():
-                    print(f"\n[Conductor] Pipeline completed (repaired) on cycle {cycle}.")
-                    print(f"[Conductor] Output: {os.path.abspath(OUTPUT_VIDEO)}")
-                    return True
-
-        feedback = (feedback or []) + [f"Runtime error: {stderr[:200]}"]
-        print(f"[Conductor] Cycle {cycle} failed. Retrying...")
-
-    print(f"\n[Conductor] All {max_cycles} cycles exhausted. Pipeline failed.")
-    return False
+    print(f"\n[Pipeline] Complete! Output: {os.path.abspath(OUTPUT_VIDEO)}")
+    return True
 
 
 # ── Entry Point ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("VIDEO GENERATION PIPELINE — Multi-Agent")
+    print("FILMBALL — Video Generation Pipeline")
     print("=" * 60)
 
     config = load_config("config.yaml")
-    concept = config.get("video_concept", "A bouncing ball in a box.")
-    duration = config.get("duration_seconds", 30)
+    concept = config.get("video_concept", "A bouncing ball in a circle.")
+    duration = config.get("duration_seconds", 10)
 
     success = run_pipeline(concept, duration)
+    sys.exit(0 if success else 1)
     sys.exit(0 if success else 1)
