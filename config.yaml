@@ -1,0 +1,5 @@
+# config.yaml
+# Define your video concepts and parameters here
+
+video_concept: "A glowing neon blue ball trapped inside a large spinning triangle. Every time the ball hits a wall, a new ball spawns."
+duration_seconds: 5
