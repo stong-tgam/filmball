@@ -37,6 +37,8 @@ export type Tile = {
   rail: boolean;
   /** Turn number the tile recovers on; null when undamaged. Tornado damage. */
   destroyedUntil: number | null;
+  /** A tile gives up its findings once. Stops the party camping on one square. */
+  searched: boolean;
 };
 
 export type Role = "knight" | "rogue" | "scout" | "doctor";
@@ -67,6 +69,8 @@ export type Player = {
   dead: boolean;
   /** One move per turn; cleared when the player's next turn begins. */
   movedThisTurn: boolean;
+  /** One action per turn - search, trade or a fight. Eating is free and not this. */
+  actedThisTurn: boolean;
   /** Homeless-person donation: extra dice on the next fight only. */
   bonusDiceNextFight: number;
   joinedFightThisRound: boolean;

@@ -3,21 +3,39 @@
 Hotseat (one device, passed around) digital version of the Hex RPG tabletop game.
 Built to the plan in `reference/webapp-spec.md`.
 
-**This build is v0.3: enemies and fighting.** Four players move round the board in
-turn order and fight what they find there — dice, accumulating damage, running away,
-and going down. There are no items, events or hazards yet — those are v0.4 onwards,
-in the order the spec lays out.
+**This build is v0.4: gear and money.** Four players move round the board, fight what
+they find, search the ground, and spend what they earn in city markets. There are no
+events or hazards yet — those are v0.5 and v0.6, in the order the spec lays out.
 
 ## Running it
 
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 102 tests over the hex maths, board, turns and combat
+npm test           # 138 tests over the hex maths, board, turns, combat and gear
 npm run build      # type-check + production build into dist/
 ```
 
-## What v0.3 adds
+## What v0.4 adds
+
+- **One pile of gear for the whole game** — three big sticks, two swords, one great
+  axe, armour and boots: thirteen items, and no more than that. Cities sell from it,
+  searches turn it up, and beaten bosses drop it. It runs out.
+- **Searching**: on open ground or in woods, once per tile. Woods hide more than
+  fields. You get gear, coins, or nothing.
+- **Markets**: city tiles sell unlimited food and whatever three items of the pile are
+  on the shelf. Buying gear for a slot you have filled swaps the old piece out, and it
+  goes back into the world for somebody else to find.
+- **Equipment does something**: weapons add damage, armour takes it off, boots add a
+  tile of movement.
+- **Food can be eaten at any moment** — on someone else's turn, in the middle of a
+  fight — straight from the party list. That is the spec's rule, and it means the
+  child watching their sibling's turn still has something to do.
+- **Loot**: beaten enemies pay out coins on the spot, and bosses drop gear to pick
+  over. What nobody takes goes back into the pile.
+- **One action a turn**: search, shop, or fight. Eating is free and does not count.
+
+## What v0.3 added
 
 - **Enemies on the board**: six bandits, two ogres, and a dragon in the middle tile,
   which gives the map a destination. Nothing spawns within two tiles of a player, so
@@ -99,8 +117,8 @@ movement unit-testable later, and keeps a networked rewrite possible.
   cities at least three tiles apart, seven woods of two to four tiles seeded three
   apart, one river, one railway, and a 45% chance of a neighbour's terrain bleeding
   across a shared side. The constants are at the top of `src/game/setup.ts`.
-- **Combat stats are placeholders** (`src/game/enemies.ts`): bandit 6 health, ogre 12
-  with +1, dragon 20 with +2. A bandit is about two good rolls; the dragon cannot be
+- **Prices and stats are placeholders** (`src/game/items.ts`, `src/game/enemies.ts`):
+  bandit 6 health, ogre 12 with +1, dragon 20 with +2; sticks $3 up to the axe at $10. A bandit is about two good rolls; the dragon cannot be
   beaten bare-handed, which is what the spec says it should be — that fight needs the
   gear that arrives in v0.4.
 - **What happens to a downed player is the biggest open question in the game.** The
@@ -109,6 +127,10 @@ movement unit-testable later, and keeps a networked rewrite possible.
   CLAUDE.md flags it. Escape being always free is the mitigation for now.
 - **Enemies block movement**, where players do not: you may walk onto one, which
   starts the fight, but never past it.
+- **A tile can be searched once per game.** Otherwise the best play is to stand still
+  and search the same square for twenty-five turns, which is not a game.
+- **Nothing can be sold**, and searching draws from the seeded generator rather than
+  the second poker deck the spec calls for — that deck arrives with v0.5.
 - **Two movement rules were mine to pick, and the rulebook should overrule them.**
   The *pass-through rule*: a player may move through a tile someone is standing on
   but may not stop there — the friendlier of the two readings, since being boxed in

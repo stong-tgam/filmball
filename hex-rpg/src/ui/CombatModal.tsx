@@ -10,7 +10,12 @@ import DiceRoller from "./DiceRoller";
 import { ENEMIES, healthLeft } from "../game/enemies";
 import { attackValue } from "../game/combat";
 import { ROLES } from "../game/players";
-import type { Combat, Enemy, Player } from "../game/types";
+import { equipped } from "../game/items";
+import type { Combat, Enemy, Item, Player } from "../game/types";
+
+/** What this item would push out of its slot, if anything. */
+const replacing = (player: Player, item: Item): Item | null =>
+  item.slot === "supply" ? null : equipped(player, item.slot);
 
 type Props = {
   combat: Combat;
@@ -18,6 +23,7 @@ type Props = {
   enemy: Enemy;
   onAttack: () => void;
   onFlee: () => void;
+  onTakeLoot: (itemId: string) => void;
   onClose: () => void;
 };
 
@@ -36,7 +42,15 @@ const RESULT: Record<string, { title: string; tone: string }> = {
   playerDown: { title: "Down", tone: "lose" },
 };
 
-export default function CombatModal({ combat, player, enemy, onAttack, onFlee, onClose }: Props) {
+export default function CombatModal({
+  combat,
+  player,
+  enemy,
+  onAttack,
+  onFlee,
+  onTakeLoot,
+  onClose,
+}: Props) {
   const beast = ENEMIES[enemy.kind];
   const role = ROLES[player.role];
   const over = combat.outcome !== "ongoing";
@@ -107,6 +121,25 @@ export default function CombatModal({ combat, player, enemy, onAttack, onFlee, o
                 `The ${beast.name} keeps the ${enemy.damageTaken} damage it has taken. Come back for it.`}
               {combat.outcome === "playerDown" && `${player.name} is out. The party plays on.`}
             </p>
+            {enemy.loot.length > 0 && (
+              <div className="loot">
+                <p className="loot-title">Take what you want:</p>
+                <ul className="stock">
+                  {enemy.loot.map((item) => {
+                    const swapping = replacing(player, item);
+                    return (
+                      <li key={item.id}>
+                        <button type="button" className="buy" onClick={() => onTakeLoot(item.id)}>
+                          <span className="buy-name">{item.name}</span>
+                          <span className="buy-value">+{item.value}</span>
+                          <span className="buy-cost">{swapping ? `swap ${swapping.name}` : "take"}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
             <button type="button" onClick={onClose}>
               Done
             </button>

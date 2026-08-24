@@ -252,9 +252,10 @@ describe("createInitialState", () => {
     expect(state.players).toHaveLength(4);
     expect(state.enemies).toHaveLength(9);
     expect(state.combat).toBeNull();
-    // Hazards, items and events belong to v0.4 onwards.
+    expect(state.itemPile).toHaveLength(13);
+    // Hazards and events belong to v0.5 onwards.
     expect(state.hazards).toEqual([]);
-    expect(state.itemPile).toEqual([]);
+    expect(state.eventDeck).toEqual([]);
     expect(state.log).toHaveLength(2);
   });
 

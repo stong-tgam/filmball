@@ -62,25 +62,29 @@ npm test           # 56 tests
 npm run build      # type-check + production build
 ```
 
-## Current state: v0.3, enemies and fighting
+## Current state: v0.4, gear and money
 
 Shipped: hex coordinates with pathing, seeded board generation, the SVG renderer, the
-four-role party on its corners, click-to-move, turn order and limit, enemies on the
-board, and the fight — dice, accumulating damage, escape, and going down.
-**No items, events or hazards yet.**
+four-role party, click-to-move, turn order and limit, enemies and the fight, and the
+economy — one shared pile of gear, searching, city markets, equipment slots, food,
+and loot. **No events or hazards yet.**
 
-**This is the core loop. Playtest it before building v0.4.** The spec says so and it
-is right: if fighting is not fun at a table, nothing after it will save the game.
+**The core loop is all there now. Playtest before building v0.5.** Move, fight, find,
+spend: if that is not fun at a table, events and hazards will not save it.
 
 Build order from here, one phase at a time — ship each working before starting the
-next: **v0.4** items and economy · **v0.5** features and events · **v0.6**
-hazards · **v0.7** autosave, undo, win/lose screens.
+next: **v0.5** features and events · **v0.6** hazards · **v0.7** autosave, undo,
+win/lose screens.
 
 - `turn.ts` — `legalMoves`, `movePlayer`, `endTurn`. One move per turn; moving onto
   an enemy starts a fight, and the turn cannot pass while one is running.
 - `combat.ts` — `startCombat`, `attack`, `flee`, `endCombat`. A round is one
   exchange: you swing, it swings back if it is still up.
 - `enemies.ts` — profiles, placement, `healthLeft`, `enemyAt`.
+- `items.ts` — the gear list, the pile, `equip`, `consume`. One pile for the whole
+  game; food is the only unlimited thing.
+- `actions.ts` — `search`, `openShop`, `buy`, `eat`, `takeLoot`. One action a turn
+  and a fight counts as it; `eat` deliberately ignores whose turn it is.
 
 Hazard and event phases slot in ahead of the move phase when they exist; the phase
 names are already in `Phase`.
@@ -128,3 +132,8 @@ are made, all cheap to reverse:
   uses it, and `base` decides what a tile is for.
 - **Fights are one player against one enemy.** `Player.joinedFightThisRound` exists
   in the types for the party-joins-a-fight rule and nothing sets it yet.
+- **A tile can be searched once per game** (`Tile.searched`), or standing still beats
+  playing.
+- **Nothing can be sold back**, and swapped-out gear returns to the shared pile.
+- **Searching rolls the seeded generator**, not the second poker deck the spec asks
+  for. That deck belongs with v0.5's draws.

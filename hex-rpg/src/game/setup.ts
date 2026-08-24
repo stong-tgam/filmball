@@ -24,6 +24,7 @@ import {
 import { makeRng, type Rng } from "./rng";
 import { createPlayers } from "./players";
 import { placeEnemies } from "./enemies";
+import { createItemPile } from "./items";
 import { MAX_ELEMENTS, type Element, type GameState, type Tile } from "./types";
 
 export const CITY_COUNT = 5;
@@ -48,6 +49,7 @@ const blankBoard = (): Draft =>
         river: false,
         rail: false,
         destroyedUntil: null,
+        searched: false,
       },
     ]),
   );
@@ -302,7 +304,7 @@ export function createInitialState(seed: number): GameState {
     enemies: placeEnemies(rng, players),
     hazards: [],
     combat: null,
-    itemPile: [],
+    itemPile: createItemPile(rng),
     eventDeck: [],
     pokerDeck: [],
     log: [

@@ -32,6 +32,9 @@ export const ENEMY_DICE = 1;
 export const attackValue = (player: Player): number => player.weapon?.value ?? 0;
 export const armourValue = (player: Player): number => player.armor?.value ?? 0;
 
+/** "a Bandit", but "an Ogre". Small thing; the log is read aloud at the table. */
+const an = (name: string): string => `${/^[aeiou]/i.test(name) ? "an" : "a"} ${name}`;
+
 const note = (state: GameState, text: string): GameState => ({
   ...state,
   log: [...state.log, { turn: state.turn, text } satisfies LogEntry],
@@ -69,7 +72,7 @@ export function startCombat(state: GameState, enemy: Enemy, from: string): GameS
   };
   return note(
     { ...state, phase: "combat", combat },
-    `${player.name} met a ${ENEMIES[enemy.kind].name} at ${key(enemy.hex)}.`,
+    `${player.name} met ${an(ENEMIES[enemy.kind].name)} at ${key(enemy.hex)}.`,
   );
 }
 
@@ -102,10 +105,7 @@ export function attack(state: GameState): GameState {
   next = note(next, `${player.name} rolled ${swing.dice.join("+")} for ${dealt} damage.`);
 
   if (killed) {
-    return note(
-      { ...next, combat: { ...next.combat!, outcome: "enemyDefeated" } },
-      `${profile.name} is beaten!`,
-    );
+    return note(spoils({ ...next, combat: { ...next.combat!, outcome: "enemyDefeated" } }), `${profile.name} is beaten!`);
   }
 
   // Still standing, so it hits back.
@@ -128,6 +128,41 @@ export function attack(state: GameState): GameState {
   );
 
   return down ? note(next, `${player.name} is down.`) : next;
+}
+
+/**
+ * Hand out what a beaten enemy was carrying: coins straight into the player's pocket,
+ * gear onto the ground for them to pick over. Whatever they leave behind goes back
+ * into the pile when the fight closes.
+ */
+function spoils(state: GameState): GameState {
+  const pair = combatants(state);
+  if (!pair) return state;
+  const { player, enemy } = pair;
+  const profile = ENEMIES[enemy.kind];
+
+  const rng = makeRng(state.rngState);
+  const coins = rng.int(...profile.purse);
+  const drops = state.itemPile.slice(0, profile.drops);
+  const rest = state.itemPile.slice(profile.drops);
+
+  let next: GameState = {
+    ...state,
+    rngState: rng.state(),
+    itemPile: rest,
+    enemies: state.enemies.map((e) => (e.id === enemy.id ? { ...e, loot: drops } : e)),
+    players: state.players.map((p) =>
+      p.id === player.id ? { ...p, money: p.money + coins } : p,
+    ),
+  };
+  if (coins > 0) next = note(next, `${player.name} picked up $${coins}.`);
+  if (drops.length > 0) {
+    next = note(
+      next,
+      `The ${profile.name} was carrying ${drops.map((d) => an(d.name)).join(" and ")}.`,
+    );
+  }
+  return next;
 }
 
 /** Back off to the tile you came from. Always allowed, always free. */

@@ -15,8 +15,9 @@ import type { GameState, LogEntry, Player } from "./types";
 
 export const activePlayer = (state: GameState): Player => state.players[state.activePlayerIndex];
 
-/** Tiles per turn. Boots arrive in v0.4 and will add to this. */
-export const moveRange = (player: Player): number => ROLES[player.role].move;
+/** Tiles per turn: the role's own legs, plus whatever boots add. */
+export const moveRange = (player: Player): number =>
+  ROLES[player.role].move + (player.boots?.value ?? 0);
 
 const note = (state: GameState, text: string): GameState => ({
   ...state,
@@ -70,9 +71,15 @@ export function movePlayer(state: GameState, destination: string): GameState {
     `${player.name} moved to ${destination} (${steps} ${steps === 1 ? "tile" : "tiles"}).`,
   );
 
-  // Walking onto something starts the fight there and then.
+  // Walking onto something starts the fight there and then, and the fight is this
+  // turn's action - you do not get to brawl and then go shopping.
   const enemy = enemyAt(moved.enemies, destination);
-  return enemy ? startCombat(moved, enemy, key(player.hex)) : moved;
+  if (!enemy) return moved;
+  const fighting = {
+    ...moved,
+    players: moved.players.map((p) => (p.id === player.id ? { ...p, actedThisTurn: true } : p)),
+  };
+  return startCombat(fighting, enemy, key(player.hex));
 }
 
 /**
@@ -107,7 +114,9 @@ export function endTurn(state: GameState): GameState {
   }
 
   // A fresh turn for whoever is up next.
-  const players = next.players.map((p, i) => (i === index ? { ...p, movedThisTurn: false } : p));
+  const players = next.players.map((p, i) =>
+    i === index ? { ...p, movedThisTurn: false, actedThisTurn: false } : p,
+  );
   const started = { ...next, players, activePlayerIndex: index, turn, phase: "playerMove" as const };
   return turn === next.turn ? started : note(started, `— Turn ${turn} —`);
 }

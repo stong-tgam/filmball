@@ -4,7 +4,16 @@ import ActionBar from "./ui/ActionBar";
 import Log from "./ui/Log";
 import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
 import CombatModal from "./ui/CombatModal";
-import { useActivePlayer, useCombatants, useGame, useLegalMoves } from "./game/store";
+import ShopModal from "./ui/ShopModal";
+import {
+  useActivePlayer,
+  useCanSearch,
+  useCanTrade,
+  useCombatants,
+  useGame,
+  useLegalMoves,
+} from "./game/store";
+import { stockFor } from "./game/actions";
 import { elementsOf } from "./game/setup";
 import { ROLES } from "./game/players";
 import "./styles.css";
@@ -35,6 +44,15 @@ export default function App() {
   const attack = useGame((s) => s.attack);
   const flee = useGame((s) => s.flee);
   const closeCombat = useGame((s) => s.closeCombat);
+  const takeLoot = useGame((s) => s.takeLoot);
+  const search = useGame((s) => s.search);
+  const eat = useGame((s) => s.eat);
+  const shopOpen = useGame((s) => s.shopOpen);
+  const openShop = useGame((s) => s.openShop);
+  const closeShop = useGame((s) => s.closeShop);
+  const buy = useGame((s) => s.buy);
+  const canSearch = useCanSearch();
+  const canTrade = useCanTrade();
 
   const [seedInput, setSeedInput] = useState("");
   const tile = selected ? game.tiles[selected] : null;
@@ -62,7 +80,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.3 — enemies and fighting</span>
+          <span className="version">v0.4 — gear and money</span>
         </div>
         <p className="turn-counter">
           Turn <strong>{game.turn}</strong>
@@ -112,13 +130,18 @@ export default function App() {
         <ActionBar
           canMove={legalMoves.size > 0}
           moved={player.movedThisTurn}
+          acted={player.actedThisTurn}
+          canSearch={canSearch}
+          canTrade={canTrade}
+          onSearch={search}
+          onTrade={openShop}
           onEndTurn={endTurn}
           disabled={over || game.combat !== null}
         />
 
         <section className="panel">
           <h2>Party</h2>
-          <PartyList players={game.players} activeId={player.id} />
+          <PartyList players={game.players} activeId={player.id} onEat={eat} />
         </section>
 
         <section className="panel">
@@ -157,7 +180,18 @@ export default function App() {
           enemy={fight.enemy}
           onAttack={attack}
           onFlee={flee}
+          onTakeLoot={takeLoot}
           onClose={closeCombat}
+        />
+      )}
+
+      {shopOpen && !game.combat && (
+        <ShopModal
+          player={player}
+          gear={stockFor(game).gear}
+          food={stockFor(game).food}
+          onBuy={buy}
+          onClose={closeShop}
         />
       )}
     </div>

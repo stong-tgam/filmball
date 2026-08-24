@@ -27,6 +27,9 @@ export type EnemyProfile = {
   scale: number;
   /** What the token says. A letter, unless something else reads faster. */
   glyph: string;
+  /** Coins it is carrying, as a range, and how many items of gear it drops. */
+  purse: [number, number];
+  drops: number;
 };
 
 export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
@@ -39,6 +42,8 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     colour: "#e8734a",
     scale: 0.8,
     glyph: "B",
+    purse: [1, 3],
+    drops: 0,
   },
   midboss: {
     name: "Ogre",
@@ -49,6 +54,8 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     colour: "#c9436b",
     scale: 1,
     glyph: "O",
+    purse: [4, 6],
+    drops: 1,
   },
   finalboss: {
     name: "Dragon",
@@ -61,6 +68,8 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     // A star, not a D: the doctor's token is already a D, and two of those on one
     // board is exactly the kind of thing that starts an argument.
     glyph: "★",
+    purse: [10, 15],
+    drops: 2,
   },
   robber: {
     name: "Robber",
@@ -71,6 +80,8 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     colour: "#b0894a",
     scale: 0.75,
     glyph: "R",
+    purse: [0, 0],
+    drops: 0,
   },
   pirates: {
     name: "Pirates",
@@ -81,6 +92,8 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     colour: "#4a90b0",
     scale: 0.9,
     glyph: "P",
+    purse: [0, 0],
+    drops: 0,
   },
 };
 

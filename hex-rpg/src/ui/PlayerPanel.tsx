@@ -53,7 +53,22 @@ export function ActivePlayerBanner({ player, moves }: { player: Player; moves: n
   );
 }
 
-export function PartyList({ players, activeId }: { players: Player[]; activeId: string }) {
+/**
+ * The party.
+ *
+ * Food sits under whoever is carrying it and can be eaten at any moment - on someone
+ * else's turn, mid-fight, whenever. That is the spec's rule and it is a good one: the
+ * player watching their sibling's turn still has something they can do.
+ */
+export function PartyList({
+  players,
+  activeId,
+  onEat,
+}: {
+  players: Player[];
+  activeId: string;
+  onEat: (playerId: string, itemId: string) => void;
+}) {
   return (
     <ul className="party">
       {players.map((player) => {
@@ -70,6 +85,39 @@ export function PartyList({ players, activeId }: { players: Player[]; activeId: 
               {player.health}/{player.maxHealth}
             </span>
             <span className="party-money">${player.money}</span>
+
+            {(player.weapon || player.armor || player.boots) && (
+              <span className="party-gear">
+                {[player.weapon, player.armor, player.boots]
+                  .filter((i): i is NonNullable<typeof i> => i !== null)
+                  .map((item) => (
+                    <span key={item.id} className={`kit kit-${item.slot}`} title={item.name}>
+                      {item.name} +{item.value}
+                    </span>
+                  ))}
+              </span>
+            )}
+
+            {player.supply.length > 0 && !player.dead && (
+              <span className="party-supply">
+                {player.supply.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="eat"
+                    onClick={() => onEat(player.id, item.id)}
+                    disabled={player.health >= player.maxHealth}
+                    title={
+                      player.health >= player.maxHealth
+                        ? `${player.name} is on full health`
+                        : `Eat the ${item.name} for ${item.value} health`
+                    }
+                  >
+                    {item.name} +{item.value}
+                  </button>
+                ))}
+              </span>
+            )}
           </li>
         );
       })}
