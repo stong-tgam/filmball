@@ -1,6 +1,8 @@
-node_modules
-dist
-.DS_Store
 *.local
 *.tsbuildinfo
+.DS_Store
+dist
 dist-gallery
+dist-gallery/
+dist-play/
+node_modules
