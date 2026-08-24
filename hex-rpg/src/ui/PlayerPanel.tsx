@@ -7,7 +7,7 @@
  */
 
 import { ROLES } from "../game/players";
-import { moveRange } from "../game/turn";
+import { moveRange, stepsLeft } from "../game/turn";
 import type { Player } from "../game/types";
 
 export function ActivePlayerBanner({
@@ -47,18 +47,22 @@ export function ActivePlayerBanner({
         <div>
           <dt>Move</dt>
           <dd>
-            {player.movedThisTurn
+            {!stepsLeft(player)
               ? "used"
-              : `${moveRange(player)} ${moveRange(player) === 1 ? "tile" : "tiles"}`}
+              : `${stepsLeft(player)} of ${moveRange(player)}`}
           </dd>
         </div>
       </dl>
       <p className="banner-hint">
-        {player.movedThisTurn
+        {!stepsLeft(player)
           ? "Move used. End the turn when you are ready."
           : moves === 0
-            ? "Nowhere to move from here. End the turn to stay put."
-            : `${moves} ${moves === 1 ? "tile" : "tiles"} to choose from. Tap one to move, or end the turn to stay put.`}
+            ? "Nowhere to step from here. End the turn to stay put."
+            : stepsLeft(player) > 1
+              ? // Say what the extra step is for: take one, look at what it turned up,
+                // then decide. Otherwise a child reads "2 steps" as "pick a tile twice".
+                `Take a step and see what is there — ${stepsLeft(player)} steps left, and you can stop after any of them.`
+              : `${moves} ${moves === 1 ? "way" : "ways"} to step. Tap one, or end the turn to stay put.`}
       </p>
     </div>
   );

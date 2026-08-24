@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { hasMoved } from "../src/game/players";
+import { stepsLeft } from "../src/game/players";
 import { createInitialState } from "../src/game/setup";
 import { activePlayer, endTurn, legalMoves, movePlayer, moveRange } from "../src/game/turn";
 import { BASE_HEALTH, BASE_MONEY, ROLES, TURN_ORDER, createPlayers } from "../src/game/players";
@@ -52,7 +54,7 @@ describe("the party", () => {
       expect(p.health).toBe(BASE_HEALTH + ROLES[p.role].healthBonus);
       expect([p.weapon, p.armor, p.boots]).toEqual([null, null, null]);
       expect(p.supply).toEqual([]);
-      expect(p.movedThisTurn).toBe(false);
+      expect(hasMoved(p)).toBe(false);
     }
   });
 
@@ -103,9 +105,10 @@ describe("legal moves", () => {
     expect(legalMoves(state, knight).size).toBe(3);
   });
 
-  it("lets a player pass through another but never stop on them", () => {
-    // Only the scout can show this: at one tile a turn, nobody else can reach
-    // past anything. Scout in the middle, someone standing due east of them.
+  it("treats another player as a wall to walk round", () => {
+    // Movement is spent a tile at a time, so there is no such thing as passing
+    // through any more: you could always just stop on them. Scout in the middle,
+    // someone standing due east of them.
     const base = game();
     const rogue = { ...base.players[2], hex: { q: 0, r: 0 } };
     const blocker = { ...base.players[0], hex: { q: 1, r: 0 } };
@@ -121,14 +124,42 @@ describe("legal moves", () => {
     expect(moveRange(rogue)).toBe(2);
     const moves = legalMoves(state, rogue);
     expect(moves.has(label(blocker.hex))).toBe(false);
-    expect(moves.has(label(beyond))).toBe(true);
-    expect(moves.get(label(beyond))).toBe(2);
+    // Two tiles of movement, but only ever one tile offered: the far side of the
+    // blocker is next turn's problem, or this turn's second step taken the long way.
+    expect(moves.has(label(beyond))).toBe(false);
+    for (const steps of moves.values()) expect(steps).toBe(1);
+  });
+
+  it("spends movement one tile at a time, so a scout looks before the second step", () => {
+    const base = game();
+    const scout = { ...base.players.find((p) => p.role === "scout")!, hex: { q: 0, r: 0 } };
+    const state: GameState = { ...base, activePlayerIndex: 0, players: [scout], enemies: [] };
+
+    expect(moveRange(scout)).toBe(2);
+    const first = legalMoves(state, scout);
+    expect(first.size).toBeGreaterThan(0);
+    for (const steps of first.values()) expect(steps).toBe(1);
+
+    const after = movePlayer(state, [...first.keys()][0]);
+    const walked = after.players[0];
+    expect(walked.stepsTaken).toBe(1);
+    expect(stepsLeft(walked)).toBe(1);
+
+    // The second step is offered from the new tile - which is the point: the scout
+    // sees what the first step turned up before committing to the next one.
+    const second = legalMoves(after, walked);
+    expect(second.size).toBeGreaterThan(0);
+    expect(second.has(label(scout.hex))).toBe(true);
+
+    const done = movePlayer(after, [...second.keys()][0]);
+    expect(stepsLeft(done.players[0])).toBe(0);
+    expect(legalMoves(done, done.players[0]).size).toBe(0);
   });
 
   it("offers nothing once the player has moved, or is dead, or the game is over", () => {
     const state = game();
     const player = activePlayer(state);
-    expect(legalMoves(state, { ...player, movedThisTurn: true }).size).toBe(0);
+    expect(legalMoves(state, { ...player, stepsTaken: 1 }).size).toBe(0);
     expect(legalMoves(state, { ...player, dead: true }).size).toBe(0);
     expect(legalMoves({ ...state, phase: "gameOver" }, player).size).toBe(0);
   });
@@ -142,7 +173,7 @@ describe("moving", () => {
     const moved = after.players[after.activePlayerIndex];
 
     expect(key(moved.hex)).toBe(destination);
-    expect(moved.movedThisTurn).toBe(true);
+    expect(hasMoved(moved)).toBe(true);
     expect(legalMoves(after, moved).size).toBe(0);
     // The log says which way, never which tile: there is no map on screen, so a grid
     // reference in the log would hand the party the thing the design hides.
@@ -199,7 +230,7 @@ describe("turn order", () => {
     const destination = [...legalMoves(state, activePlayer(state)).keys()][0];
     state = take(state, destination);
 
-    expect(activePlayer(state).movedThisTurn).toBe(false);
+    expect(hasMoved(activePlayer(state))).toBe(false);
     expect(legalMoves(state, activePlayer(state)).size).toBeGreaterThan(0);
   });
 

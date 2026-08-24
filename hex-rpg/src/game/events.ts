@@ -17,7 +17,7 @@
 
 import { key } from "./hex";
 import { BONE, carriedGear, equip, makeItem, randomFood, FOOD } from "./items";
-import { maxHealthOf, withMaxHealth } from "./players";
+import { maxHealthOf, withMaxHealth, moveRange } from "./players";
 import { makeRng } from "./rng";
 import type { EventCard, GameState, Item, LogEntry, Player, Terrain } from "./types";
 
@@ -160,7 +160,7 @@ export const EVENTS: EventDefinition[] = [
     text: "Anyone in a city is stuck fast — no moving this turn, but you can still act.",
     target: "terrain",
     apply: (s) =>
-      each(s, (p) => standingOn(s, p, "city"), (p) => ({ ...p, movedThisTurn: true })),
+      each(s, (p) => standingOn(s, p, "city"), (p) => ({ ...p, stepsTaken: moveRange(p) })),
   },
   {
     id: "lost-kitty",
@@ -299,7 +299,7 @@ export const EVENTS: EventDefinition[] = [
     title: "Found a Shortcut",
     text: "Everyone may move again this turn.",
     target: "everyone",
-    apply: (s) => each(s, () => true, (p) => ({ ...p, movedThisTurn: false })),
+    apply: (s) => each(s, () => true, (p) => ({ ...p, stepsTaken: 0 })),
   },
 
   /* ---------------------------------------------------------------- mixed */
@@ -309,7 +309,7 @@ export const EVENTS: EventDefinition[] = [
     text: "Anyone on a field is stuck. Anyone by the river gets a wash and heals 1.",
     target: "terrain",
     apply: (s) => {
-      const stuck = each(s, (p) => standingOn(s, p, "field"), (p) => ({ ...p, movedThisTurn: true }));
+      const stuck = each(s, (p) => standingOn(s, p, "field"), (p) => ({ ...p, stepsTaken: moveRange(p) }));
       return each(stuck, (p) => standingOn(s, p, "river"), (p) => healed(p, 1));
     },
   },
@@ -393,7 +393,7 @@ export const EVENTS: EventDefinition[] = [
     title: "Wild Goose Chase",
     text: "Everyone is dragged one tile along by it.",
     target: "everyone",
-    apply: (s) => ({ ...s, players: s.players.map((p) => (p.dead ? p : { ...p, movedThisTurn: false })) }),
+    apply: (s) => ({ ...s, players: s.players.map((p) => (p.dead ? p : { ...p, stepsTaken: 0 })) }),
   },
 ];
 

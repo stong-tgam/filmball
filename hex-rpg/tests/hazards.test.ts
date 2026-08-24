@@ -13,6 +13,7 @@ import {
   payOff,
   placeHazards,
 } from "../src/game/hazards";
+import { hasMoved } from "../src/game/players";
 import { createInitialState, startGame } from "../src/game/setup";
 import { activePlayer, beginTurn, clearDraw, endTurn, legalMoves, movePlayer } from "../src/game/turn";
 import { attack } from "../src/game/combat";
@@ -444,7 +445,7 @@ describe("the traveller", () => {
   it("does not cost the turn - that is the spec's own default", () => {
     const after = donate(sharing("homeless"));
     expect(activePlayer(after).actedThisTurn).toBe(false);
-    expect(activePlayer(after).movedThisTurn).toBe(false);
+    expect(hasMoved(activePlayer(after))).toBe(false);
   });
 
   it("refuses a player with nothing at all", () => {

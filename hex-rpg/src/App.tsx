@@ -24,7 +24,7 @@ import {
 import { sellable, stockFor } from "./game/actions";
 import { key } from "./game/hex";
 import { elementsOf } from "./game/setup";
-import { ROLES } from "./game/players";
+import { ROLES, hasMoved } from "./game/players";
 import { canSee, smellsSmoke } from "./game/vision";
 import { sense } from "./game/sense";
 import "./styles.css";
@@ -108,7 +108,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v1.2 — gear, nerve and snakes</span>
+          <span className="version">v1.3 — a step at a time</span>
         </div>
         <button
           type="button"
@@ -182,7 +182,7 @@ export default function App() {
       <aside className="sidebar">
         <ActionBar
           canMove={legalMoves.size > 0}
-          moved={player.movedThisTurn}
+          moved={hasMoved(player)}
           acted={player.actedThisTurn}
           canSearch={canSearch}
           canTrade={canTrade}

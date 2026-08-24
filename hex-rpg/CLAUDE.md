@@ -218,9 +218,10 @@ notes are for.
 
 `npx vite-node tools/sim.ts 200` plays the game with a bot and prints how it ends.
 
-At v1.2: **23% wins, 61% out of time, 17% wipes** (v0.8 was 23/56/21; 35/45/20 before
-the fog). The escape roll and the +2 gear roughly cancel out — fewer wipes because the
-party is better equipped, more timeouts because a failed escape costs a turn.
+At v1.3: **20% wins, 55% out of time, 26% wipes** (v1.2 was 23/61/17, v0.8 23/56/21,
+35/45/20 before the fog). Step-by-step movement means the bot now spends every step
+instead of one, so it covers the same ground but bumps into more on the way: fewer
+timeouts, more wipes.
 Raising the turn limit barely helps — about +1% win per two turns — because the limit
 is not what is binding. What binds is that one player at 3 health grinds a 20–30 health
 dragon down alone: **§7.4's boss maths assumes the four-player group fight in §8, and
@@ -289,8 +290,11 @@ made:
 - **The tornado picks which piece of gear it takes and where it drops you.** The
   rulebook makes both the player's choice; automating them keeps a turn moving, and
   it takes the least useful piece.
-- **Pass-through**: you may move *through* another player, not stop on them. Enemies
-  are the opposite: onto, never past (§5).
+- **Another player blocks outright.** The old rule let you move *through* somebody so
+  long as you did not stop on them, which only worked when a multi-tile move was chosen
+  in one go. Spent a step at a time you could always simply end the turn standing on
+  them, so the rule was unenforceable — walk round your friend. Enemies are unchanged:
+  onto, never past (§5).
 - **A tile can be searched once per game**, or standing still beats playing.
 
 ## Open questions
@@ -311,11 +315,15 @@ made:
   change to `combat.ts` and `turn.ts` — take it as soon as the rulebook, or a
   playtest, says so.
 - **Enemy and player stats are placeholders** (`enemies.ts`, `players.ts`).
-- **Pass-through**: you may move *through* another player, not stop on them
-  (`legalMoves` in `turn.ts`). Enemies are the opposite: onto, never past.
+- **Another player blocks outright** (`legalMoves` in `turn.ts`), since step-by-step
+  movement makes "through but not onto" unenforceable. Enemies: onto, never past.
 - **Rivers do not cost movement.** No terrain does, yet.
-- **Movement is one tile a turn, two for the scout.** That one is a rule, not a
-  placeholder: a turn should be a single decision.
+- **Movement is spent one tile at a time** (`stepsTaken`, `stepsLeft`). A Scout with
+  two tiles takes a step, *sees what that step revealed*, and only then decides whether
+  to spend the second or do something else. Never offer a two-tile destination up
+  front: on a board nobody can see, that is a leap into the dark, and it turns the
+  Scout's bonus from scouting into teleporting. `legalMoves` therefore always returns
+  neighbours and only neighbours.
 - **Entry side is not a rule.** Sides are stored per direction, so "which element you
   are standing in depends on the side you entered from" remains available; nothing
   uses it, and `base` decides what a tile is for.

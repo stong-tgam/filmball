@@ -131,7 +131,7 @@ describe("the log gives nothing away", () => {
         continue;
       }
       const me = activePlayer(state);
-      if (!me.movedThisTurn) {
+      if (!me.stepsTaken) {
         const moves = [...legalMoves(state, me).keys()];
         if (moves.length > 0) {
           state = movePlayer(state, moves[Math.floor(rng.next() * moves.length)]);

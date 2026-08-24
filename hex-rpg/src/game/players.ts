@@ -27,6 +27,13 @@ export const BASE_MOVE = 1;
 export const moveRange = (player: Player): number =>
   BASE_MOVE + ROLES[player.role].moveBonus + (player.boots?.value ?? 0);
 
+/** Steps still in the legs this turn. Movement is spent one tile at a time. */
+export const stepsLeft = (player: Player): number =>
+  Math.max(0, moveRange(player) - player.stepsTaken);
+
+/** Has this player moved at all yet this turn? */
+export const hasMoved = (player: Player): boolean => player.stepsTaken > 0;
+
 export type RoleProfile = {
   /** What the role is called at the table. */
   name: string;
@@ -129,7 +136,7 @@ const spawn = (role: Role, hex: Hex): Player => {
     dead: false,
     fellAt: null,
     fellOn: null,
-    movedThisTurn: false,
+    stepsTaken: 0,
     actedThisTurn: false,
     stunned: false,
     joinedFightThisRound: false,

@@ -34,6 +34,7 @@ import {
 import { attack, endCombat, takeSpoil } from "../src/game/combat";
 import { ENEMIES } from "../src/game/enemies";
 import { withMaxHealth } from "../src/game/players";
+import { hasMoved } from "../src/game/players";
 import { createInitialState } from "../src/game/setup";
 import { activePlayer, endTurn, moveRange, movePlayer } from "../src/game/turn";
 import { makeRng } from "../src/game/rng";
@@ -560,6 +561,6 @@ describe("one action a turn", () => {
   it("hands the next player a clean slate", () => {
     const after = endTurn(search(standing("field")));
     expect(activePlayer(after).actedThisTurn).toBe(false);
-    expect(activePlayer(after).movedThisTurn).toBe(false);
+    expect(hasMoved(activePlayer(after))).toBe(false);
   });
 });

@@ -67,8 +67,16 @@ export type Player = {
   boots: Item | null;
   supply: Item[];
   dead: boolean;
-  /** One move per turn; cleared when the player's next turn begins. */
-  movedThisTurn: boolean;
+/**
+   * Tiles walked so far this turn. Cleared when the player's next turn begins.
+   *
+   * A turn's movement is spent **one tile at a time**, not as a range: a Scout with two
+   * tiles takes a step, looks at what that step revealed, and only then decides whether
+   * to take the second or do something else with the turn. On a board nobody can see,
+   * a two-tile move chosen up front would be a leap into the dark; step by step, extra
+   * movement is extra *scouting*, which is what the role is for.
+   */
+  stepsTaken: number;
   /** One action per turn - search, trade or a fight. Eating is free and not this. */
   actedThisTurn: boolean;
   /** Owes a turn - looking after the traveller, per rulebook §5.5. */

@@ -13,7 +13,7 @@ import { enemyAt } from "./enemies";
 import { applyEvent, createEventDeck } from "./events";
 import { isDestroyed, meet, moveHazards } from "./hazards";
 import { fromLabel, key, reachable } from "./hex";
-import { moveRange } from "./players";
+import { hasMoved, stepsLeft } from "./players";
 import { bearingBetween, compassName } from "./sense";
 import { cardName } from "./cards";
 import type { EventCard, GameState, LogEntry, Player } from "./types";
@@ -22,7 +22,7 @@ export const activePlayer = (state: GameState): Player => state.players[state.ac
 
 // Both live in players.ts so combat.ts can read a player's speed for the escape roll
 // without importing this file, which already imports combat.ts.
-export { BASE_MOVE, moveRange } from "./players";
+export { BASE_MOVE, hasMoved, moveRange, stepsLeft } from "./players";
 
 const note = (state: GameState, text: string): GameState => ({
   ...state,
@@ -44,8 +44,20 @@ const note = (state: GameState, text: string): GameState => ({
  * Enemies are the opposite: you may walk onto one, which starts a fight, but you may
  * not walk past it. Something in your way is in your way.
  */
+/**
+ * Where this player may step **next**, which is always one tile.
+ *
+ * Movement is spent a tile at a time even when there is more than one tile of it. On a
+ * hidden board, offering a two-tile destination up front would mean picking a square
+ * you cannot see; taking one step and looking again is what extra movement is *for*.
+ */
 export function legalMoves(state: GameState, player: Player): Map<string, number> {
-  if (player.dead || player.movedThisTurn || state.phase === "gameOver") return new Map();
+  if (player.dead || stepsLeft(player) === 0 || state.phase === "gameOver") return new Map();
+
+  // Another player blocks outright now. The old rule let you move *through* somebody
+  // as long as you did not stop on them, which only made sense when a two-tile move
+  // was chosen in one go: taken a step at a time you could always simply end the turn
+  // standing on them, so the rule was unenforceable. Walk round your friend.
 
   const occupied = new Set(
     state.players.filter((p) => p.id !== player.id && !p.dead).map((p) => key(p.hex)),
@@ -57,7 +69,7 @@ export function legalMoves(state: GameState, player: Player): Map<string, number
     !isDestroyed(state.tiles[key(h)], state.turn);
 
   const moves = new Map<string, number>();
-  for (const [label, steps] of reachable(player.hex, moveRange(player), standable, guarded)) {
+  for (const [label, steps] of reachable(player.hex, 1, standable, guarded)) {
     if (steps === 0 || occupied.has(label)) continue;
     moves.set(label, steps);
   }
@@ -72,7 +84,7 @@ export function movePlayer(state: GameState, destination: string): GameState {
   if (steps === undefined || hex === null) return state;
 
   const players = state.players.map((p) =>
-    p.id === player.id ? { ...p, hex, movedThisTurn: true } : p,
+    p.id === player.id ? { ...p, hex, stepsTaken: p.stepsTaken + 1 } : p,
   );
   const moved = note(
     { ...state, players },
@@ -171,7 +183,7 @@ export function endTurn(state: GameState): GameState {
 
   const player = activePlayer(state);
   let next = state;
-  if (!player.movedThisTurn && !player.dead) {
+  if (!hasMoved(player) && !player.dead) {
     next = note(next, `${player.name} held position.`);
   }
 
@@ -217,7 +229,7 @@ export function endTurn(state: GameState): GameState {
 
   // A fresh turn for whoever is up next.
   const ready = next.players.map((p, i) =>
-    i === index ? { ...p, movedThisTurn: false, actedThisTurn: false } : p,
+    i === index ? { ...p, stepsTaken: 0, actedThisTurn: false } : p,
   );
   const started = { ...next, players: ready, activePlayerIndex: index, turn, phase: "playerMove" as const };
   // A new turn for the whole party, not just the next player, is what draws a card.

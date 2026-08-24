@@ -37,10 +37,14 @@ function botTurn(state: GameState, roll: () => number): GameState {
   if (next.combat) return endTurn(next);
   if (next.ending) return next;
 
-  const me = activePlayer(next);
-  if (!me.movedThisTurn) {
+  // Movement is spent a tile at a time, so walk until the legs run out or something
+  // interrupts. A bot that took one step and stopped would understate how far a party
+  // actually gets in a turn.
+  for (let step = 0; step < 4 && !next.combat && !next.ending; step++) {
+    const me = activePlayer(next);
     const moves = [...legalMoves(next, me).keys()];
-    if (moves.length > 0) {
+    if (moves.length === 0) break;
+    {
       // Play like somebody who has read the box: the dragon is in the middle, so
       // walk inward, with enough wandering to bump into things on the way. A purely
       // random walker never crosses a 61-tile board inside the turn limit and tells

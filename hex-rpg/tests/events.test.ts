@@ -19,6 +19,7 @@ import {
   startCombat,
 } from "../src/game/combat";
 import { ENEMIES } from "../src/game/enemies";
+import { stepsLeft } from "../src/game/players";
 import { createInitialState, startGame } from "../src/game/setup";
 import { beginTurn, clearDraw, endTurn } from "../src/game/turn";
 import { healthLeft } from "../src/game/enemies";
@@ -252,9 +253,9 @@ describe("events", () => {
   it("gives everybody their move back on a shortcut", () => {
     const spent: GameState = {
       ...base(),
-      players: base().players.map((p) => ({ ...p, movedThisTurn: true })),
+      players: base().players.map((p) => ({ ...p, stepsTaken: 1 })),
     };
-    for (const p of run("found-a-shortcut", spent).players) expect(p.movedThisTurn).toBe(false);
+    for (const p of run("found-a-shortcut", spent).players) expect(p.stepsTaken).toBe(0);
   });
 
   it("sticks the city players in place with gum, but leaves them their action", () => {
@@ -265,7 +266,8 @@ describe("events", () => {
       players: before.players.map((p, i) => (i === 0 ? { ...p, hex: city.hex } : p)),
     };
     const after = run("stepped-on-gum", staged);
-    expect(after.players[0].movedThisTurn).toBe(true);
+    // Stuck means no steps left, however many the player had to begin with.
+    expect(stepsLeft(after.players[0])).toBe(0);
     expect(after.players[0].actedThisTurn).toBe(false);
   });
 

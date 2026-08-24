@@ -78,6 +78,20 @@ tests/           vitest, node environment, no rendering
 The hard rule from the spec holds: `src/game/` never imports React, and every rule is
 a pure function over serialisable state.
 
+## v1.3: movement is a step at a time
+
+A Scout has two tiles of movement, and now spends them **one at a time**. Take a step,
+look at what that step turned up, and *then* decide: another step, or search, or shop,
+or stop. The same goes for anyone in boots.
+
+This is what the Scout is for. Picking a destination two tiles away on a board nobody
+can see was a leap into the dark; stepping and looking is scouting.
+
+One consequence: another player now blocks you outright. You used to be allowed to move
+*through* someone so long as you did not stop on them, which only made sense when the
+whole move was chosen in one go — taken step by step you could always just end the turn
+standing on them. Walk round your friend.
+
 ## v1.2: better gear, riskier running, searches that bite
 
 - **Gear comes in two grades.** Ordinary is +1, fine is +2, and the name is the same
