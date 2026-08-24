@@ -250,12 +250,13 @@ describe("createInitialState", () => {
     expect(state.activePlayerIndex).toBe(0);
     expect(Object.keys(state.tiles)).toHaveLength(TILE_COUNT);
     expect(state.players).toHaveLength(4);
-    // Nine monsters, plus the robber and the pirates, who are hazards as well.
-    expect(state.enemies).toHaveLength(11);
+    // Rulebook §2/§15: fifteen mobs, four mid bosses and the dragon, plus the robber
+    // and the pirates, who are monsters as well as hazards.
+    expect(state.enemies).toHaveLength(22);
     expect(state.combat).toBeNull();
-    expect(state.itemPile).toHaveLength(13);
+    expect(state.itemPile).toHaveLength(15);
     expect(state.pokerDeck).toHaveLength(52);
-    expect(state.searchDeck).toHaveLength(52);
+    expect(state.searchDeck).toHaveLength(54);
     expect(state.eventDeck.length).toBeGreaterThan(0);
     expect(state.draw).toBeNull();
     expect(state.hazards).toHaveLength(4);

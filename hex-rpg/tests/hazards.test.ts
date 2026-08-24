@@ -3,13 +3,14 @@ import {
   DONATION,
   HAZARDS,
   HAZARD_SAFE_RADIUS,
-  ROBBERY,
+  TORNADO_THROW,
   canDonate,
+  canPayOff,
   donate,
-  hazardAt,
   isDestroyed,
   meet,
   moveHazards,
+  payOff,
   placeHazards,
 } from "../src/game/hazards";
 import { createInitialState, startGame } from "../src/game/setup";
@@ -17,8 +18,8 @@ import { activePlayer, beginTurn, clearDraw, endTurn, legalMoves, movePlayer } f
 import { attack } from "../src/game/combat";
 import { makeRng } from "../src/game/rng";
 import { distance, fromLabel, key, neighbours } from "../src/game/hex";
-import { makeItem } from "../src/game/items";
-import { EQUIPMENT } from "../src/game/items";
+import { EQUIPMENT, FOOD, makeItem } from "../src/game/items";
+import { ENEMIES } from "../src/game/enemies";
 import type { GameState, HazardKind } from "../src/game/types";
 
 const SEEDS = [1, 7, 42, 4471, 90210];
@@ -45,14 +46,26 @@ describe("placing hazards", () => {
     }
   });
 
-  it("keeps them well clear of the party at the start", () => {
+  it("keeps them clear of the party at the start where the board allows", () => {
     for (const seed of SEEDS) {
       const { hazards, players } = base(seed);
       for (const hazard of hazards) {
         for (const player of players) {
-          expect(distance(hazard.hex, player.hex)).toBeGreaterThanOrEqual(HAZARD_SAFE_RADIUS);
+          // Never on top of somebody on turn 1; usually well clear.
+          expect(distance(hazard.hex, player.hex)).toBeGreaterThan(0);
         }
       }
+      // With twenty monsters and a river-only pirate to fit around, the preferred
+      // spacing is not always available - but never adjacent, and mostly well clear.
+      for (const hazard of hazards) {
+        for (const player of players) {
+          expect(distance(hazard.hex, player.hex)).toBeGreaterThan(1);
+        }
+      }
+      const clear = hazards.filter((h) =>
+        players.every((p) => distance(h.hex, p.hex) >= HAZARD_SAFE_RADIUS),
+      );
+      expect(clear.length).toBeGreaterThanOrEqual(hazards.length - 1);
     }
   });
 
@@ -162,14 +175,18 @@ describe("hazards moving", () => {
 });
 
 describe("the tornado", () => {
-  it("wrecks the ground it lands on, and the ground recovers when it moves on", () => {
+  it("wrecks the six tiles around it, not the one under it - rulebook §5.5", () => {
     const state = moveHazards(base());
     const tornado = state.hazards.find((h) => h.kind === "tornado")!;
-    const wrecked = state.tiles[key(tornado.hex)];
 
-    expect(wrecked.destroyedUntil).toBe(state.turn + 1);
-    expect(isDestroyed(wrecked, state.turn)).toBe(true);
-    expect(isDestroyed(wrecked, state.turn + 1)).toBe(false);
+    for (const hex of neighbours(tornado.hex)) {
+      const tile = state.tiles[key(hex)];
+      expect(tile.destroyedUntil).toBe(state.turn + 1);
+      expect(isDestroyed(tile, state.turn)).toBe(true);
+      // And it recovers as soon as the tornado moves on.
+      expect(isDestroyed(tile, state.turn + 1)).toBe(false);
+    }
+    expect(isDestroyed(state.tiles[key(tornado.hex)], state.turn)).toBe(false);
   });
 
   it("makes wrecked ground impassable", () => {
@@ -186,14 +203,30 @@ describe("the tornado", () => {
     expect(legalMoves(blocked, player).has(key(next))).toBe(false);
   });
 
-  it("throws a player clear and costs them their next turn", () => {
-    const caught = meet(sharing("tornado"), "tornado", activePlayer(base()).id);
-    const player = caught.players[caught.activePlayerIndex];
-    const tornado = caught.hazards.find((h) => h.kind === "tornado")!;
+  it("takes all your food and a piece of gear, and puts you down within three tiles", () => {
+    const state = sharing("tornado");
+    const loaded: GameState = {
+      ...state,
+      players: state.players.map((p, i) =>
+        i === 0
+          ? {
+              ...p,
+              supply: [makeItem(FOOD[2], "snack-a"), makeItem(FOOD[3], "snack-b")],
+              boots: makeItem(EQUIPMENT.find((e) => e.slot === "boots")!, "kicks"),
+            }
+          : p,
+      ),
+    };
+    const before = loaded.players[0];
+    const caught = meet(loaded, "tornado", before.id);
+    const player = caught.players[0];
 
-    expect(player.stunned).toBe(true);
-    expect(key(player.hex)).not.toBe(key(tornado.hex));
-    expect(distance(player.hex, tornado.hex)).toBe(1);
+    // Rulebook §5.5: all supply, plus one piece of equipment.
+    expect(player.supply).toEqual([]);
+    expect(player.boots).toBeNull();
+    expect(caught.itemPile.some((i) => i.id === "kicks")).toBe(true);
+    expect(distance(player.hex, before.hex)).toBeGreaterThan(0);
+    expect(distance(player.hex, before.hex)).toBeLessThanOrEqual(TORNADO_THROW);
   });
 
   it("leaves monsters where they are", () => {
@@ -206,7 +239,7 @@ describe("the tornado", () => {
     }
   });
 
-  it("skips a flattened player's turn, once", () => {
+  it("skips the turn of anyone who owed one, once", () => {
     const state = startGame(4471);
     const flattened: GameState = {
       ...state,
@@ -220,96 +253,98 @@ describe("the tornado", () => {
   });
 });
 
-describe("the robber", () => {
-  it("takes coins and carries them", () => {
+describe("the thieves", () => {
+  it("do not mug you as they pass - they block your way", () => {
+    // Rulebook §5.5: a thief is a mid-boss fight standing in front of you, not a toll.
     const state = sharing("robber");
     const before = activePlayer(state);
     const after = meet(state, "robber", before.id);
-    const robbed = activePlayer(after);
 
-    expect(robbed.money).toBe(before.money - ROBBERY);
-    expect(hazardAt(after.hazards, key(robbed.hex))?.carrying).toBe(ROBBERY);
+    expect(activePlayer(after).money).toBe(before.money);
+    expect(after.log.at(-1)?.text).toContain("Fight, or pay up");
   });
 
-  it("takes what it can when the pockets are nearly empty", () => {
+  it("offer a pay-off that costs everything and moves you along", () => {
     const state = sharing("robber");
-    const poor: GameState = {
+    const rich: GameState = {
       ...state,
-      players: state.players.map((p, i) => (i === 0 ? { ...p, money: 1 } : p)),
+      players: state.players.map((p, i) => (i === 0 ? { ...p, money: 9 } : p)),
     };
-    const after = meet(poor, "robber", activePlayer(poor).id);
-    expect(activePlayer(after).money).toBe(0);
-    expect(after.hazards.find((h) => h.kind === "robber")!.carrying).toBe(1);
+    expect(canPayOff(rich, activePlayer(rich))).toBe(true);
+
+    const after = payOff(rich);
+    const paid = activePlayer(after);
+    expect(paid.money).toBe(0);
+    expect(paid.actedThisTurn).toBe(true);
+    expect(key(paid.hex)).not.toBe(key(activePlayer(rich).hex));
+    expect(after.hazards.find((h) => h.kind === "robber")!.carrying).toBe(9);
   });
 
-  it("does not rob the same player twice on one tile", () => {
-    const state = sharing("robber");
-    const once = meet(state, "robber", activePlayer(state).id);
-    const twice = meet(once, "robber", activePlayer(once).id);
-    expect(activePlayer(twice).money).toBe(activePlayer(once).money);
+  it("take a piece of gear too, if they are pirates", () => {
+    const state = sharing("pirates");
+    const armed: GameState = {
+      ...state,
+      players: state.players.map((p, i) =>
+        i === 0
+          ? { ...p, money: 4, weapon: makeItem(EQUIPMENT[0], "blade") }
+          : p,
+      ),
+    };
+    const after = payOff(armed);
+    expect(activePlayer(after).weapon).toBeNull();
+    expect(after.enemies.find((e) => e.kind === "pirates")!.loot.map((i) => i.id)).toContain(
+      "blade",
+    );
+  });
+
+  it("are not offered a pay-off when nobody is standing on you", () => {
+    const apart = base();
+    expect(canPayOff(apart, activePlayer(apart))).toBe(false);
+    expect(payOff(apart)).toBe(apart);
   });
 });
 
 describe("catching a thief", () => {
-  /** The active player on the robber's tile, with the robber one hit from beaten. */
-  function cornered(carrying: number) {
-    const state = sharing("robber");
-    const robber = state.enemies.find((e) => e.kind === "robber")!;
+  /** The active player on the thief's tile, with the thief one hit from beaten. */
+  function cornered(kind: "robber" | "pirates", carrying = 0) {
+    const state = sharing(kind);
+    const thief = state.enemies.find((e) => e.kind === kind)!;
     const player = activePlayer(state);
     return {
       ...state,
-      hazards: state.hazards.map((h) => (h.kind === "robber" ? { ...h, carrying } : h)),
+      hazards: state.hazards.map((h) => (h.kind === kind ? { ...h, carrying } : h)),
       enemies: state.enemies.map((e) =>
-        e.id === robber.id ? { ...e, hex: player.hex, damageTaken: e.maxHealth - 1 } : e,
+        e.id === thief.id
+          ? { ...e, hex: player.hex, damageTaken: e.maxHealth - 1, loot: [makeItem(EQUIPMENT[0], "taken")] }
+          : e,
       ),
+      players: state.players.map((p, i) => (i === 0 ? { ...p, health: 9, maxHealth: 9 } : p)),
       combat: {
-        enemyId: robber.id,
+        enemyId: thief.id,
         playerId: player.id,
         from: key(player.hex),
         round: 0,
         playerRoll: null,
-        enemyRoll: null,
+        toll: 0,
+        spoils: [],
+        picksLeft: 0,
         outcome: "ongoing" as const,
       },
     };
   }
 
-  it("hands back everything it stole", () => {
-    const state = cornered(7);
-    const before = activePlayer(state);
+  it("puts what they stole on the ground with the rest of the loot", () => {
+    const state = cornered("pirates");
     const after = attack(state);
-
     expect(after.combat?.outcome).toBe("enemyDefeated");
-    expect(activePlayer(after).money).toBe(before.money + 7);
-    expect(after.hazards.find((h) => h.kind === "robber")!.carrying).toBe(0);
+    expect(after.combat?.spoils.map((i) => i.id)).toContain("taken");
   });
 
-  it("hands back the gear the pirates took, as loot to pick up", () => {
-    const state = sharing("pirates");
-    const player = activePlayer(state);
-    const pirates = state.enemies.find((e) => e.kind === "pirates")!;
-    const stolen = makeItem(EQUIPMENT[1], "taken-sword");
-    const fight: GameState = {
-      ...state,
-      enemies: state.enemies.map((e) =>
-        e.id === pirates.id
-          ? { ...e, hex: player.hex, damageTaken: e.maxHealth - 1, loot: [stolen] }
-          : e,
-      ),
-      combat: {
-        enemyId: pirates.id,
-        playerId: player.id,
-        from: key(player.hex),
-        round: 0,
-        playerRoll: null,
-        enemyRoll: null,
-        outcome: "ongoing",
-      },
-    };
-    const after = attack(fight);
-    expect(after.enemies.find((e) => e.id === pirates.id)!.loot.map((i) => i.id)).toContain(
-      "taken-sword",
-    );
+  it("lets the winner keep only as many as the rulebook allows", () => {
+    const state = cornered("robber");
+    const after = attack(state);
+    expect(after.combat?.picksLeft).toBeLessThanOrEqual(ENEMIES.robber.picks);
+    expect(after.combat!.picksLeft).toBeLessThanOrEqual(after.combat!.spoils.length);
   });
 });
 
@@ -328,8 +363,8 @@ describe("walking into a hazard", () => {
     };
     const after = movePlayer(waiting, target);
 
-    expect(activePlayer(after).money).toBe(player.money - ROBBERY);
     expect(after.hazards.find((h) => h.kind === "robber")!.resolvedWith).toContain(player.id);
+    expect(after.log.some((e) => e.text.includes("Fight, or pay up"))).toBe(true);
   });
 });
 
@@ -339,33 +374,22 @@ describe("the pirates", () => {
     return {
       ...state,
       players: state.players.map((p, i) =>
-        i === 0 ? { ...p, weapon: makeItem(EQUIPMENT[1], "sword-x") } : p,
+        i === 0 ? { ...p, money: 3, weapon: makeItem(EQUIPMENT[1], "sword-x") } : p,
       ),
     };
   };
 
-  it("take gear rather than coins, and keep it", () => {
+  it("take gear as well as money when you pay them off", () => {
     const state = armed();
     const before = activePlayer(state);
-    const after = meet(state, "pirates", before.id);
+    const after = payOff(state);
 
     expect(activePlayer(after).weapon).toBeNull();
-    expect(activePlayer(after).money).toBe(before.money);
+    expect(activePlayer(after).money).toBe(0);
     expect(after.enemies.find((e) => e.kind === "pirates")!.loot.map((i) => i.id)).toContain(
       "sword-x",
     );
-  });
-
-  it("shrug at a player with nothing worth taking", () => {
-    const state = sharing("pirates");
-    const bare: GameState = {
-      ...state,
-      players: state.players.map((p, i) =>
-        i === 0 ? { ...p, weapon: null, armor: null, boots: null } : p,
-      ),
-    };
-    const after = meet(bare, "pirates", activePlayer(bare).id);
-    expect(after.enemies.find((e) => e.kind === "pirates")!.loot).toEqual([]);
+    expect(after.hazards.find((h) => h.kind === "pirates")!.carrying).toBe(before.money);
   });
 });
 
@@ -378,14 +402,42 @@ describe("the traveller", () => {
     expect(canDonate(apart, activePlayer(apart))).toBe(false);
   });
 
-  it("takes the money and gives you a die", () => {
+  it("takes a dollar and gives you a fourth die", () => {
     const met = sharing("homeless");
     const before = activePlayer(met);
     const after = donate(met);
     const giver = activePlayer(after);
 
     expect(giver.money).toBe(before.money - DONATION);
-    expect(giver.bonusDiceNextFight).toBe(before.bonusDiceNextFight + 1);
+    expect(giver.bonusDiceNextFight).toBe(1);
+  });
+
+  it("takes food instead when the pockets are empty", () => {
+    const met = sharing("homeless");
+    const broke: GameState = {
+      ...met,
+      players: met.players.map((p, i) =>
+        i === 0 ? { ...p, money: 0, supply: [makeItem(FOOD[2], "snack")] } : p,
+      ),
+    };
+    const after = donate(broke);
+    expect(activePlayer(after).supply).toEqual([]);
+    expect(activePlayer(after).bonusDiceNextFight).toBe(1);
+  });
+
+  it("is once only, per §5.5", () => {
+    const once = donate(sharing("homeless"));
+    expect(canDonate(once, activePlayer(once))).toBe(false);
+  });
+
+  it("costs a turn when you have nothing at all to give", () => {
+    const met = sharing("homeless");
+    const destitute: GameState = {
+      ...met,
+      players: met.players.map((p, i) => (i === 0 ? { ...p, money: 0, supply: [] } : p)),
+    };
+    const after = meet(destitute, "homeless", activePlayer(destitute).id);
+    expect(activePlayer(after).stunned).toBe(true);
   });
 
   it("does not cost the turn - that is the spec's own default", () => {
@@ -394,11 +446,11 @@ describe("the traveller", () => {
     expect(activePlayer(after).movedThisTurn).toBe(false);
   });
 
-  it("refuses a player who cannot afford it", () => {
+  it("refuses a player with nothing at all", () => {
     const met = sharing("homeless");
     const broke: GameState = {
       ...met,
-      players: met.players.map((p, i) => (i === 0 ? { ...p, money: 0 } : p)),
+      players: met.players.map((p, i) => (i === 0 ? { ...p, money: 0, supply: [] } : p)),
     };
     expect(canDonate(broke, activePlayer(broke))).toBe(false);
     expect(donate(broke)).toBe(broke);

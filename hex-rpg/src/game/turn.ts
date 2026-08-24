@@ -19,9 +19,11 @@ import type { EventCard, GameState, LogEntry, Player } from "./types";
 
 export const activePlayer = (state: GameState): Player => state.players[state.activePlayerIndex];
 
-/** Tiles per turn: the role's own legs, plus whatever boots add. */
+/** Rulebook §5: one tile, plus the scout's legs and whatever boots add. */
+export const BASE_MOVE = 1;
+
 export const moveRange = (player: Player): number =>
-  ROLES[player.role].move + (player.boots?.value ?? 0);
+  BASE_MOVE + ROLES[player.role].moveBonus + (player.boots?.value ?? 0);
 
 const note = (state: GameState, text: string): GameState => ({
   ...state,
@@ -130,12 +132,38 @@ function createDeck(state: GameState): EventCard[] {
 export const clearDraw = (state: GameState): GameState => ({ ...state, draw: null });
 
 /**
+ * Rulebook §7, the suggested compromise: a fallen player gets back up on their own
+ * after one full turn, at 1 health, on the tile where they fell. A doctor reaching
+ * them first is instant - that lives in `actions.ts`.
+ */
+function tendTheFallen(state: GameState): GameState {
+  let next = state;
+  for (const player of state.players) {
+    if (!player.dead || player.fellOn === null) continue;
+    if (state.turn <= player.fellOn) continue;
+
+    next = note(
+      {
+        ...next,
+        players: next.players.map((p) =>
+          p.id === player.id
+            ? { ...p, dead: false, health: 1, hex: p.fellAt ?? p.hex, fellAt: null, fellOn: null }
+            : p,
+        ),
+      },
+      `${player.name} picked themselves up at ${key(player.fellAt ?? player.hex)}, on one health.`,
+    );
+  }
+  return next;
+}
+
+/**
  * Hand the turn to the next living player, rolling the turn counter over when the
  * party comes back round to the start.
  */
 export function endTurn(state: GameState): GameState {
   // A fight has to finish, or be fled, before the turn can pass.
-  if (state.phase === "gameOver" || state.combat) return state;
+  if (state.phase === "gameOver" || state.ending !== null || state.combat) return state;
 
   const player = activePlayer(state);
   let next = state;
@@ -143,8 +171,17 @@ export function endTurn(state: GameState): GameState {
     next = note(next, `${player.name} held position at ${key(player.hex)}.`);
   }
 
+  // Rulebook §7: the fallen can pick themselves up after a full turn, and a doctor
+  // reaching them is instant. Nobody is out of the game for good.
+  next = tendTheFallen(next);
+
   const living = next.players.filter((p) => !p.dead);
-  if (living.length === 0) return note({ ...next, phase: "gameOver" }, "The party is gone.");
+  if (living.length === 0) {
+    return note(
+      { ...next, phase: "gameOver", ending: "partyLost" },
+      "Everybody is down. The dragon wins this one.",
+    );
+  }
 
   let index = next.activePlayerIndex;
   let turn = next.turn;
@@ -169,8 +206,8 @@ export function endTurn(state: GameState): GameState {
 
   if (turn > next.turnLimit) {
     return note(
-      { ...next, phase: "gameOver", turn: next.turnLimit },
-      `Turn ${next.turnLimit} was the last one. Time is up.`,
+      { ...next, phase: "gameOver", ending: "outOfTime", turn: next.turnLimit },
+      `Turn ${next.turnLimit} was the last one. The dragon is still out there.`,
     );
   }
 

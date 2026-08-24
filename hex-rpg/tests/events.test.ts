@@ -12,16 +12,17 @@ import {
 import { EVENTS, applyEvent, createEventDeck } from "../src/game/events";
 import {
   ALL_FEATURES,
-  FEATURES_PER_BOSS,
   activeFeatures,
   attack,
-  bossFeatures,
+  attackValue,
   drawFeatures,
   startCombat,
 } from "../src/game/combat";
+import { ENEMIES } from "../src/game/enemies";
 import { createInitialState, startGame } from "../src/game/setup";
-import { activePlayer, beginTurn, clearDraw, endTurn } from "../src/game/turn";
+import { beginTurn, clearDraw, endTurn } from "../src/game/turn";
 import { healthLeft } from "../src/game/enemies";
+import { FOOD, makeItem } from "../src/game/items";
 import { key } from "../src/game/hex";
 import type { Enemy, GameState, Tile } from "../src/game/types";
 
@@ -37,8 +38,10 @@ describe("the deck", () => {
   });
 
   it("knows its face cards and its colours", () => {
+    // Rulebook §4: J, Q and K bring events. An ace is a high card, not a court card.
     expect(isFace({ suit: "spades", rank: "K" })).toBe(true);
-    expect(isFace({ suit: "spades", rank: "A" })).toBe(true);
+    expect(isFace({ suit: "spades", rank: "Q" })).toBe(true);
+    expect(isFace({ suit: "spades", rank: "A" })).toBe(false);
     expect(isFace({ suit: "spades", rank: "10" })).toBe(false);
     expect(isRed({ suit: "hearts", rank: "2" })).toBe(true);
     expect(isRed({ suit: "clubs", rank: "2" })).toBe(false);
@@ -68,7 +71,10 @@ describe("the deck", () => {
     const state = createInitialState(4471);
     expect(state.pokerDeck).not.toEqual(state.searchDeck);
     expect(state.pokerDeck).toHaveLength(52);
-    expect(state.searchDeck).toHaveLength(52);
+    // Rulebook §6: the search deck carries the two jokers, the event deck does not.
+    expect(state.searchDeck).toHaveLength(54);
+    expect(state.searchDeck.filter((c) => c.rank === "Joker")).toHaveLength(2);
+    expect(state.pokerDeck.some((c) => c.rank === "Joker")).toBe(false);
   });
 });
 
@@ -123,29 +129,49 @@ describe("events", () => {
   const run = (id: string, state: GameState = base()) =>
     applyEvent(state, EVENTS.find((e) => e.id === id)!);
 
-  it("has a deck of distinct cards, all of which do something", () => {
+  it("has a deck of distinct cards, all of which say who they hit", () => {
     const { deck } = createEventDeck(1);
     expect(deck.length).toBe(EVENTS.length);
     expect(new Set(deck.map((c) => c.id)).size).toBe(EVENTS.length);
     for (const event of EVENTS) {
       expect(event.title.length).toBeGreaterThan(0);
       expect(event.text.length).toBeGreaterThan(0);
+      // Rulebook §13: every card states its target.
+      expect(["terrain", "encounter", "everyone"]).toContain(event.target);
     }
   });
 
-  it("pays the whole party on market day", () => {
+  it("pays the whole party at the lemonade stand", () => {
     const before = base();
-    const after = run("market-day", before);
+    const after = run("lemonade-stand", before);
     for (let i = 0; i < after.players.length; i++) {
-      expect(after.players[i].money).toBe(before.players[i].money + 2);
+      expect(after.players[i].money).toBe(before.players[i].money + 1);
     }
   });
 
-  it("takes health off everyone when the wolves come", () => {
+  it("hits only the players on the named terrain", () => {
+    // Rulebook §13: a terrain card reaches everyone on that ground and nobody else.
     const before = base();
-    const after = run("wolves", before);
-    for (let i = 0; i < after.players.length; i++) {
-      expect(after.players[i].health).toBe(before.players[i].health - 1);
+    const forest = Object.values(before.tiles).find((t) => t.base === "forest")!;
+    const field = Object.values(before.tiles).find((t) => t.base === "field")!;
+    const staged: GameState = {
+      ...before,
+      players: before.players.map((p, i) => ({ ...p, hex: i === 0 ? forest.hex : field.hex })),
+    };
+    const after = run("poisoned-frog", staged);
+
+    expect(after.players[0].health).toBe(staged.players[0].health - 1);
+    for (let i = 1; i < after.players.length; i++) {
+      expect(after.players[i].health).toBe(staged.players[i].health);
+    }
+  });
+
+  it("hits only the drawer on an encounter card", () => {
+    const before = base();
+    const after = run("dropped-your-wallet", before);
+    expect(after.players[0].money).toBe(before.players[0].money - 1);
+    for (let i = 1; i < after.players.length; i++) {
+      expect(after.players[i].money).toBe(before.players[i].money);
     }
   });
 
@@ -154,12 +180,11 @@ describe("events", () => {
       ...base(),
       players: base().players.map((p) => ({ ...p, money: 0 })),
     };
-    for (const p of run("tax-collector", broke).players) expect(p.money).toBe(0);
-    for (const p of run("lost-purse", broke).players) expect(p.money).toBe(0);
+    for (const p of run("dropped-your-wallet", broke).players) expect(p.money).toBe(0);
   });
 
   it("never heals past the maximum", () => {
-    const after = run("good-harvest");
+    const after = run("well-rested");
     for (const p of after.players) expect(p.health).toBeLessThanOrEqual(p.maxHealth);
   });
 
@@ -168,65 +193,115 @@ describe("events", () => {
       ...base(),
       players: base().players.map((p, i) => (i === 0 ? { ...p, dead: true, health: 0 } : p)),
     };
-    const after = run("good-harvest", fallen);
+    const after = run("well-rested", fallen);
     expect(after.players[0].health).toBe(0);
     expect(after.players[0].dead).toBe(true);
   });
 
-  it("gives the baker's bread only to players with room", () => {
+  it("takes food before health when something wants feeding", () => {
     const before = base();
-    const after = run("travelling-baker", before);
-    for (const p of after.players) {
-      expect(p.supply.length).toBeGreaterThan(0);
-      expect(p.supply.length).toBeLessThanOrEqual(3);
-    }
+    const fed: GameState = {
+      ...before,
+      players: before.players.map((p, i) =>
+        i === 0 ? { ...p, supply: [makeItem(FOOD[2], "snack")] } : p,
+      ),
+    };
+    const after = run("lost-kitty", fed);
+    expect(after.players[0].supply).toEqual([]);
+    expect(after.players[0].health).toBe(fed.players[0].health);
+
+    // With nothing to give, it costs a health instead.
+    const empty = run("lost-kitty", before);
+    expect(empty.players[0].health).toBe(before.players[0].health - 1);
   });
 
-  it("hands the blacksmith's gift to the poorest player", () => {
+  it("lets the bone do its one job", () => {
     const before = base();
-    const poorest = before.players.reduce((a, b) => (b.money < a.money ? b : a));
-    const after = run("blacksmiths-gift", before);
-    const lucky = after.players.find((p) => p.id === poorest.id)!;
-
-    expect([lucky.weapon, lucky.armor, lucky.boots].filter(Boolean).length).toBe(1);
-    expect(after.itemPile.length).toBe(before.itemPile.length - 1);
+    const withBone: GameState = {
+      ...before,
+      players: before.players.map((p, i) =>
+        i === 0 ? { ...p, supply: [makeItem(FOOD[1], "bone")] } : p,
+      ),
+    };
+    const after = run("a-dog-appears", withBone);
+    expect(after.players[0].supply).toEqual([]);
+    expect(after.players[0].health).toBe(withBone.players[0].health);
   });
 
-  it("copes with an empty world when the smith gets generous", () => {
+  it("hands the helping hand to whoever is carrying least", () => {
+    const before = base();
+    const stocked: GameState = {
+      ...before,
+      players: before.players.map((p, i) =>
+        i === 1 ? p : { ...p, supply: [makeItem(FOOD[2], `snack-${i}`)] },
+      ),
+    };
+    const after = run("helping-hand", stocked);
+    const lucky = after.players[1];
+    expect(
+      [lucky.weapon, lucky.armor, lucky.boots].filter(Boolean).length + lucky.supply.length,
+    ).toBe(1);
+  });
+
+  it("copes with an empty world when a card wants to give something away", () => {
     const bare: GameState = { ...base(), itemPile: [] };
-    expect(() => run("blacksmiths-gift", bare)).not.toThrow();
+    expect(() => run("christmas", bare)).not.toThrow();
+    expect(() => run("treasure-map", bare)).not.toThrow();
   });
 
-  it("gives the active player their move back on a second wind", () => {
+  it("gives everybody their move back on a shortcut", () => {
     const spent: GameState = {
       ...base(),
-      players: base().players.map((p, i) => (i === 0 ? { ...p, movedThisTurn: true } : p)),
+      players: base().players.map((p) => ({ ...p, movedThisTurn: true })),
     };
-    expect(activePlayer(run("second-wind", spent)).movedThisTurn).toBe(false);
+    for (const p of run("found-a-shortcut", spent).players) expect(p.movedThisTurn).toBe(false);
   });
 
-  it("heals something out there when it stirs, and copes when nothing is hurt", () => {
+  it("sticks the city players in place with gum, but leaves them their action", () => {
     const before = base();
-    const hurt: GameState = {
+    const city = Object.values(before.tiles).find((t) => t.base === "city")!;
+    const staged: GameState = {
       ...before,
-      enemies: before.enemies.map((e, i) => (i === 0 ? { ...e, damageTaken: 4 } : e)),
+      players: before.players.map((p, i) => (i === 0 ? { ...p, hex: city.hex } : p)),
     };
-    const after = run("something-stirs", hurt);
-    expect(after.enemies[0].damageTaken).toBe(2);
-    expect(() => run("something-stirs", before)).not.toThrow();
+    const after = run("stepped-on-gum", staged);
+    expect(after.players[0].movedThisTurn).toBe(true);
+    expect(after.players[0].actedThisTurn).toBe(false);
+  });
+
+  it("puts a bandit to sleep without a roll", () => {
+    const before = base();
+    const after = run("sleepy-mob", before);
+    const down = after.enemies.filter((e) => e.kind === "mob" && e.defeated);
+    expect(down).toHaveLength(1);
+  });
+
+  it("grows the weakest player permanently", () => {
+    const before = base();
+    const weak: GameState = {
+      ...before,
+      players: before.players.map((p, i) => (i === 2 ? { ...p, health: 1 } : p)),
+    };
+    const after = run("growth-spurt", weak);
+    expect(after.players[2].maxHealth).toBe(weak.players[2].maxHealth + 1);
   });
 
   it("logs what it did, so the table can see it", () => {
-    const after = run("market-day");
-    expect(after.log.at(-1)?.text).toContain("Market Day");
+    const after = run("lemonade-stand");
+    expect(after.log.some((e) => e.text.includes("Lemonade Stand"))).toBe(true);
   });
 
   it("leaves the state it was given alone", () => {
     const before = base();
     const snapshot = JSON.stringify(before);
-    run("wolves", before);
-    run("blacksmiths-gift", before);
+    for (const event of EVENTS) applyEvent(before, event);
     expect(JSON.stringify(before)).toBe(snapshot);
+  });
+
+  it("runs every card in the deck without throwing", () => {
+    for (const event of EVENTS) {
+      expect(() => applyEvent(base(), event)).not.toThrow();
+    }
   });
 });
 
@@ -237,10 +312,13 @@ describe("boss features", () => {
     return { base, enemy };
   };
 
-  it("only bosses have them", () => {
-    expect(bossFeatures("midboss")).toBe(true);
-    expect(bossFeatures("finalboss")).toBe(true);
-    expect(bossFeatures("mob")).toBe(false);
+  it("gives every monster a feature, and the dragon two - rulebook §9", () => {
+    expect(ENEMIES.mob.features).toBe(1);
+    expect(ENEMIES.midboss.features).toBe(1);
+    expect(ENEMIES.finalboss.features).toBe(2);
+    // §5.5: the thieves draw none.
+    expect(ENEMIES.robber.features).toBe(0);
+    expect(ENEMIES.pirates.features).toBe(0);
   });
 
   it("draws two distinct features, and only on first sight", () => {
@@ -250,8 +328,8 @@ describe("boss features", () => {
 
     const met = startCombat(base, enemy, key(enemy.hex));
     const seen = met.enemies.find((e) => e.id === enemy.id)!;
-    expect(seen.features).toHaveLength(FEATURES_PER_BOSS);
-    expect(new Set(seen.features).size).toBe(FEATURES_PER_BOSS);
+    expect(seen.features).toHaveLength(ENEMIES.midboss.features);
+    expect(new Set(seen.features).size).toBe(seen.features.length);
     expect(seen.featuresRevealed).toBe(true);
     for (const feature of seen.features) expect(ALL_FEATURES).toContain(feature);
 
@@ -261,7 +339,7 @@ describe("boss features", () => {
   });
 
   it("is reproducible from the generator", () => {
-    expect(drawFeatures(42)).toEqual(drawFeatures(42));
+    expect(drawFeatures(42, 2)).toEqual(drawFeatures(42, 2));
   });
 
   it("bites only on ground that matches", () => {
@@ -274,6 +352,15 @@ describe("boss features", () => {
     expect(activeFeatures(enemy, line)).toEqual(["railway"]);
     expect(activeFeatures(enemy, open)).toEqual([]);
     expect(activeFeatures(enemy, undefined)).toEqual([]);
+  });
+
+  it("takes a point of attack off everyone in a forest fight - §9", () => {
+    const woods = { sides: ["forest", "forest", "field", "field", "field", "field"], rail: false } as Tile;
+    const armed = { ...createInitialState(4471).players[1], weapon: null };
+    const enemy = { features: ["forest"] } as Enemy;
+    // The rogue's own +1 is cancelled by the forest.
+    expect(attackValue(armed)).toBe(1);
+    expect(attackValue(armed, enemy, woods)).toBe(0);
   });
 
   it("makes a boss hit harder on its own ground", () => {
@@ -296,15 +383,18 @@ describe("boss features", () => {
           from: key(enemy.hex),
           round: 0,
           playerRoll: null,
-          enemyRoll: null,
+          toll: 0,
+          spoils: [],
+          picksLeft: 0,
           outcome: "ongoing",
         },
       };
-      return attack(state).combat!.enemyRoll!.damage;
+      return attack(state).combat!.toll;
     };
 
-    const athome = ground.sides.find((s) => s !== "water") ?? "field";
-    expect(fight([athome])).toBe(fight([]) + 1);
+    // Rulebook §9, field: the boss hits for one more per player in the fight.
+    if (!ground.sides.includes("field")) return;
+    expect(fight(["field"])).toBe(fight([]) + 1);
   });
 });
 
@@ -336,7 +426,9 @@ describe("the water escape", () => {
         from: key(wet.hex),
         round: 0,
         playerRoll: null,
-        enemyRoll: null,
+        toll: 0,
+        spoils: [],
+        picksLeft: 0,
         outcome: "ongoing",
       },
     };
@@ -351,7 +443,8 @@ describe("the water escape", () => {
     expect(after.combat?.outcome).toBe("enemyEscaped");
     expect(beast.defeated).toBe(false);
     expect(beast.escapedOnce).toBe(true);
-    expect(healthLeft(beast)).toBe(1);
+    // Rulebook §9: it becomes a new boss encounter - whole again, somewhere else.
+    expect(healthLeft(beast)).toBe(beast.maxHealth);
     expect(key(beast.hex)).not.toBe(key(tile.hex));
   });
 

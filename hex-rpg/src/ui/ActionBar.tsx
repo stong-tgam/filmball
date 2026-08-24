@@ -16,9 +16,13 @@ type Props = {
   canSearch: boolean;
   canTrade: boolean;
   canDonate: boolean;
+  canHeal: boolean;
+  canPayOff: boolean;
   onSearch: () => void;
   onTrade: () => void;
   onDonate: () => void;
+  onHeal: () => void;
+  onPayOff: () => void;
   onEndTurn: () => void;
   disabled: boolean;
 };
@@ -30,9 +34,13 @@ export default function ActionBar({
   canSearch,
   canTrade,
   canDonate,
+  canHeal,
+  canPayOff,
   onSearch,
   onTrade,
   onDonate,
+  onHeal,
+  onPayOff,
   onEndTurn,
   disabled,
 }: Props) {
@@ -68,7 +76,9 @@ export default function ActionBar({
     );
   }
 
-  const prompt = canDonate
+  const prompt = canPayOff
+    ? "A thief is blocking the way. Fight, or hand it all over."
+    : canDonate
     ? "Someone here could use a hand."
     : canSearch
     ? "Search the ground here, or move on."
@@ -85,8 +95,18 @@ export default function ActionBar({
   return (
     <div className="actionbar">
       <p className="actionbar-ask">{prompt}</p>
-      {(canSearch || canTrade || canDonate) && (
+      {(canSearch || canTrade || canDonate || canHeal || canPayOff) && (
         <div className="actionbar-buttons">
+          {canPayOff && (
+            <button type="button" className="ghost" onClick={onPayOff}>
+              Pay them off
+            </button>
+          )}
+          {canHeal && (
+            <button type="button" className="ghost" onClick={onHeal}>
+              Patch up
+            </button>
+          )}
           {canDonate && (
             <button type="button" className="ghost" onClick={onDonate}>
               Give $2

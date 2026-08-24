@@ -7,30 +7,25 @@
  * player it applies to and ignores whose turn it is.
  */
 
-import { cardName, draw as drawCard, rankValue } from "./cards";
-import { key } from "./hex";
-import { canTake, consume, equip, shopStock, FOOD, SUPPLY_CAP, makeItem } from "./items";
+import { cardName, draw as drawCard, isJoker, isRed } from "./cards";
+import { distance, key } from "./hex";
+import {
+  BONE,
+  FOOD_PRICE,
+  GEAR_PRICE,
+  canTake,
+  carriedGear,
+  consume,
+  equip,
+  makeItem,
+  randomFood,
+  shopStock,
+  slotKey,
+} from "./items";
+import { ROLES, withMaxHealth } from "./players";
+import { makeRng } from "./rng";
 import { activePlayer } from "./turn";
 import type { Card, GameState, Item, LogEntry, Player, Tile } from "./types";
-
-/**
- * What a search turns up, read off the card you drew. The spec asks for a second
- * poker deck to drive searches, and this is it.
- *
- * PLACEHOLDER TABLE, like everything else the missing rulebook should set.
- */
-export const SEARCH_TABLE = [
-  { atLeast: 11, find: "gear" as const, text: "gear" }, // J, Q, K, A
-  { atLeast: 8, find: "coins" as const, coins: 3, text: "$3" },
-  { atLeast: 5, find: "coins" as const, coins: 1, text: "$1" },
-  { atLeast: 2, find: "nothing" as const, text: "nothing" },
-];
-
-/** Cards drawn per terrain. In woods you look twice and keep the better card. */
-export const SEARCH_DRAWS: Record<string, number> = { forest: 2, field: 1 };
-
-export const searchResult = (card: Card) =>
-  SEARCH_TABLE.find((row) => rankValue(card) >= row.atLeast)!;
 
 /** "a Sword", but "an Axe". The log gets read aloud. */
 const an = (name: string): string => `${/^[aeiou]/i.test(name) ? "an" : "a"} ${name}`;
@@ -47,10 +42,15 @@ const withPlayer = (state: GameState, updated: Player): GameState => ({
   players: state.players.map((p) => (p.id === updated.id ? updated : p)),
 });
 
+/** Nothing is available mid-fight, after your action, or once the game is over. */
 const busy = (state: GameState, player: Player): boolean =>
-  state.phase === "gameOver" || state.combat !== null || player.actedThisTurn || player.dead;
+  state.phase === "gameOver" ||
+  state.ending !== null ||
+  state.combat !== null ||
+  player.actedThisTurn ||
+  player.dead;
 
-/** Searchable ground: open country or woods, and only the once. */
+/** Rulebook §4: searchable ground is forest or field, and only the once. */
 export function canSearch(state: GameState, player: Player): boolean {
   if (busy(state, player)) return false;
   const tile = tileUnder(state, player);
@@ -61,66 +61,102 @@ export function canTrade(state: GameState, player: Player): boolean {
   return !busy(state, player) && tileUnder(state, player).base === "city";
 }
 
+/** Rulebook §6: red finds something, black finds nothing, the joker is a thief. */
+export type SearchResult = "found" | "nothing" | "thief";
+
+export const readSearchCard = (card: Card): SearchResult =>
+  isJoker(card) ? "thief" : isRed(card) ? "found" : "nothing";
+
 /**
- * Turn over the ground you are standing on: draw from the search deck and read what
- * it says. Open ground gets one card; woods get two and you keep the better one,
- * which is what makes the trees worth walking to.
+ * Turn over the ground you are standing on and draw a card.
  *
- * If the world has run out of gear, a card that would have found some pays coins.
+ * A red card finds a random piece of gear; a black one finds nothing; the joker is
+ * somebody waiting in the undergrowth who takes a dollar, an item or a health off
+ * you. Rulebook §12 gives the bone one job, and this is it: a thief takes the bone
+ * and leaves everything else alone.
  */
 export function search(state: GameState): GameState {
   const player = activePlayer(state);
   if (!canSearch(state, player)) return state;
 
   const tile = tileUnder(state, player);
-  const draws = SEARCH_DRAWS[tile.base] ?? 1;
-
-  let deck = state.searchDeck;
-  let rngState = state.rngState;
-  const cards: Card[] = [];
-  for (let i = 0; i < draws; i++) {
-    const pull = drawCard(deck, rngState);
-    cards.push(pull.card);
-    deck = pull.deck;
-    rngState = pull.rngState;
-  }
-  const best = cards.reduce((a, b) => (rankValue(b) > rankValue(a) ? b : a));
-  const result = searchResult(best);
+  const pull = drawCard(state.searchDeck, state.rngState, true);
 
   let next: GameState = {
     ...state,
-    rngState,
-    searchDeck: deck,
+    rngState: pull.rngState,
+    searchDeck: pull.deck,
     tiles: { ...state.tiles, [key(player.hex)]: { ...tile, searched: true } },
   };
-  next = note(
-    next,
-    `${player.name} searched ${key(player.hex)} and turned up ${cards.map(cardName).join(" and ")}.`,
-  );
   const acted = { ...player, actedThisTurn: true };
+  next = withPlayer(next, acted);
+  next = note(next, `${player.name} searched ${key(player.hex)} and drew ${cardName(pull.card)}.`);
 
-  if (result.find === "gear" && next.itemPile.length > 0) {
-    const [found, ...rest] = next.itemPile;
-    const { player: carrying, returned } = equip(acted, found);
-    next = withPlayer({ ...next, itemPile: returned ? [...rest, returned] : rest }, carrying);
+  switch (readSearchCard(pull.card)) {
+    case "found":
+      return findSomething(next, acted);
+    case "thief":
+      return robbedWhileSearching(next, acted);
+    default:
+      return note(next, `${player.name} found nothing.`);
+  }
+}
+
+function findSomething(state: GameState, player: Player): GameState {
+  if (state.itemPile.length === 0) {
+    return note(state, `${player.name} turned the ground over, but there is nothing left to find.`);
+  }
+  const [found, ...rest] = state.itemPile;
+  const { player: carrying, returned } = equip(player, found);
+  const next = withPlayer({ ...state, itemPile: returned ? [...rest, returned] : rest }, withMaxHealth(carrying));
+  return note(
+    next,
+    returned
+      ? `${player.name} found ${an(found.name)} but had no room for it.`
+      : `${player.name} found ${an(found.name)}!`,
+  );
+}
+
+/**
+ * The joker. A dollar, an item, or a health - and the bone goes first if they have
+ * one, which is the whole reason to carry it.
+ */
+function robbedWhileSearching(state: GameState, player: Player): GameState {
+  const bone = player.supply.find((i) => i.name === BONE);
+  if (bone) {
     return note(
-      next,
-      returned
-        ? `${player.name} found ${an(found.name)} but had no room for it.`
-        : `${player.name} found ${an(found.name)}!`,
+      withPlayer(state, { ...player, supply: player.supply.filter((i) => i.id !== bone.id) }),
+      `A thief! They took ${player.name}'s bone and left everything else.`,
     );
   }
-
-  // Gear on a card, but nothing left in the world to find: coins instead.
-  const coins = result.find === "gear" ? 3 : (result.coins ?? 0);
-  if (coins > 0) {
+  if (player.money > 0) {
     return note(
-      withPlayer(next, { ...acted, money: acted.money + coins }),
-      `${player.name} picked up $${coins}.`,
+      withPlayer(state, { ...player, money: player.money - 1 }),
+      `A thief! ${player.name} is a dollar lighter.`,
     );
   }
-
-  return note(withPlayer(next, acted), `${player.name} found nothing.`);
+  const gear = carriedGear(player);
+  if (gear.length > 0) {
+    const lost = gear[0];
+    return note(
+      withPlayer(
+        { ...state, itemPile: [...state.itemPile, lost] },
+        withMaxHealth({ ...player, [slotKey(lost.slot)]: null }),
+      ),
+      `A thief! ${player.name} lost their ${lost.name}.`,
+    );
+  }
+  const health = Math.max(0, player.health - 1);
+  return note(
+    withPlayer(state, {
+      ...player,
+      health,
+      dead: health === 0,
+      fellAt: health === 0 ? player.hex : player.fellAt,
+      fellOn: health === 0 ? state.turn : player.fellOn,
+    }),
+    `A thief! Nothing to take, so they took it out on ${player.name}.`,
+  );
 }
 
 /** Opening a shop is the player's action for the turn; buying inside it is free. */
@@ -134,10 +170,15 @@ export function openShop(state: GameState): GameState {
 }
 
 /** Everything this city will sell right now: the pile's top few, plus food. */
-export const stockFor = (state: GameState): { gear: Item[]; food: Item[] } => ({
-  gear: shopStock(state.itemPile),
-  food: FOOD.map((template) => makeItem(template, `food-${template.name.toLowerCase()}`)),
-});
+export function stockFor(state: GameState): { gear: Item[]; food: Item[] } {
+  // Food is unlimited (§11's open question, resolved: a city never runs out of lunch),
+  // but which three things are on the counter is fixed for the game by the seed.
+  const rng = makeRng(state.seed ^ 0x5f356495);
+  return {
+    gear: shopStock(state.itemPile),
+    food: [0, 1, 2].map((n) => randomFood(rng, `food-${n}`)),
+  };
+}
 
 /**
  * Buy. Food is unlimited and never touches the pile; gear leaves it for good, and
@@ -153,17 +194,98 @@ export function buy(state: GameState, itemId: string): GameState {
   const item = food ?? gear;
   if (!item || player.money < item.cost || !canTake(player, item)) return state;
 
-  // Food is copied off the shelf; gear is the very item that was in the pile.
-  const bought = food ? makeItem({ ...food, copies: 0 }) : item;
-  const { player: carrying, returned } = equip({ ...player, money: player.money - item.cost }, bought);
+  const bought = food ? makeItem(food, `${food.id}-${state.turn}-${player.id}`) : item;
+  const { player: carrying, returned } = equip(
+    { ...player, money: player.money - item.cost },
+    bought,
+  );
+  const pile = gear ? state.itemPile.filter((i) => i.id !== gear.id) : state.itemPile;
 
-  const pile = gear
-    ? state.itemPile.filter((i) => i.id !== gear.id)
-    : state.itemPile;
-
-  let next = withPlayer({ ...state, itemPile: returned ? [...pile, returned] : pile }, carrying);
+  let next = withPlayer(
+    { ...state, itemPile: returned ? [...pile, returned] : pile },
+    withMaxHealth(carrying),
+  );
   next = note(next, `${player.name} bought ${an(item.name)} for $${item.cost}.`);
   return returned ? note(next, `${returned.name} went back to the pile.`) : next;
+}
+
+/**
+ * Sell. Rulebook §11 is explicit that this is the party's main income, so anything
+ * you are carrying goes for what it costs: $2 for gear, $1 for food.
+ */
+export function sell(state: GameState, itemId: string): GameState {
+  const player = activePlayer(state);
+  if (state.phase === "gameOver" || state.combat || player.dead) return state;
+
+  const gear = carriedGear(player).find((i) => i.id === itemId);
+  const food = player.supply.find((i) => i.id === itemId);
+  const item = gear ?? food;
+  if (!item) return state;
+
+  const price = gear ? GEAR_PRICE : FOOD_PRICE;
+  const stripped: Player = gear
+    ? { ...player, [slotKey(gear.slot)]: null, money: player.money + price }
+    : {
+        ...player,
+        supply: player.supply.filter((i) => i.id !== item.id),
+        money: player.money + price,
+      };
+
+  return note(
+    withPlayer(
+      // Sold gear goes back into the world; sold food is eaten by somebody else.
+      { ...state, itemPile: gear ? [...state.itemPile, gear] : state.itemPile },
+      withMaxHealth(stripped),
+    ),
+    `${player.name} sold the ${item.name} for $${price}.`,
+  );
+}
+
+/** What the active player could sell right now. */
+export const sellable = (player: Player): Item[] => [...carriedGear(player), ...player.supply];
+
+/* ------------------------------------------------------------------- doctor */
+
+/** Rulebook §3: the doctor may heal themselves or somebody next to them, as an action. */
+export function canHeal(state: GameState, player: Player): boolean {
+  return !busy(state, player) && ROLES[player.role].canHeal && healTargets(state, player).length > 0;
+}
+
+/** Rulebook §3 and §7: patch up a neighbour, or put a fallen one back on their feet. */
+export function healTargets(state: GameState, healer: Player): Player[] {
+  if (!ROLES[healer.role].canHeal) return [];
+  return state.players.filter((p) => {
+    const spot = p.dead ? p.fellAt : p.hex;
+    if (!spot) return false;
+    const near = distance(spot, healer.hex) <= 1;
+    return near && (p.dead || p.health < p.maxHealth);
+  });
+}
+
+export function heal(state: GameState, targetId: string): GameState {
+  const healer = activePlayer(state);
+  if (!canHeal(state, healer)) return state;
+  const target = healTargets(state, healer).find((p) => p.id === targetId);
+  if (!target) return state;
+
+  const revived = target.dead;
+  const patched: Player = {
+    ...target,
+    dead: false,
+    fellAt: null,
+    fellOn: null,
+    hex: revived ? (target.fellAt ?? target.hex) : target.hex,
+    health: revived ? 1 : Math.min(target.maxHealth, target.health + 1),
+  };
+
+  let next = withPlayer(state, patched);
+  next = withPlayer(next, { ...healer, actedThisTurn: true });
+  return note(
+    next,
+    revived
+      ? `${healer.name} got ${target.name} back on their feet at ${key(patched.hex)}.`
+      : `${healer.name} patched ${target.name} up to ${patched.health} health.`,
+  );
 }
 
 /**
@@ -185,40 +307,3 @@ export function eat(state: GameState, playerId: string, itemId: string): GameSta
       : `${player.name} ate the ${used.name} on a full stomach.`,
   );
 }
-
-/** Take one item off a beaten enemy. */
-export function takeLoot(state: GameState, itemId: string): GameState {
-  const combat = state.combat;
-  if (!combat || combat.outcome !== "enemyDefeated") return state;
-
-  const enemy = state.enemies.find((e) => e.id === combat.enemyId);
-  const player = state.players.find((p) => p.id === combat.playerId);
-  const item = enemy?.loot.find((i) => i.id === itemId);
-  if (!enemy || !player || !item || !canTake(player, item)) return state;
-
-  const { player: carrying, returned } = equip(player, item);
-  let next: GameState = {
-    ...state,
-    enemies: state.enemies.map((e) =>
-      e.id === enemy.id ? { ...e, loot: e.loot.filter((i) => i.id !== item.id) } : e,
-    ),
-    itemPile: returned ? [...state.itemPile, returned] : state.itemPile,
-  };
-  next = withPlayer(next, carrying);
-  next = note(next, `${player.name} took the ${item.name}.`);
-  return returned ? note(next, `${returned.name} went back to the pile.`) : next;
-}
-
-/** Anything left on the ground when the fight closes goes back into the pile. */
-export function returnUnclaimedLoot(state: GameState): GameState {
-  const combat = state.combat;
-  const enemy = combat && state.enemies.find((e) => e.id === combat.enemyId);
-  if (!enemy || enemy.loot.length === 0) return state;
-  return {
-    ...state,
-    itemPile: [...state.itemPile, ...enemy.loot],
-    enemies: state.enemies.map((e) => (e.id === enemy.id ? { ...e, loot: [] } : e)),
-  };
-}
-
-export { SUPPLY_CAP };

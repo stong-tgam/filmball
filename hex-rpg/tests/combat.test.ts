@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BASE_DICE,
   DIE_FACES,
-  ENEMY_DICE,
+  FAILED_ROLL_COST,
   attack,
   endCombat,
   flee,
@@ -77,13 +77,20 @@ describe("placing enemies", () => {
       expect(key(dragon[0].hex)).toBe("E5");
       expect(enemies.filter((e) => e.kind === "midboss")).toHaveLength(ENEMIES.midboss.count);
       expect(enemies.filter((e) => e.kind === "mob")).toHaveLength(ENEMIES.mob.count);
+      // Rulebook §7: health is rolled inside a band, not fixed.
+      for (const e of enemies) {
+        const [low, high] = ENEMIES[e.kind].health;
+        expect(e.maxHealth).toBeGreaterThanOrEqual(low);
+        expect(e.maxHealth).toBeLessThanOrEqual(high);
+      }
     }
   });
 
-  it("never starts a fight on turn 1: nothing spawns near the party", () => {
+  it("never starts a fight on turn 1: no monster spawns near the party", () => {
     for (const seed of SEEDS) {
       const { players, enemies } = createInitialState(seed);
-      for (const enemy of enemies) {
+      // The thieves are placed as hazards, under §5.5's rules, not with the monsters.
+      for (const enemy of enemies.filter((e) => e.kind !== "robber" && e.kind !== "pirates")) {
         for (const player of players) {
           expect(distance(enemy.hex, player.hex)).toBeGreaterThan(SAFE_RADIUS);
         }
@@ -151,17 +158,18 @@ describe("meeting an enemy", () => {
 });
 
 describe("a round of fighting", () => {
-  it("rolls, hurts the enemy, and takes a hit back", () => {
+  it("rolls, hurts the enemy, and costs exactly one health when it falls short", () => {
+    // Rulebook §7: a failed roll costs 1 health flat, not a roll's worth.
     const { state, enemy } = facing("midboss");
-    const after = attack(movePlayer(state, key(enemy.hex)));
+    const opening = movePlayer(state, key(enemy.hex));
+    const before = opening.players[0];
+    const after = attack(opening);
     const hurt = after.enemies.find((e) => e.id === enemy.id)!;
-    const me = after.players[0];
 
     expect(after.combat?.playerRoll?.dice).toHaveLength(BASE_DICE);
     expect(hurt.damageTaken).toBe(after.combat!.playerRoll!.damage);
     expect(hurt.damageTaken).toBeGreaterThanOrEqual(BASE_DICE);
-    expect(after.combat?.enemyRoll?.dice).toHaveLength(ENEMY_DICE);
-    expect(me.health).toBe(me.maxHealth - after.combat!.enemyRoll!.damage);
+    expect(before.health - after.players[0].health).toBeGreaterThanOrEqual(FAILED_ROLL_COST);
     expect(after.combat?.round).toBe(1);
   });
 
@@ -191,11 +199,18 @@ describe("a round of fighting", () => {
     expect(enemyAt(fighting.enemies, key(enemy.hex))).toBeUndefined();
   });
 
-  it("does not let the enemy hit back from beyond the grave", () => {
+  it("costs nothing on the roll that wins", () => {
     const { state, enemy } = facing("mob");
     let fighting = movePlayer(state, key(enemy.hex));
-    while (fighting.combat?.outcome === "ongoing") fighting = attack(fighting);
-    expect(fighting.combat?.enemyRoll).toBeNull();
+    let health = fighting.players[0].health;
+    while (fighting.combat?.outcome === "ongoing") {
+      health = fighting.players[0].health;
+      fighting = attack(fighting);
+    }
+    if (fighting.combat?.outcome === "enemyDefeated") {
+      expect(fighting.players[0].health).toBe(health);
+      expect(fighting.combat?.toll).toBe(0);
+    }
   });
 
   it("keeps the damage when you walk away, so you can come back for it", () => {
@@ -214,12 +229,15 @@ describe("a round of fighting", () => {
 
   it("lets you run before rolling at all", () => {
     const { state, enemy } = facing("finalboss");
-    const away = flee(movePlayer(state, key(enemy.hex)));
+    // A feature may bite as the fight opens (§9), so compare against that, not full health.
+    const met = movePlayer(state, key(enemy.hex));
+    const away = flee(met);
     expect(away.combat?.outcome).toBe("playerEscaped");
-    expect(away.players[0].health).toBe(away.players[0].maxHealth);
+    expect(away.players[0].health).toBe(met.players[0].health);
+    expect(away.players[0].actedThisTurn).toBe(true);
   });
 
-  it("puts a player down when the last of their health goes", () => {
+  it("puts a player down when the last of their health goes, and marks where they fell", () => {
     const { state, enemy } = facing("finalboss");
     const frail: GameState = {
       ...state,
@@ -227,9 +245,10 @@ describe("a round of fighting", () => {
     };
     const after = attack(movePlayer(frail, key(enemy.hex)));
 
-    // The dragon's die is 1 to 3 plus 2, so one hit always finishes a player on 1.
+    // Three dice cannot take 20+ health off in one roll, so the roll always fails.
     expect(after.players[0].health).toBe(0);
     expect(after.players[0].dead).toBe(true);
+    expect(after.players[0].fellAt).not.toBeNull();
     expect(after.combat?.outcome).toBe("playerDown");
   });
 

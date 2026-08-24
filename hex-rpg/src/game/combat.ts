@@ -1,75 +1,43 @@
 /**
- * Fighting.
+ * Fighting. Rulebook §7 and §9.
  *
- * The shape of it, from the spec: three dice, each face `[1,1,1,2,2,3]`, plus your
- * weapon. Damage accumulates on the enemy across fights, so hurting something and
- * walking away is a real option - come back next turn and finish it.
+ * Roll three dice, add your attack, and compare the total to what the enemy has left.
  *
- * A round is one exchange: you hit, then it hits back if it is still standing. Then
- * the choice is yours again - roll again, or run. Running is always available and
- * always free, because the alternative is a seven-year-old watching their piece die
- * with nothing they could have done about it.
+ * - **Damage ≥ remaining health** → beaten, and it drops its loot.
+ * - **Damage < remaining health** → the damage sticks, and you lose 1 health.
+ * - **Exact tie** → nothing at all happens, and you go back where you started.
  *
- * PLACEHOLDER: how a downed player gets back into the game. `dead` is what the spec
- * models and it is what this implements, but a game meant for family night needs an
- * answer better than "you are out" - see CLAUDE.md.
+ * Then roll again or walk away. Damage stays on a wounded enemy either way, which is
+ * the rule that makes the health numbers work: nothing has to die in one turn.
+ *
+ * Losing a roll costs exactly one health, never a dice roll's worth. On three health
+ * that is the difference between a game a child can read and one they cannot.
  */
 
 import { ENEMIES, healthLeft, nameWithArticle, verb } from "./enemies";
 import { key, neighbours } from "./hex";
 import { makeRng } from "./rng";
-import type { Combat, Enemy, Feature, GameState, LogEntry, Player, Roll, Tile } from "./types";
+import { canTake, equip } from "./items";
+import { maxHealthOf } from "./players";
+import type { Combat, Enemy, Feature, GameState, Item, LogEntry, Player, Roll, Tile } from "./types";
 
-/** Each die reads 1, 1, 1, 2, 2, 3 - kind to young arithmetic, and rarely a zero. */
+/** Rulebook §2: three faces of 1, two of 2, one of 3. Average 1.67 a die. */
 export const DIE_FACES = [1, 1, 1, 2, 2, 3] as const;
 
 /** Dice you roll before any bonus. */
 export const BASE_DICE = 3;
 
-/** The enemy answers with a single die plus its own strength. */
-export const ENEMY_DICE = 1;
-
-export const attackValue = (player: Player): number => player.weapon?.value ?? 0;
-export const armourValue = (player: Player): number => player.armor?.value ?? 0;
-
-/** How many features a boss draws the first time anybody meets it. */
-export const FEATURES_PER_BOSS = 2;
+/** A failed roll costs this much health, before any boss feature adds to it. */
+export const FAILED_ROLL_COST = 1;
 
 export const ALL_FEATURES: Feature[] = ["water", "railway", "city", "forest", "field"];
-
-/**
- * A feature is ground the monster is at home on. Draw them once, on first sight, and
- * they stay drawn - the party learns what it is up against and can plan around it.
- *
- * PLACEHOLDER RULE. The spec names features and gives exactly one of their effects
- * (water lets a monster slip away once); the rest is missing with the rulebook. What
- * is implemented: a feature that matches the ground the fight is on makes the monster
- * hit harder, and water additionally buys it one escape.
- */
-export const bossFeatures = (kind: Enemy["kind"]): boolean =>
-  kind === "midboss" || kind === "finalboss";
-
-export function drawFeatures(rngState: number): { features: Feature[]; rngState: number } {
-  const rng = makeRng(rngState);
-  return { features: rng.shuffle(ALL_FEATURES).slice(0, FEATURES_PER_BOSS), rngState: rng.state() };
-}
-
-/** The drawn features that the tile underfoot actually matches. */
-export function activeFeatures(enemy: Enemy, tile: Tile | undefined): Feature[] {
-  if (!tile) return [];
-  return enemy.features.filter((feature) =>
-    feature === "railway" ? tile.rail : tile.sides.includes(feature),
-  );
-}
-
-/** Each matching feature adds a point to what the monster hits for. */
-export const featureBonus = (enemy: Enemy, tile: Tile | undefined): number =>
-  activeFeatures(enemy, tile).length;
 
 const note = (state: GameState, text: string): GameState => ({
   ...state,
   log: [...state.log, { turn: state.turn, text } satisfies LogEntry],
 });
+
+const total = (dice: number[]): number => dice.reduce((sum, d) => sum + d, 0);
 
 /** Roll `count` dice, returning the faces and the state the generator ended on. */
 export function rollDice(rngState: number, count: number): { dice: number[]; rngState: number } {
@@ -78,35 +46,74 @@ export function rollDice(rngState: number, count: number): { dice: number[]; rng
   return { dice, rngState: rng.state() };
 }
 
-const total = (dice: number[]): number => dice.reduce((sum, d) => sum + d, 0);
-
-export const combatants = (
-  state: GameState,
-): { player: Player; enemy: Enemy } | null => {
+export const combatants = (state: GameState): { player: Player; enemy: Enemy } | null => {
   if (!state.combat) return null;
   const player = state.players.find((p) => p.id === state.combat!.playerId);
   const enemy = state.enemies.find((e) => e.id === state.combat!.enemyId);
   return player && enemy ? { player, enemy } : null;
 };
 
-/** Start a fight between the active player and the enemy on their tile. */
+/* ------------------------------------------------------------------ features */
+
+/** Rulebook §9: every enemy draws a feature, and the final boss draws two. */
+export function drawFeatures(rngState: number, count: number): { features: Feature[]; rngState: number } {
+  const rng = makeRng(rngState);
+  return { features: rng.shuffle(ALL_FEATURES).slice(0, count), rngState: rng.state() };
+}
+
+/** The features that the ground underfoot actually matches. */
+export function activeFeatures(enemy: Enemy, tile: Tile | undefined): Feature[] {
+  if (!tile) return [];
+  return enemy.features.filter((feature) =>
+    feature === "railway" ? tile.rail : tile.sides.includes(feature),
+  );
+}
+
+/** Rulebook §9, field: the boss hits for one more per player in the fight. */
+export const extraToll = (enemy: Enemy, tile: Tile | undefined, party: number): number =>
+  activeFeatures(enemy, tile).includes("field") ? party : 0;
+
+/** Rulebook §9, forest: everybody in the fight loses a point of attack. */
+export const attackPenalty = (enemy: Enemy, tile: Tile | undefined): number =>
+  activeFeatures(enemy, tile).includes("forest") ? 1 : 0;
+
+/* ------------------------------------------------------------------- attack */
+
+/** Rulebook §3 and §12: the role's own arm, plus a weapon, less any forest penalty. */
+export function attackValue(player: Player, enemy?: Enemy, tile?: Tile): number {
+  const base = (player.weapon?.value ?? 0) + roleAttack(player);
+  const penalty = enemy ? attackPenalty(enemy, tile) : 0;
+  return Math.max(0, base - penalty);
+}
+
+const roleAttack = (player: Player): number =>
+  player.role === "rogue" ? 1 : 0;
+
+/* -------------------------------------------------------------- the encounter */
+
+/**
+ * Meeting something. Features are drawn here, before the first roll - rulebook §9 is
+ * explicit that they are known before the encounter, so the party can decide whether
+ * to take the fight at all.
+ *
+ * Two of them bite the moment the fight opens: railway costs a health, and city costs
+ * a dollar on a city tile or a health anywhere else.
+ */
 export function startCombat(state: GameState, enemy: Enemy, from: string): GameState {
   const player = state.players[state.activePlayerIndex];
-
-  // Bosses show what they are made of the first time somebody meets them.
+  const profile = ENEMIES[enemy.kind];
   let next = state;
-  if (bossFeatures(enemy.kind) && !enemy.featuresRevealed) {
-    const drawn = drawFeatures(state.rngState);
-    next = note(
-      {
-        ...state,
-        rngState: drawn.rngState,
-        enemies: state.enemies.map((e) =>
-          e.id === enemy.id ? { ...e, features: drawn.features, featuresRevealed: true } : e,
-        ),
-      },
-      `The ${ENEMIES[enemy.kind].name} is at home on ${drawn.features.join(" and ")}.`,
-    );
+  let fighter = enemy;
+
+  if (!enemy.featuresRevealed && profile.features > 0) {
+    const drawn = drawFeatures(state.rngState, profile.features);
+    fighter = { ...enemy, features: drawn.features, featuresRevealed: true };
+    next = {
+      ...state,
+      rngState: drawn.rngState,
+      enemies: state.enemies.map((e) => (e.id === enemy.id ? fighter : e)),
+    };
+    next = note(next, `${profile.name} is at home on ${drawn.features.join(" and ")}.`);
   }
 
   const combat: Combat = {
@@ -115,88 +122,191 @@ export function startCombat(state: GameState, enemy: Enemy, from: string): GameS
     from,
     round: 0,
     playerRoll: null,
-    enemyRoll: null,
+    toll: 0,
+    spoils: [],
+    picksLeft: 0,
     outcome: "ongoing",
   };
-  return note(
+  next = note(
     { ...next, phase: "combat", combat },
     `${player.name} met ${nameWithArticle(enemy.kind)} at ${key(enemy.hex)}.`,
   );
+
+  return openingBite(next, fighter);
 }
 
-/**
- * One exchange. The player swings; if the enemy is still standing it swings back.
- */
+/** Railway and city both take something the moment the fight starts. */
+function openingBite(state: GameState, enemy: Enemy): GameState {
+  const ground = state.tiles[key(enemy.hex)];
+  const active = activeFeatures(enemy, ground);
+  const profile = ENEMIES[enemy.kind];
+  let next = state;
+
+  if (active.includes("railway")) {
+    next = hurt(next, FAILED_ROLL_COST, `The ${profile.name} caught someone on the tracks.`);
+  }
+  if (active.includes("city")) {
+    const player = next.players.find((p) => p.id === next.combat?.playerId);
+    if (player && ground?.sides.includes("city")) {
+      next = note(
+        {
+          ...next,
+          players: next.players.map((p) =>
+            p.id === player.id ? { ...p, money: Math.max(0, p.money - 1) } : p,
+          ),
+        },
+        `Fighting in the streets costs ${player.name} $1.`,
+      );
+    } else {
+      next = hurt(next, 1, `The ${profile.name} fights dirty out here.`);
+    }
+  }
+  return next;
+}
+
+/** Take health off whoever is in the fight, and see whether they are still standing. */
+function hurt(state: GameState, amount: number, why: string): GameState {
+  const player = state.players.find((p) => p.id === state.combat?.playerId);
+  if (!player || amount <= 0) return state;
+
+  const health = Math.max(0, player.health - amount);
+  const down = health === 0;
+  let next: GameState = {
+    ...state,
+    players: state.players.map((p) =>
+      p.id === player.id
+        ? {
+            ...p,
+            health,
+            dead: down,
+            fellAt: down ? p.hex : p.fellAt,
+            fellOn: down ? state.turn : p.fellOn,
+          }
+        : p,
+    ),
+    combat: state.combat
+      ? { ...state.combat, toll: amount, outcome: down ? "playerDown" : state.combat.outcome }
+      : null,
+  };
+  next = note(next, `${why} ${player.name} is down to ${health} health.`);
+  return down ? note(next, `${player.name} has fallen at ${key(player.hex)}.`) : next;
+}
+
+/* ---------------------------------------------------------------- one round */
+
+/** One roll of the dice, and what it does. */
 export function attack(state: GameState): GameState {
   const pair = combatants(state);
   if (!state.combat || state.combat.outcome !== "ongoing" || !pair) return state;
   const { player, enemy } = pair;
 
-  const swing = rollDice(state.rngState, BASE_DICE + player.bonusDiceNextFight);
-  const dealt = total(swing.dice) + attackValue(player);
-  const playerRoll: Roll = { dice: swing.dice, damage: dealt };
-
-  const hurt: Enemy = { ...enemy, damageTaken: enemy.damageTaken + dealt };
   const ground = state.tiles[key(enemy.hex)];
-  const profile = ENEMIES[enemy.kind];
-
-  // A monster at home on water gets one slip away, and only one.
-  const slipsAway =
-    healthLeft(hurt) === 0 &&
-    !enemy.escapedOnce &&
-    activeFeatures(enemy, ground).includes("water");
-  const killed = healthLeft(hurt) === 0 && !slipsAway;
+  const swing = rollDice(state.rngState, BASE_DICE + player.bonusDiceNextFight);
+  const dealt = total(swing.dice) + attackValue(player, enemy, ground);
+  const playerRoll: Roll = { dice: swing.dice, damage: dealt };
+  const remaining = healthLeft(enemy);
 
   let next: GameState = {
     ...state,
     rngState: swing.rngState,
-    enemies: state.enemies.map((e) => (e.id === enemy.id ? { ...hurt, defeated: killed } : e)),
-    // The donated dice are spent whether or not they helped.
+    // The donated die is spent whether or not it helped.
     players: state.players.map((p) =>
       p.id === player.id ? { ...p, bonusDiceNextFight: 0 } : p,
     ),
-    combat: { ...state.combat, round: state.combat.round + 1, playerRoll, enemyRoll: null },
+    combat: { ...state.combat, round: state.combat.round + 1, playerRoll, toll: 0 },
   };
-  next = note(next, `${player.name} rolled ${swing.dice.join("+")} for ${dealt} damage.`);
+  next = note(next, `${player.name} rolled ${swing.dice.join("+")} for ${dealt}.`);
 
-  if (slipsAway) return escapeDownriver(next, enemy);
+  // Rulebook §7: an exact tie does nothing at all, and you go back where you started.
+  if (dealt === remaining) return standoff(next, enemy);
 
-  if (killed) {
-    return note(
-      spoils({ ...next, combat: { ...next.combat!, outcome: "enemyDefeated" } }),
-      `${profile.name} ${verb(enemy.kind, "is", "are")} beaten!`,
-    );
+  if (dealt > remaining) {
+    const finished: GameState = {
+      ...next,
+      enemies: next.enemies.map((e) =>
+        e.id === enemy.id ? { ...e, damageTaken: e.maxHealth } : e,
+      ),
+    };
+    const slipsAway =
+      !enemy.escapedOnce && activeFeatures(enemy, ground).includes("water") && ground?.river === true;
+    return slipsAway ? escapeDownriver(finished, enemy) : beaten(finished, enemy);
   }
 
-  // Still standing, so it hits back.
-  const bite = rollDice(next.rngState, ENEMY_DICE);
-  const raw = total(bite.dice) + profile.attack + featureBonus(enemy, ground);
-  const taken = Math.max(0, raw - armourValue(player));
-  const enemyRoll: Roll = { dice: bite.dice, damage: taken };
-  const health = Math.max(0, player.health - taken);
-  const down = health === 0;
-
-  next = {
+  // Short of it: the damage sticks and it costs a health.
+  const wounded: GameState = {
     ...next,
-    rngState: bite.rngState,
-    players: next.players.map((p) => (p.id === player.id ? { ...p, health, dead: down } : p)),
-    combat: { ...next.combat!, enemyRoll, outcome: down ? "playerDown" : "ongoing" },
+    enemies: next.enemies.map((e) =>
+      e.id === enemy.id ? { ...e, damageTaken: e.damageTaken + dealt } : e,
+    ),
   };
-  next = note(
-    next,
-    `${profile.name} hit back for ${taken}. ${player.name} has ${health} health left.`,
+  const toll = FAILED_ROLL_COST + extraToll(enemy, ground, 1);
+  return hurt(
+    wounded,
+    toll,
+    `Not enough — the ${ENEMIES[enemy.kind].name} has ${remaining - dealt} left.`,
   );
-
-  return down ? note(next, `${player.name} is down.`) : next;
 }
 
+/** Rulebook §7: an exact tie. Nothing happens; you are back where you started. */
+function standoff(state: GameState, enemy: Enemy): GameState {
+  const back = state.combat!.from;
+  const home = state.tiles[back]?.hex;
+  return note(
+    {
+      ...state,
+      players: home
+        ? state.players.map((p) =>
+            p.id === state.combat!.playerId ? { ...p, hex: home } : p,
+          )
+        : state.players,
+      combat: { ...state.combat!, outcome: "standoff" },
+    },
+    `Dead even against the ${ENEMIES[enemy.kind].name}. Nothing doing — back to ${back}.`,
+  );
+}
+
+/* --------------------------------------------------------------------- loot */
+
 /**
- * Beaten, but at home in the water: it goes over the side with its wounds and
- * surfaces on a neighbouring tile. Once per monster, ever.
+ * Beaten. Rulebook §10: it drops a fixed number of items and the winner keeps some of
+ * them; the rest go back in the pile. Money is not dropped - selling what you keep is
+ * how the party gets paid.
  */
+function beaten(state: GameState, enemy: Enemy): GameState {
+  const profile = ENEMIES[enemy.kind];
+  const drops = state.itemPile.slice(0, profile.drops);
+  const rest = state.itemPile.slice(profile.drops);
+  // A thief drops what it stole on top of its own haul.
+  const stolen = state.enemies.find((e) => e.id === enemy.id)?.loot ?? [];
+  const spoils: Item[] = [...stolen, ...drops];
+
+  let next: GameState = {
+    ...state,
+    itemPile: rest,
+    enemies: state.enemies.map((e) =>
+      e.id === enemy.id ? { ...e, defeated: true, loot: [] } : e,
+    ),
+    combat: {
+      ...state.combat!,
+      outcome: "enemyDefeated",
+      spoils,
+      picksLeft: Math.min(profile.picks, spoils.length),
+    },
+  };
+  next = note(next, `${profile.name} ${verb(enemy.kind, "is", "are")} beaten!`);
+
+  // Rulebook §14: the dragon is the game.
+  if (enemy.kind === "finalboss") {
+    next = note({ ...next, ending: "victory" }, "The dragon is dead. The party has won.");
+  }
+  return next;
+}
+
+/** Rulebook §9, water: beaten on a river tile, it slips away to another one. Once. */
 function escapeDownriver(state: GameState, enemy: Enemy): GameState {
   const rng = makeRng(state.rngState);
-  const bolthole = rng.pick(neighbours(enemy.hex));
+  const river = neighbours(enemy.hex).filter((h) => state.tiles[key(h)]?.river);
+  const bolthole = river.length > 0 ? rng.pick(river) : rng.pick(neighbours(enemy.hex));
   const profile = ENEMIES[enemy.kind];
 
   return note(
@@ -205,19 +315,12 @@ function escapeDownriver(state: GameState, enemy: Enemy): GameState {
       rngState: rng.state(),
       enemies: state.enemies.map((e) =>
         e.id === enemy.id
-          ? {
-              ...e,
-              // A hair from beaten, and it keeps every wound.
-              damageTaken: e.maxHealth - 1,
-              escapedOnce: true,
-              hex: bolthole,
-              defeated: false,
-            }
+          ? { ...e, damageTaken: 0, escapedOnce: true, hex: bolthole, defeated: false }
           : e,
       ),
       combat: { ...state.combat!, outcome: "enemyEscaped" },
     },
-    `The ${profile.name} went into the water and came up at ${key(bolthole)}. ${verb(
+    `The ${profile.name} went into the water and surfaced at ${key(bolthole)}, whole again. ${verb(
       enemy.kind,
       "It will",
       "They will",
@@ -225,71 +328,81 @@ function escapeDownriver(state: GameState, enemy: Enemy): GameState {
   );
 }
 
-/**
- * Hand out what a beaten enemy was carrying: coins straight into the player's pocket,
- * gear onto the ground for them to pick over. Whatever they leave behind goes back
- * into the pile when the fight closes.
- */
-function spoils(state: GameState): GameState {
-  const pair = combatants(state);
-  if (!pair) return state;
-  const { player, enemy } = pair;
-  const profile = ENEMIES[enemy.kind];
+/** Take one of the things on the ground, up to what the rulebook lets you keep. */
+export function takeSpoil(state: GameState, itemId: string): GameState {
+  const combat = state.combat;
+  if (!combat || combat.picksLeft <= 0) return state;
 
-  const rng = makeRng(state.rngState);
-  // A thief pays out what it has actually stolen, on top of its own purse.
-  const stolen = state.hazards.find((h) => h.kind === enemy.kind)?.carrying ?? 0;
-  const coins = rng.int(...profile.purse) + stolen;
-  const drops = state.itemPile.slice(0, profile.drops);
-  const rest = state.itemPile.slice(profile.drops);
+  const item = combat.spoils.find((i) => i.id === itemId);
+  const player = state.players.find((p) => p.id === combat.playerId);
+  if (!item || !player) return state;
 
+  if (!canTake(player, item)) return state;
+
+  const { player: carrying, returned } = equip(player, item);
   let next: GameState = {
     ...state,
-    rngState: rng.state(),
-    itemPile: rest,
-    // Its own drops, plus whatever it lifted off the party.
-    enemies: state.enemies.map((e) =>
-      e.id === enemy.id ? { ...e, loot: [...e.loot, ...drops] } : e,
-    ),
-    hazards: state.hazards.map((h) => (h.kind === enemy.kind ? { ...h, carrying: 0 } : h)),
+    itemPile: returned ? [...state.itemPile, returned] : state.itemPile,
     players: state.players.map((p) =>
-      p.id === player.id ? { ...p, money: p.money + coins } : p,
+      p.id === player.id ? withHealthCap(carrying) : p,
     ),
+    combat: {
+      ...combat,
+      spoils: combat.spoils.filter((i) => i.id !== item.id),
+      picksLeft: combat.picksLeft - 1,
+    },
   };
-  if (coins > 0) next = note(next, `${player.name} picked up $${coins}.`);
-  if (drops.length > 0) {
-    next = note(
-      next,
-      `The ${profile.name} ${verb(enemy.kind, "was", "were")} carrying ${drops
-        .map((d) => `${/^[aeiou]/i.test(d.name) ? "an" : "a"} ${d.name}`)
-        .join(" and ")}.`,
-    );
-  }
-  return next;
+  next = note(next, `${player.name} kept the ${item.name}.`);
+  return returned ? note(next, `${returned.name} went back to the pile.`) : next;
 }
 
-/** Back off to the tile you came from. Always allowed, always free. */
+/** Anything not picked goes back to the pile, per §10. */
+export function discardSpoils(state: GameState): GameState {
+  const combat = state.combat;
+  if (!combat || combat.spoils.length === 0) return state;
+  return {
+    ...state,
+    itemPile: [...state.itemPile, ...combat.spoils],
+    combat: { ...combat, spoils: [], picksLeft: 0 },
+  };
+}
+
+/* ------------------------------------------------------------------ leaving */
+
+/** Rulebook §7: escaping costs your turn, and the wounds you dealt stay dealt. */
 export function flee(state: GameState): GameState {
   const pair = combatants(state);
   if (!state.combat || state.combat.outcome !== "ongoing" || !pair) return state;
   const { player, enemy } = pair;
 
   const back = state.combat.from;
-  const hex = state.players.find((p) => p.id === player.id)!.hex;
-  const destination = back === key(hex) ? hex : { ...state.tiles[back].hex };
+  const home = state.tiles[back]?.hex ?? player.hex;
 
   return note(
     {
       ...state,
-      players: state.players.map((p) => (p.id === player.id ? { ...p, hex: destination } : p)),
+      players: state.players.map((p) =>
+        p.id === player.id ? { ...p, hex: home, actedThisTurn: true } : p,
+      ),
       combat: { ...state.combat, outcome: "playerEscaped" },
     },
-    `${player.name} backed off to ${key(destination)}. The ${ENEMIES[enemy.kind].name} ${verb(enemy.kind, "keeps its", "keep their")} wounds.`,
+    `${player.name} backed off to ${back}. The ${ENEMIES[enemy.kind].name} ${verb(
+      enemy.kind,
+      "keeps its",
+      "keep their",
+    )} wounds.`,
   );
 }
 
 /** Close the fight and hand the state back to the turn machine. */
 export function endCombat(state: GameState): GameState {
   if (!state.combat) return state;
-  return { ...state, combat: null, phase: "playerMove" };
+  return { ...discardSpoils(state), combat: null, phase: "playerMove" };
 }
+
+/* ------------------------------------------------------------------ helpers */
+
+const withHealthCap = (player: Player): Player => {
+  const maxHealth = maxHealthOf(player);
+  return { ...player, maxHealth, health: Math.min(player.health, maxHealth) };
+};

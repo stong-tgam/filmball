@@ -674,3 +674,19 @@ button.ghost {
 .tile.is-wrecked .tile-label { fill: #d8c8b8; opacity: 0.7; }
 
 .enemy-purse { fill: var(--accent); font-weight: 700; font-family: ui-monospace, Menlo, monospace; }
+
+/* ---------- selling, healing, endings ---------- */
+
+.stock-wide { grid-template-columns: 1fr 1fr; display: grid; gap: 6px; }
+.buy.sell .buy-cost { color: #7fd490; }
+
+.fight-toll { margin: 0; text-align: center; color: #e2a05f; font-size: 15px; }
+
+.ending h2 { margin: 0; font-size: 24px; }
+.ending .muted { margin: 0; }
+.ending-win h2 { color: #7fd490; }
+.ending-lose h2 { color: #e2685f; }
+
+@media (max-width: 560px) {
+  .stock-wide { grid-template-columns: 1fr; }
+}

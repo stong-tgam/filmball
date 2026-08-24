@@ -1,28 +1,35 @@
 /**
- * The four roles, and how a party is set up.
+ * The four roles, from rulebook §3.
  *
- * Movement is one tile per turn for everyone. The rogue is the exception: +1, so two.
- * That is a rule, not a placeholder - it keeps a turn to a single decision, which is
- * the whole point at a table with a seven-year-old at it.
+ * Everyone starts on **3 health and $2**. The role bonuses are small and single:
+ * the knight can take one more hit, the rogue hits one harder, the scout walks one
+ * further, and the doctor is the only one who can put anybody back together.
  *
- * PLACEHOLDER STATS: health and starting money. The rulebook is the authority on
- * those and it is missing (see `reference/README.md`). They are set so everyone
- * survives a few hits and no pick feels like a mistake, not balanced.
+ * Health is tiny on purpose - the whole game runs on 3 or 4 hit points, so a single
+ * failed roll matters and a single piece of food is worth carrying.
  */
 
 import { boardCorners, type Hex } from "./hex";
 import type { Rng } from "./rng";
 import type { Player, Role } from "./types";
 
+/** Rulebook §3: everyone starts here, before role bonuses. */
+export const BASE_HEALTH = 3;
+export const BASE_MONEY = 2;
+
 export type RoleProfile = {
   /** What the role is called at the table. */
   name: string;
   /** One line a child can act on, not a stat block. */
   blurb: string;
-  maxHealth: number;
-  /** Tiles per turn, before boots. One for everyone; the rogue has the only bonus. */
-  move: number;
-  money: number;
+  /** Added to the 3 health everybody starts with. */
+  healthBonus: number;
+  /** Added to every damage roll. */
+  attackBonus: number;
+  /** Added to the one tile a turn everybody gets. */
+  moveBonus: number;
+  /** Doctors, and only doctors, can heal and revive. */
+  canHeal: boolean;
   /**
    * Token colour. Picked to read against fields, forest and city alike, and to stay
    * clear of the board's orange selection ring.
@@ -33,34 +40,38 @@ export type RoleProfile = {
 export const ROLES: Record<Role, RoleProfile> = {
   knight: {
     name: "Knight",
-    blurb: "Tough. Stands in front and takes the hits.",
-    maxHealth: 12,
-    move: 1,
-    money: 5,
+    blurb: "Tough. Takes one more hit than anybody else.",
+    healthBonus: 1,
+    attackBonus: 0,
+    moveBonus: 0,
+    canHeal: false,
     colour: "#d64545",
   },
   rogue: {
     name: "Rogue",
-    blurb: "Quick and light-fingered. Moves an extra tile, and starts with more money.",
-    maxHealth: 9,
-    move: 2,
-    money: 8,
+    blurb: "Hits harder. Every roll counts for one more.",
+    healthBonus: 0,
+    attackBonus: 1,
+    moveBonus: 0,
+    canHeal: false,
     colour: "#9b5de5",
   },
   scout: {
     name: "Scout",
-    blurb: "Sharp-eyed. Finds things nobody else spots.",
-    maxHealth: 10,
-    move: 1,
-    money: 5,
+    blurb: "Covers ground. Two tiles a turn instead of one.",
+    healthBonus: 0,
+    attackBonus: 0,
+    moveBonus: 1,
+    canHeal: false,
     colour: "#17b3c9",
   },
   doctor: {
     name: "Doctor",
-    blurb: "Patches up the party.",
-    maxHealth: 10,
-    move: 1,
-    money: 6,
+    blurb: "Patches people up, and is the only one who can bring a friend back.",
+    healthBonus: 0,
+    attackBonus: 0,
+    moveBonus: 0,
+    canHeal: true,
     colour: "#f0ece0",
   },
 };
@@ -68,25 +79,43 @@ export const ROLES: Record<Role, RoleProfile> = {
 /** Turn order, and the order roles are handed out. */
 export const TURN_ORDER: Role[] = ["knight", "rogue", "scout", "doctor"];
 
-const spawn = (role: Role, hex: Hex): Player => ({
-  id: role,
-  name: ROLES[role].name,
-  role,
-  hex,
-  health: ROLES[role].maxHealth,
-  maxHealth: ROLES[role].maxHealth,
-  money: ROLES[role].money,
-  weapon: null,
-  armor: null,
-  boots: null,
-  supply: [],
-  dead: false,
-  movedThisTurn: false,
-  actedThisTurn: false,
-  stunned: false,
-  joinedFightThisRound: false,
-  bonusDiceNextFight: 0,
-});
+/**
+ * Full health for this player: the base, the role's bonus, and their armour, which
+ * rulebook §12 makes a health bonus rather than a damage shield.
+ */
+export const maxHealthOf = (player: Player): number =>
+  BASE_HEALTH + ROLES[player.role].healthBonus + (player.armor?.value ?? 0);
+
+/** Keeps the stored maximum honest after armour comes on or off. */
+export function withMaxHealth(player: Player): Player {
+  const maxHealth = maxHealthOf(player);
+  return { ...player, maxHealth, health: Math.min(player.health, maxHealth) };
+}
+
+const spawn = (role: Role, hex: Hex): Player => {
+  const maxHealth = BASE_HEALTH + ROLES[role].healthBonus;
+  return {
+    id: role,
+    name: ROLES[role].name,
+    role,
+    hex,
+    health: maxHealth,
+    maxHealth,
+    money: BASE_MONEY,
+    weapon: null,
+    armor: null,
+    boots: null,
+    supply: [],
+    dead: false,
+    fellAt: null,
+    fellOn: null,
+    movedThisTurn: false,
+    actedThisTurn: false,
+    stunned: false,
+    joinedFightThisRound: false,
+    bonusDiceNextFight: 0,
+  };
+};
 
 /**
  * The party, one to a corner of the board.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "../src/game/setup";
 import { activePlayer, endTurn, legalMoves, movePlayer, moveRange } from "../src/game/turn";
-import { ROLES, TURN_ORDER, createPlayers } from "../src/game/players";
+import { BASE_HEALTH, BASE_MONEY, ROLES, TURN_ORDER, createPlayers } from "../src/game/players";
 import { makeRng } from "../src/game/rng";
 import {
   boardCorners,
@@ -49,7 +49,7 @@ describe("the party", () => {
     for (const p of game().players) {
       expect(p.dead).toBe(false);
       expect(p.health).toBe(p.maxHealth);
-      expect(p.health).toBe(ROLES[p.role].maxHealth);
+      expect(p.health).toBe(BASE_HEALTH + ROLES[p.role].healthBonus);
       expect([p.weapon, p.armor, p.boots]).toEqual([null, null, null]);
       expect(p.supply).toEqual([]);
       expect(p.movedThisTurn).toBe(false);
@@ -79,10 +79,19 @@ describe("legal moves", () => {
     }
   });
 
-  it("gives everyone one tile a turn, and the rogue two", () => {
+  it("gives everyone one tile a turn, and the scout two", () => {
+    // Rulebook §3 and §5: one tile is the default; the scout is the movement role.
     const state = game();
     for (const player of state.players) {
-      expect(moveRange(player)).toBe(player.role === "rogue" ? 2 : 1);
+      expect(moveRange(player)).toBe(player.role === "scout" ? 2 : 1);
+    }
+  });
+
+  it("starts everyone on the rulebook's 3 health and $2", () => {
+    for (const player of game().players) {
+      expect(player.money).toBe(BASE_MONEY);
+      expect(player.maxHealth).toBe(BASE_HEALTH + ROLES[player.role].healthBonus);
+      expect(player.maxHealth).toBeLessThanOrEqual(4);
     }
   });
 
@@ -95,13 +104,19 @@ describe("legal moves", () => {
   });
 
   it("lets a player pass through another but never stop on them", () => {
-    // Only the rogue can show this: at one tile a turn, nobody else can reach
-    // past anything. Rogue in the middle, someone standing due east of them.
+    // Only the scout can show this: at one tile a turn, nobody else can reach
+    // past anything. Scout in the middle, someone standing due east of them.
     const base = game();
-    const rogue = { ...base.players[1], hex: { q: 0, r: 0 } };
+    const rogue = { ...base.players[2], hex: { q: 0, r: 0 } };
     const blocker = { ...base.players[0], hex: { q: 1, r: 0 } };
     const beyond = { q: 2, r: 0 };
-    const state: GameState = { ...base, activePlayerIndex: 0, players: [rogue, blocker] };
+    // Clear the monsters: they block movement, and this test is about players.
+    const state: GameState = {
+      ...base,
+      activePlayerIndex: 0,
+      players: [rogue, blocker],
+      enemies: [],
+    };
 
     expect(moveRange(rogue)).toBe(2);
     const moves = legalMoves(state, rogue);

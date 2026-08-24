@@ -16,7 +16,9 @@
  * beat is gone for good.
  */
 
-import { distance, key, neighbours, type Hex } from "./hex";
+import { distance, hexesInRange, key, neighbours, type Hex } from "./hex";
+import { slotKey } from "./items";
+import { withMaxHealth } from "./players";
 import { makeRng, type Rng } from "./rng";
 import type { GameState, Hazard, HazardKind, LogEntry, Player, Tile } from "./types";
 
@@ -60,9 +62,10 @@ export const HAZARDS: Record<HazardKind, HazardProfile> = {
   },
 };
 
-/** What a robber lifts, and what a donation to the traveller buys. */
-export const ROBBERY = 3;
-export const DONATION = 2;
+/** Rulebook §5.5: a dollar or a supply buys one extra die in your next fight. */
+export const DONATION = 1;
+/** How far the tornado can put you down (§5.5). */
+export const TORNADO_THROW = 3;
 /** Hazards start at least this far from the party. */
 export const HAZARD_SAFE_RADIUS = 3;
 
@@ -97,14 +100,19 @@ export function placeHazards(
     const open = (tile: Tile) =>
       !taken.has(key(tile.hex)) && placed.every((h) => key(h.hex) !== key(tile.hex));
 
-    const shuffled = rng.shuffle(Object.values(tiles));
+    // Never on a player and never next to one: whatever else gives, nobody opens
+    // the game standing in a tornado.
+    const shuffled = rng
+      .shuffle(Object.values(tiles))
+      .filter((tile) => players.every((p) => distance(p.hex, tile.hex) > 1));
+
     const wants = shuffled.filter(
       (tile) =>
         open(tile) &&
         (!HAZARDS[kind].keepsToWater || tile.river) &&
         players.every((p) => distance(p.hex, tile.hex) >= HAZARD_SAFE_RADIUS),
     );
-    // Fall back through the constraints rather than failing to place a hazard.
+    // Fall back through the softer constraints rather than failing to place a hazard.
     const home =
       wants[0] ??
       shuffled.find((tile) => open(tile) && (!HAZARDS[kind].keepsToWater || tile.river)) ??
@@ -179,26 +187,10 @@ function resolve(state: GameState, kind: HazardKind): GameState {
   return next;
 }
 
-/** The tornado wrecks the ground under it whether anybody is there or not. */
-function flatten(state: GameState, hazard: Hazard): GameState {
-  const label = key(hazard.hex);
-  const tile = state.tiles[label];
-  if (!tile) return state;
-
-  return note(
-    {
-      ...state,
-      // Recovers as soon as the tornado moves on, which is next turn.
-      tiles: { ...state.tiles, [label]: { ...tile, destroyedUntil: state.turn + 1 } },
-    },
-    `The tornado tore through ${label}.`,
-  );
-}
-
 /**
  * One player, one hazard, one meeting - and only one. The guard lives here rather
  * than in the caller so that no route into this function can charge a player twice
- * for standing still.
+ * for standing still (rulebook §5.5: it does not trigger again until one of you moves).
  */
 export function meet(state: GameState, kind: HazardKind, playerId: string): GameState {
   const hazard = state.hazards.find((h) => h.kind === kind);
@@ -217,73 +209,150 @@ export function meet(state: GameState, kind: HazardKind, playerId: string): Game
     case "tornado":
       return blowAway(marked, player);
     case "robber":
-      return rob(marked, player);
     case "pirates":
-      return plunder(marked, player);
-    // The traveller asks rather than takes: see `donate`.
+      return confront(marked, player, kind);
     case "homeless":
+      // Rulebook §5.5: nothing to give means a turn spent looking after them.
+      if (player.money < DONATION && player.supply.length === 0) {
+        return note(
+          {
+            ...marked,
+            players: marked.players.map((p) =>
+              p.id === player.id ? { ...p, stunned: true } : p,
+            ),
+          },
+          `${player.name} had nothing to give, and spent the time looking after them. That is next turn gone.`,
+        );
+      }
       return note(marked, `${player.name} met a traveller at ${key(player.hex)}.`);
   }
 }
 
-/** Picked up and put down a tile away, with the next turn spent getting up. */
+/**
+ * Rulebook §5.5: the tornado destroys the **six tiles around it**, not the one it is
+ * standing on - it drags a no-go ring across the board. The ground recovers as soon
+ * as it moves on, which is the rulebook's own suggested answer to its §15 question.
+ */
+function flatten(state: GameState, hazard: Hazard): GameState {
+  const ring = neighbours(hazard.hex);
+  const tiles = { ...state.tiles };
+  for (const hex of ring) {
+    const label = key(hex);
+    if (tiles[label]) tiles[label] = { ...tiles[label], destroyedUntil: state.turn + 1 };
+  }
+  return note(
+    { ...state, tiles },
+    `The tornado is at ${key(hazard.hex)}. Everything around it is impassable.`,
+  );
+}
+
+/**
+ * Caught by it. Rulebook §5.5: you lose **all your supply and one piece of
+ * equipment**, and you come down anywhere within three tiles.
+ *
+ * Which piece of gear is the player's choice at the table; here it takes the least
+ * useful thing they have - boots before armour before a weapon - so nobody has to
+ * pause the game for a decision they were always going to make the same way. Where
+ * they land is picked for them too, for the same reason: the nearest safe tile.
+ */
 function blowAway(state: GameState, player: Player): GameState {
   const rng = makeRng(state.rngState);
-  const clear = neighbours(player.hex).filter(
+  const dropped = player.boots ?? player.armor ?? player.weapon;
+
+  const landings = hexesInRange(player.hex, TORNADO_THROW).filter(
+    (h) => !isDestroyed(state.tiles[key(h)], state.turn) && key(h) !== key(player.hex),
+  );
+  const landing = landings.length > 0 ? rng.pick(landings) : player.hex;
+
+  const stripped: Player = {
+    ...player,
+    hex: landing,
+    supply: [],
+    ...(dropped ? { [slotKey(dropped.slot)]: null } : {}),
+  };
+
+  let next: GameState = {
+    ...state,
+    rngState: rng.state(),
+    itemPile: dropped ? [...state.itemPile, dropped] : state.itemPile,
+    players: state.players.map((p) => (p.id === player.id ? withMaxHealth(stripped) : p)),
+  };
+  next = note(
+    next,
+    `The tornado picked ${player.name} up and put them down at ${key(landing)}.`,
+  );
+  if (player.supply.length > 0) {
+    next = note(next, `Everything in ${player.name}'s pack went with it.`);
+  }
+  return dropped ? note(next, `So did their ${dropped.name}.`) : next;
+}
+
+/**
+ * Rulebook §5.5: the thieves do not mug you as they pass. They are mid-boss fights
+ * standing in your way - you either take them on, or pay them off and back away.
+ */
+function confront(state: GameState, player: Player, kind: "robber" | "pirates"): GameState {
+  return note(
+    state,
+    `${player.name} ran into ${kind === "pirates" ? "the Pirates" : "the Robber"} at ${key(player.hex)}. Fight, or pay up.`,
+  );
+}
+
+/**
+ * Pay them off: rulebook §5.5. They take everything you have - and the pirates take
+ * a piece of gear as well - and you back off a tile.
+ */
+export function payOff(state: GameState): GameState {
+  const player = state.players[state.activePlayerIndex];
+  const thief = thiefFacing(state, player);
+  if (!thief || !canPayOff(state, player)) return state;
+
+  const rng = makeRng(state.rngState);
+  const taken = player.money;
+  const gear = thief === "pirates" ? (player.weapon ?? player.armor ?? player.boots) : null;
+
+  const away = neighbours(player.hex).filter(
     (h) => !isDestroyed(state.tiles[key(h)], state.turn),
   );
-  const landing = clear.length > 0 ? rng.pick(clear) : player.hex;
+  const retreat = away.length > 0 ? rng.pick(away) : player.hex;
 
-  return note(
-    {
-      ...state,
-      rngState: rng.state(),
-      players: state.players.map((p) =>
-        p.id === player.id ? { ...p, hex: landing, stunned: true } : p,
-      ),
-    },
-    `${player.name} was caught by the tornado and dumped at ${key(landing)}. That is next turn gone.`,
-  );
+  const stripped: Player = {
+    ...player,
+    money: 0,
+    hex: retreat,
+    actedThisTurn: true,
+    ...(gear ? { [slotKey(gear.slot)]: null } : {}),
+  };
+
+  let next: GameState = {
+    ...state,
+    rngState: rng.state(),
+    players: state.players.map((p) => (p.id === player.id ? withMaxHealth(stripped) : p)),
+    hazards: state.hazards.map((h) =>
+      h.kind === thief ? { ...h, carrying: h.carrying + taken } : h,
+    ),
+    enemies: state.enemies.map((e) =>
+      e.kind === thief && gear ? { ...e, loot: [...e.loot, gear] } : e,
+    ),
+  };
+  next = note(next, `${player.name} handed over $${taken} and backed off to ${key(retreat)}.`);
+  return gear ? note(next, `The pirates took their ${gear.name} too.`) : next;
 }
 
-function rob(state: GameState, player: Player): GameState {
-  const taken = Math.min(ROBBERY, player.money);
-  if (taken === 0) {
-    return note(state, `The robber went through ${player.name}'s pockets and found nothing.`);
-  }
-  return note(
-    {
-      ...state,
-      players: state.players.map((p) =>
-        p.id === player.id ? { ...p, money: p.money - taken } : p,
-      ),
-      hazards: state.hazards.map((h) =>
-        h.kind === "robber" ? { ...h, carrying: h.carrying + taken } : h,
-      ),
-    },
-    `The robber took $${taken} from ${player.name}. Catch them to get it back.`,
+/** The thief standing on the player's tile, if there is one. */
+export function thiefFacing(state: GameState, player: Player): "robber" | "pirates" | null {
+  const here = state.hazards.find(
+    (h) => key(h.hex) === key(player.hex) && (h.kind === "robber" || h.kind === "pirates"),
   );
+  return (here?.kind as "robber" | "pirates") ?? null;
 }
 
-/** Pirates take gear rather than coins, and carry it until somebody beats them. */
-function plunder(state: GameState, player: Player): GameState {
-  const prize = player.weapon ?? player.armor ?? player.boots;
-  if (!prize) {
-    return note(state, `The pirates looked ${player.name} over and found nothing worth taking.`);
-  }
-  const slot = prize.slot === "weapon" ? "weapon" : prize.slot === "armor" ? "armor" : "boots";
-
-  return note(
-    {
-      ...state,
-      players: state.players.map((p) => (p.id === player.id ? { ...p, [slot]: null } : p)),
-      enemies: state.enemies.map((e) =>
-        e.kind === "pirates" ? { ...e, loot: [...e.loot, prize] } : e,
-      ),
-    },
-    `The pirates made off with ${player.name}'s ${prize.name}.`,
-  );
-}
+export const canPayOff = (state: GameState, player: Player): boolean =>
+  !player.dead &&
+  state.combat === null &&
+  state.ending === null &&
+  !player.actedThisTurn &&
+  thiefFacing(state, player) !== null;
 
 /**
  * Give the traveller something. Costs money, not the turn - the spec's own default -
@@ -291,8 +360,11 @@ function plunder(state: GameState, player: Player): GameState {
  */
 export function donate(state: GameState): GameState {
   const player = state.players[state.activePlayerIndex];
-  const traveller = state.hazards.find((h) => h.kind === "homeless");
-  if (!traveller || !canDonate(state, player)) return state;
+  if (!canDonate(state, player)) return state;
+
+  // A dollar if they have one, otherwise something out of the pack.
+  const coin = player.money >= DONATION;
+  const given = coin ? null : player.supply[0];
 
   return note(
     {
@@ -301,13 +373,14 @@ export function donate(state: GameState): GameState {
         p.id === player.id
           ? {
               ...p,
-              money: p.money - DONATION,
+              money: coin ? p.money - DONATION : p.money,
+              supply: given ? p.supply.filter((i) => i.id !== given.id) : p.supply,
               bonusDiceNextFight: p.bonusDiceNextFight + 1,
             }
           : p,
       ),
     },
-    `${player.name} gave the traveller $${DONATION}. An extra die in the next fight.`,
+    `${player.name} gave the traveller ${coin ? `$${DONATION}` : `their ${given?.name}`}. Four dice in the next fight.`,
   );
 }
 
@@ -316,9 +389,11 @@ export function canDonate(state: GameState, player: Player): boolean {
   return (
     !player.dead &&
     state.combat === null &&
-    state.phase !== "gameOver" &&
+    state.ending === null &&
+    // Once only, per §5.5: an extra die is not something you stack.
+    player.bonusDiceNextFight === 0 &&
     traveller !== undefined &&
     key(traveller.hex) === key(player.hex) &&
-    player.money >= DONATION
+    (player.money >= DONATION || player.supply.length > 0)
   );
 }

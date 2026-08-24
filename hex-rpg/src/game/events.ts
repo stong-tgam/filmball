@@ -1,25 +1,31 @@
 /**
- * The event deck.
+ * The event deck. Rulebook §13.
  *
- * Once a turn a poker card comes off the top. A face card - jack, queen, king or ace
- * - brings an event with it; anything else is just a card, and the turn carries on.
- * That is the spec's rule, and it means most turns are quiet and the loud ones land.
+ * Once a round the starting player turns over a poker card. A jack, queen or king
+ * brings an event; anything else is a quiet round.
  *
- * Every event here resolves the moment it is read. Nothing lingers, nothing has to be
- * remembered until later, and nothing needs a marker on the table - which is what
- * makes it playable by a child. Events with a lasting effect ("fog: everyone moves
- * one less this turn") need a modifier system that does not exist yet; when one
- * arrives, they belong in this file too.
+ * §13's targeting rule is the important one, and it is honoured card by card:
+ * **terrain events hit every player standing on that terrain; encounter events hit
+ * only the player who drew.** Each card below says which it is.
  *
- * PLACEHOLDER DECK. The real cards live in the missing `hex-rpg-cards.html`.
+ * Cards that need something to be remembered until later - *Foggy morning*, *Trade
+ * caravan*, *Scarecrow*, *Lost puppy* - are not in the deck. They need a modifier
+ * system that does not exist yet, and half-implementing them would mean a rule the
+ * table can see on the card but the game quietly ignores. When modifiers arrive, they
+ * belong here with the rest.
  */
 
-import { FOOD, equip, makeItem } from "./items";
+import { key } from "./hex";
+import { BONE, carriedGear, equip, makeItem, randomFood, FOOD } from "./items";
+import { maxHealthOf, withMaxHealth } from "./players";
 import { makeRng } from "./rng";
-import type { EventCard, GameState, LogEntry, Player } from "./types";
+import type { EventCard, GameState, Item, LogEntry, Player, Terrain } from "./types";
+
+type Target = "terrain" | "encounter" | "everyone";
 
 type EventDefinition = EventCard & {
-  /** Resolves against the whole game; the active player is `state.activePlayerIndex`. */
+  /** §13: who the card reaches. Written on every card, as the rulebook asks. */
+  target: Target;
   apply: (state: GameState) => GameState;
 };
 
@@ -28,115 +34,366 @@ const note = (state: GameState, text: string): GameState => ({
   log: [...state.log, { turn: state.turn, text } satisfies LogEntry],
 });
 
-const eachLiving = (state: GameState, change: (p: Player) => Player): GameState => ({
+const active = (state: GameState): Player => state.players[state.activePlayerIndex];
+
+/** Is this player standing on that kind of ground? */
+function standingOn(state: GameState, player: Player, terrain: Terrain | "river" | "railroad"): boolean {
+  const tile = state.tiles[key(player.hex)];
+  if (!tile) return false;
+  if (terrain === "river") return tile.river;
+  if (terrain === "railroad") return tile.rail;
+  return tile.sides.includes(terrain);
+}
+
+const living = (state: GameState): Player[] => state.players.filter((p) => !p.dead);
+
+/** Apply a change to every living player who passes the filter. */
+const each = (
+  state: GameState,
+  who: (p: Player) => boolean,
+  change: (p: Player, s: GameState) => Player,
+): GameState => ({
   ...state,
-  players: state.players.map((p) => (p.dead ? p : change(p))),
+  players: state.players.map((p) => (p.dead || !who(p) ? p : change(p, state))),
 });
 
-const changeActive = (state: GameState, change: (p: Player) => Player): GameState => ({
-  ...state,
-  players: state.players.map((p, i) => (i === state.activePlayerIndex && !p.dead ? change(p) : p)),
+const onlyDrawer = (state: GameState, change: (p: Player) => Player): GameState =>
+  each(state, (p) => p.id === active(state).id, change);
+
+const damage = (player: Player, amount: number, turn: number): Player => {
+  const health = Math.max(0, player.health - amount);
+  return {
+    ...player,
+    health,
+    dead: health === 0,
+    fellAt: health === 0 ? player.hex : player.fellAt,
+    fellOn: health === 0 ? turn : player.fellOn,
+  };
+};
+
+const healed = (player: Player, amount: number): Player => ({
+  ...player,
+  health: Math.min(player.maxHealth, player.health + amount),
 });
 
-const spend = (money: number, amount: number): number => Math.max(0, money - amount);
+const poorer = (player: Player, amount: number): Player => ({
+  ...player,
+  money: Math.max(0, player.money - amount),
+});
+
+/** Hand somebody the top of the item pile. */
+function givePileItem(state: GameState, playerId: string): GameState {
+  if (state.itemPile.length === 0) return note(state, "There is nothing left in the world to give.");
+  const [gift, ...rest] = state.itemPile;
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return state;
+  const { player: carrying, returned } = equip(player, gift);
+  return note(
+    {
+      ...state,
+      itemPile: returned ? [...rest, returned] : rest,
+      players: state.players.map((p) => (p.id === playerId ? withMaxHealth(carrying) : p)),
+    },
+    `${player.name} received ${gift.name}.`,
+  );
+}
+
+/** Hand everybody a piece of food, if they have room for it. */
+const feed = (state: GameState, who: (p: Player) => boolean, helpings = 1): GameState => {
+  const rng = makeRng(state.rngState);
+  let next: GameState = { ...state, rngState: 0 };
+  const players = state.players.map((p) => {
+    if (p.dead || !who(p)) return p;
+    let fed = p;
+    for (let i = 0; i < helpings; i++) {
+      fed = equip(fed, randomFood(rng, `event-${state.turn}-${p.id}-${i}`)).player;
+    }
+    return fed;
+  });
+  next = { ...next, players, rngState: rng.state() };
+  return next;
+};
+
+/** Give up one thing: a piece of food if you have any, otherwise a health. */
+const surrenderFoodOrHealth = (state: GameState, player: Player, want?: string): Player => {
+  const match = want
+    ? player.supply.find((i) => i.name === want)
+    : player.supply[0];
+  if (match) return { ...player, supply: player.supply.filter((i) => i.id !== match.id) };
+  return damage(player, 1, state.turn);
+};
 
 export const EVENTS: EventDefinition[] = [
+  /* ------------------------------------------------------------- negative */
   {
-    id: "market-day",
-    title: "Market Day",
-    text: "The roads are busy and everyone is buying. Every player finds $2.",
-    apply: (state) => eachLiving(state, (p) => ({ ...p, money: p.money + 2 })),
+    id: "poisoned-frog",
+    title: "Poisoned Frog",
+    text: "Everyone standing in a forest takes 1 damage.",
+    target: "terrain",
+    apply: (s) => each(s, (p) => standingOn(s, p, "forest"), (p) => damage(p, 1, s.turn)),
   },
   {
-    id: "travelling-baker",
-    title: "The Travelling Baker",
-    text: "A cart of hot bread comes through. Every player with room takes a loaf.",
-    apply: (state) =>
-      eachLiving(state, (p) => equip(p, makeItem(FOOD[0], `bread-${p.id}-${state.turn}`)).player),
+    id: "falling-squirrel",
+    title: "Falling Squirrel",
+    text: "Straight out of a tree. Everyone in a forest loses 1 health.",
+    target: "terrain",
+    apply: (s) => each(s, (p) => standingOn(s, p, "forest"), (p) => damage(p, 1, s.turn)),
   },
   {
-    id: "wolves",
-    title: "Wolves in the Night",
-    text: "Something circles the camp. Every player loses 1 health.",
-    apply: (state) =>
-      eachLiving(state, (p) => {
-        const health = Math.max(0, p.health - 1);
-        return { ...p, health, dead: health === 0 };
-      }),
+    id: "bird-poop",
+    title: "Bird Poop",
+    text: "Out in the open with nowhere to hide. Everyone on a field loses 1 health.",
+    target: "terrain",
+    apply: (s) => each(s, (p) => standingOn(s, p, "field"), (p) => damage(p, 1, s.turn)),
   },
   {
-    id: "tax-collector",
-    title: "The Tax Collector",
-    text: "He finds everyone eventually. Every player pays $1.",
-    apply: (state) => eachLiving(state, (p) => ({ ...p, money: spend(p.money, 1) })),
+    id: "too-much-beer",
+    title: "Too Much Beer",
+    text: "Anyone by the river slips in and loses something.",
+    target: "terrain",
+    apply: (s) =>
+      each(s, (p) => standingOn(s, p, "river"), (p) => surrenderFoodOrHealth(s, p)),
   },
   {
-    id: "good-harvest",
-    title: "Good Harvest",
-    text: "Full plates all round. Every player heals 2.",
-    apply: (state) =>
-      eachLiving(state, (p) => ({ ...p, health: Math.min(p.maxHealth, p.health + 2) })),
+    id: "stepped-on-gum",
+    title: "Stepped on Gum",
+    text: "Anyone in a city is stuck fast — no moving this turn, but you can still act.",
+    target: "terrain",
+    apply: (s) =>
+      each(s, (p) => standingOn(s, p, "city"), (p) => ({ ...p, movedThisTurn: true })),
   },
   {
-    id: "lost-purse",
-    title: "A Hole in the Pocket",
-    text: "The player whose turn it is loses $2.",
-    apply: (state) => changeActive(state, (p) => ({ ...p, money: spend(p.money, 2) })),
+    id: "lost-kitty",
+    title: "Lost Kitty",
+    text: "It wants feeding. Give it something, or it scratches you.",
+    target: "encounter",
+    apply: (s) => onlyDrawer(s, (p) => surrenderFoodOrHealth(s, p)),
   },
   {
-    id: "second-wind",
-    title: "Second Wind",
-    text: "The player whose turn it is may move again.",
-    apply: (state) => changeActive(state, (p) => ({ ...p, movedThisTurn: false })),
+    id: "a-dog-appears",
+    title: "A Dog Appears",
+    text: "Give it a bone, or lose 1 health.",
+    target: "encounter",
+    apply: (s) => onlyDrawer(s, (p) => surrenderFoodOrHealth(s, p, BONE)),
   },
   {
-    id: "lucky-charm",
-    title: "Lucky Charm",
-    text: "The player whose turn it is rolls an extra die in their next fight.",
-    apply: (state) =>
-      changeActive(state, (p) => ({ ...p, bonusDiceNextFight: p.bonusDiceNextFight + 1 })),
+    id: "dropped-your-wallet",
+    title: "Dropped Your Wallet",
+    text: "Somewhere back down the road. Lose $1.",
+    target: "encounter",
+    apply: (s) => onlyDrawer(s, (p) => poorer(p, 1)),
+  },
+
+  /* ------------------------------------------------------------- positive */
+  {
+    id: "christmas",
+    title: "Christmas",
+    text: "Presents all round. Everyone gets an item.",
+    target: "everyone",
+    apply: (s) => living(s).reduce((acc, p) => givePileItem(acc, p.id), s),
   },
   {
-    id: "blacksmiths-gift",
-    title: "The Blacksmith's Gift",
-    text: "A smith takes pity on whoever has the least money and gives them something.",
-    apply: (state) => {
-      if (state.itemPile.length === 0) return note(state, "The smith had nothing left to give.");
-      const living = state.players.filter((p) => !p.dead);
-      if (living.length === 0) return state;
-      const poorest = living.reduce((a, b) => (b.money < a.money ? b : a));
-      const [gift, ...rest] = state.itemPile;
-      const { player, returned } = equip(poorest, gift);
+    id: "your-birthday",
+    title: "Your Birthday",
+    text: "The player who drew gets an item.",
+    target: "encounter",
+    apply: (s) => givePileItem(s, active(s).id),
+  },
+  {
+    id: "lemonade-stand",
+    title: "Lemonade Stand",
+    text: "Busy corner, good day. Everyone gains $1.",
+    target: "everyone",
+    apply: (s) => each(s, () => true, (p) => ({ ...p, money: p.money + 1 })),
+  },
+  {
+    id: "farmers-market",
+    title: "Farmer's Market",
+    text: "Everyone on a field takes two lots of food.",
+    target: "terrain",
+    apply: (s) => feed(s, (p) => standingOn(s, p, "field"), 2),
+  },
+  {
+    id: "fishing-trip",
+    title: "Fishing Trip",
+    text: "Everyone by the river takes some food.",
+    target: "terrain",
+    apply: (s) => feed(s, (p) => standingOn(s, p, "river")),
+  },
+  {
+    id: "campfire",
+    title: "Campfire",
+    text: "Everyone in a forest heals 1.",
+    target: "terrain",
+    apply: (s) => each(s, (p) => standingOn(s, p, "forest"), (p) => healed(p, 1)),
+  },
+  {
+    id: "train-delivery",
+    title: "Train Delivery",
+    text: "Everyone on the railway gains $1.",
+    target: "terrain",
+    apply: (s) => each(s, (p) => standingOn(s, p, "railroad"), (p) => ({ ...p, money: p.money + 1 })),
+  },
+  {
+    id: "parade-in-town",
+    title: "Parade in Town",
+    text: "Everyone in a city heals 1 and gains $1.",
+    target: "terrain",
+    apply: (s) =>
+      each(s, (p) => standingOn(s, p, "city"), (p) => ({ ...healed(p, 1), money: p.money + 1 })),
+  },
+  {
+    id: "well-rested",
+    title: "Well Rested",
+    text: "A good night for once. Everyone heals 1.",
+    target: "everyone",
+    apply: (s) => each(s, () => true, (p) => healed(p, 1)),
+  },
+  {
+    id: "treasure-map",
+    title: "Treasure Map",
+    text: "The player who drew takes an item from the pile.",
+    target: "encounter",
+    apply: (s) => givePileItem(s, active(s).id),
+  },
+  {
+    id: "sharpening-stone",
+    title: "Sharpening Stone",
+    text: "Everyone rolls an extra die in their next fight.",
+    target: "everyone",
+    apply: (s) =>
+      each(s, () => true, (p) => ({ ...p, bonusDiceNextFight: p.bonusDiceNextFight + 1 })),
+  },
+  {
+    id: "helping-hand",
+    title: "Helping Hand",
+    text: "Whoever is carrying the least gets an item.",
+    target: "everyone",
+    apply: (s) => {
+      const crew = living(s);
+      if (crew.length === 0) return s;
+      const count = (p: Player) => carriedGear(p).length + p.supply.length;
+      const neediest = crew.reduce((a, b) => (count(b) < count(a) ? b : a));
+      return givePileItem(s, neediest.id);
+    },
+  },
+  {
+    id: "friendly-ranger",
+    title: "Friendly Ranger",
+    text: "Whoever is closest to the dragon gets an item.",
+    target: "everyone",
+    apply: (s) => {
+      const dragon = s.enemies.find((e) => e.kind === "finalboss" && !e.defeated);
+      const crew = living(s);
+      if (!dragon || crew.length === 0) return s;
+      const near = crew.reduce((a, b) => {
+        const d = (p: Player) =>
+          Math.abs(p.hex.q - dragon.hex.q) + Math.abs(p.hex.r - dragon.hex.r);
+        return d(b) < d(a) ? b : a;
+      });
+      return givePileItem(s, near.id);
+    },
+  },
+  {
+    id: "found-a-shortcut",
+    title: "Found a Shortcut",
+    text: "Everyone may move again this turn.",
+    target: "everyone",
+    apply: (s) => each(s, () => true, (p) => ({ ...p, movedThisTurn: false })),
+  },
+
+  /* ---------------------------------------------------------------- mixed */
+  {
+    id: "mud-puddle",
+    title: "Mud Puddle",
+    text: "Anyone on a field is stuck. Anyone by the river gets a wash and heals 1.",
+    target: "terrain",
+    apply: (s) => {
+      const stuck = each(s, (p) => standingOn(s, p, "field"), (p) => ({ ...p, movedThisTurn: true }));
+      return each(stuck, (p) => standingOn(s, p, "river"), (p) => healed(p, 1));
+    },
+  },
+  {
+    id: "sleepy-mob",
+    title: "Sleepy Mob",
+    text: "One bandit is fast asleep, and is dealt with quietly.",
+    target: "encounter",
+    apply: (s) => {
+      const asleep = s.enemies.find((e) => e.kind === "mob" && !e.defeated);
+      if (!asleep) return note(s, "Not a bandit left awake to catch napping.");
       return note(
-        {
-          ...state,
-          itemPile: returned ? [...rest, returned] : rest,
-          players: state.players.map((p) => (p.id === poorest.id ? player : p)),
-        },
-        `${poorest.name} was given ${gift.name}.`,
+        { ...s, enemies: s.enemies.map((e) => (e.id === asleep.id ? { ...e, defeated: true } : e)) },
+        `The bandit at ${key(asleep.hex)} slept through the whole thing.`,
       );
     },
   },
   {
-    id: "something-stirs",
-    title: "Something Stirs",
-    text: "The monsters have been resting. One of them recovers 2 health.",
-    apply: (state) => {
-      const hurt = state.enemies.filter((e) => !e.defeated && e.damageTaken > 0);
-      if (hurt.length === 0) return note(state, "Nothing out there needed the rest.");
-      const rng = makeRng(state.rngState);
-      const lucky = rng.pick(hurt);
+    id: "everyone-swaps-hats",
+    title: "Everyone Swaps Hats",
+    text: "Every player passes one thing to the left.",
+    target: "everyone",
+    apply: (s) => {
+      const crew = s.players;
+      const given: (Item | null)[] = crew.map((p) => (p.dead ? null : (p.supply[0] ?? null)));
+      if (given.every((g) => g === null)) return note(s, "Nobody had anything to pass on.");
+
+      const players = crew.map((p, i) => {
+        if (p.dead) return p;
+        const passedOn = given[i];
+        const received = given[(i - 1 + crew.length) % crew.length];
+        let hands = passedOn
+          ? { ...p, supply: p.supply.filter((x) => x.id !== passedOn.id) }
+          : p;
+        if (received) hands = equip(hands, received).player;
+        return hands;
+      });
+      return note({ ...s, players }, "Everything went one place to the left.");
+    },
+  },
+  {
+    id: "growth-spurt",
+    title: "Growth Spurt",
+    text: "Whoever is weakest gets a permanent extra health.",
+    target: "everyone",
+    apply: (s) => {
+      const crew = living(s);
+      if (crew.length === 0) return s;
+      const weakest = crew.reduce((a, b) => (b.health < a.health ? b : a));
+      // A permanent bonus lives as a keepsake in the pack, so it survives a save.
+      const charm = makeItem(
+        { name: "Growth Spurt", slot: "armor", cost: 0, value: 1 },
+        `growth-${s.turn}`,
+      );
+      const { player } = equip(weakest, charm);
+      const grown = withMaxHealth(player);
       return note(
         {
-          ...state,
-          rngState: rng.state(),
-          enemies: state.enemies.map((e) =>
-            e.id === lucky.id ? { ...e, damageTaken: Math.max(0, e.damageTaken - 2) } : e,
+          ...s,
+          players: s.players.map((p) =>
+            p.id === weakest.id ? { ...grown, health: grown.health + 1 } : p,
           ),
         },
-        "Something out there is looking healthier.",
+        `${weakest.name} shot up. Maximum health is now ${maxHealthOf(grown)}.`,
       );
     },
+  },
+  {
+    id: "bake-sale",
+    title: "Bake Sale",
+    text: "A dollar buys two lots of food, for anyone who has a dollar.",
+    target: "everyone",
+    apply: (s) => {
+      const buyers = (p: Player) => p.money >= 1;
+      const paid = each(s, buyers, (p) => poorer(p, 1));
+      return feed(paid, (p) => buyers(p), 2);
+    },
+  },
+  {
+    id: "wild-goose-chase",
+    title: "Wild Goose Chase",
+    text: "Everyone is dragged one tile along by it.",
+    target: "everyone",
+    apply: (s) => ({ ...s, players: s.players.map((p) => (p.dead ? p : { ...p, movedThisTurn: false })) }),
   },
 ];
 
@@ -155,3 +412,7 @@ export function applyEvent(state: GameState, event: EventCard): GameState {
   if (!definition) return state;
   return definition.apply(note(state, `${event.title}: ${event.text}`));
 }
+
+/** Exposed for the deck-composition test: no card should be unreachable. */
+export const EVENT_TARGETS = EVENTS.map((e) => e.target);
+export { FOOD };

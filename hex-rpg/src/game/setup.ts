@@ -302,7 +302,8 @@ export function createInitialState(seed: number): GameState {
   const hazards = placeHazards(rng, players, tiles, monsters);
   // Two poker decks, per the spec: events and searches never share a shuffle.
   const poker = freshDeck(rng.state());
-  const searches = freshDeck(poker.rngState);
+  // Rulebook §6: only the search deck carries jokers.
+  const searches = freshDeck(poker.rngState, true);
   const events = createEventDeck(searches.rngState);
 
   return {
@@ -314,9 +315,10 @@ export function createInitialState(seed: number): GameState {
     activePlayerIndex: 0,
     tiles,
     players,
-    enemies: [...monsters, ...spawnThieves(hazards)],
+    enemies: [...monsters, ...spawnThieves(rng, hazards)],
     hazards,
     combat: null,
+    ending: null,
     itemPile: createItemPile(rng),
     eventDeck: events.deck,
     pokerDeck: poker.deck,

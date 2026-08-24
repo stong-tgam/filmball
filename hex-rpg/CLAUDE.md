@@ -8,9 +8,10 @@ knocked sideways by random events.
 a game a 7-year-old can play without an adult reading rules aloud, that an adult
 still enjoys, and that finishes in one sitting.
 
-`webapp-spec.md` in `reference/` is the build plan. `hex-rpg-rulebook.md` is meant to
-be the authoritative rules document — **it is missing** (see `reference/README.md`);
-ask rather than inventing rules that the rulebook should settle.
+`reference/hex-rpg-rulebook.md` is the authoritative rules document and **it is here**.
+Follow it. `reference/webapp-spec.md` is the build plan. Where the rulebook leaves
+something open (its §15 list), the choice taken is written in a comment at the place
+it is made — say so in the same way if you take another one.
 
 ## What that goal means when you make a call
 
@@ -62,19 +63,32 @@ npm test           # 56 tests
 npm run build      # type-check + production build
 ```
 
-## Current state: v0.6, hazards
+## Current state: v0.7, aligned to the rulebook
 
-Shipped: the board, the party, movement, turn order and limit, enemies and the fight,
-the economy, the draws, and the four hazards. **Every system the spec asks for is in.**
+Every system is in, and every earlier placeholder has been replaced with what the
+rulebook says. The numbers are small on purpose: **3 health, $2, one tile a turn, and
+a failed roll costs exactly one health.** Do not inflate them without a playtest —
+the whole game is legible to a child because it runs on single digits.
 
-What is left is **v0.7 — polish**: autosave to localStorage, a new game with a chosen
-seed (the seed box exists; nothing is persisted), the action log (exists), win and
-lose screens, and undo. Undo is the one with a design decision in it: the state is
-serialisable and the generator's position travels with it, so either snapshotting
-each turn or replaying from the seed will work.
+Key rules, so nothing gets "improved" back to a guess:
 
-There is no win condition yet. The game ends when the turn limit runs out; beating
-the dragon does nothing in particular. That is the first thing v0.7 should fix.
+- **Roles (§3)**: knight +1 health, **rogue +1 attack**, **scout +1 movement**, doctor
+  heals and revives. Everyone starts on 3 health and $2.
+- **Combat (§7)**: roll 3 dice + attack against the enemy's *remaining* health. Over
+  it, beaten. Under it, the damage sticks and you lose **1 health, flat**. Exactly
+  equal, **nothing happens and you go back where you started**.
+- **Features (§9)**: every monster draws one, the dragon two, before the encounter.
+  Water = escape once on a river; railway = a health at the start; forest = −1 attack
+  for everyone; field = +1 to the toll per player; city = $1 on a city tile, else a
+  health.
+- **Search (§6)**: red finds gear, black finds nothing, the joker is a thief who takes
+  the bone if you have one.
+- **Loot (§10)**: items only, never money. Money comes from **selling**.
+- **Winning (§14)**: kill the dragon before the turn limit. `GameState.ending`.
+
+What is left is listed under "Still open" in the README. The largest is **group fights
+(§8)** — every fight is currently one player against one enemy, and §7.4's boss maths
+assumes four.
 
 - `turn.ts` — `legalMoves`, `movePlayer`, `endTurn`. One move per turn; moving onto
   an enemy starts a fight, and the turn cannot pass while one is running.
@@ -114,12 +128,41 @@ names are already in `Phase`.
 
 ## Open questions
 
-The spec's §9 lists rules the code will need branches for — turn limit, how long
-tornado damage lasts, whether a hazard hit costs your turn, whether mid bosses must
-die before the final boss. Defaults are suggested there; confirm before v0.6.
+Still genuinely undecided, from the rulebook's §15:
 
-Decisions taken in the absence of the rulebook, all marked in the code where they
-are made, all cheap to reverse:
+- **Must mid bosses die before the dragon?** Nothing stops a party running at it on
+  turn one. The dice punish that, but no rule forbids it.
+- **Group fights (§8)** are unbuilt, and the boss maths in §7.4 assumes them.
+
+Choices the rulebook leaves open (its §15), all marked in the code where they are
+made:
+
+- **A downed player gets up on their own after a full turn, at 1 health**, and a
+  doctor reaching them is instant — §7's suggested compromise, not both rules at once.
+- **Wrecked ground recovers as soon as the tornado moves on** — §15's own suggestion.
+- **A beaten thief is gone for good.**
+- **Two poker decks**, one for events and one for searches.
+- **A city never runs out of food**, and sells gear only from the undrawn pile.
+- **Hazards are placed before the party**, as §5.5 says; the party starts on the six
+  corners, which is this build's choice, not the rulebook's (its sample setup clusters
+  them at the top edge).
+- **The tornado picks which piece of gear it takes and where it drops you.** The
+  rulebook makes both the player's choice; automating them keeps a turn moving, and
+  it takes the least useful piece.
+- **Pass-through**: you may move *through* another player, not stop on them. Enemies
+  are the opposite: onto, never past (§5).
+- **A tile can be searched once per game**, or standing still beats playing.
+
+## Open questions
+
+Still genuinely undecided, from the rulebook's §15:
+
+- **Must mid bosses die before the dragon?** Nothing stops a party running at it on
+  turn one. The dice punish that, but no rule forbids it.
+- **Group fights (§8)** are unbuilt, and the boss maths in §7.4 assumes them.
+
+Choices the rulebook leaves open (its §15), all marked in the code where they are
+made:
 
 - **A downed player is out** (`dead`), and the turn order skips them. This is what
   the spec models and it is the decision most likely to be wrong: a child knocked out

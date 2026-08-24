@@ -71,8 +71,15 @@ export type Player = {
   movedThisTurn: boolean;
   /** One action per turn - search, trade or a fight. Eating is free and not this. */
   actedThisTurn: boolean;
-  /** Flattened by the tornado: the next turn is spent getting up. */
+  /** Owes a turn - looking after the traveller, per rulebook §5.5. */
   stunned: boolean;
+  /**
+   * Where they fell. A doctor reaching this tile revives them on the spot; left
+   * alone they pick themselves up after a full turn (rulebook §7's compromise).
+   */
+  fellAt: Hex | null;
+  /** Turn they died on, for the self-revive clock. */
+  fellOn: number | null;
   /** Homeless-person donation: extra dice on the next fight only. */
   bonusDiceNextFight: number;
   joinedFightThisRound: boolean;
@@ -113,10 +120,12 @@ export type Hazard = {
   carrying: number;
 };
 
-export type Suit = "clubs" | "diamonds" | "hearts" | "spades";
+export type Suit = "clubs" | "diamonds" | "hearts" | "spades" | "joker";
 export type Rank =
   | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10"
-  | "J" | "Q" | "K" | "A";
+  | "J" | "Q" | "K" | "A"
+  /** Two of these in the search deck: rulebook §6, a thief in the undergrowth. */
+  | "Joker";
 
 export type Card = { suit: Suit; rank: Rank };
 
@@ -157,6 +166,8 @@ export type CombatOutcome =
   | "enemyDefeated"
   /** The water feature: a monster slipping away rather than going down. */
   | "enemyEscaped"
+  /** Rulebook §7: an exact tie does nothing at all. */
+  | "standoff"
   | "playerEscaped"
   | "playerDown";
 
@@ -167,11 +178,18 @@ export type Combat = {
   /** Tile the player came from, so running away puts them back where they were. */
   from: string;
   round: number;
-  /** The last exchange, for the dice display. Null before the first roll. */
+  /** The last roll, for the dice display. Null before the first one. */
   playerRoll: Roll | null;
-  enemyRoll: Roll | null;
+  /** Health the party lost on the last failed roll. */
+  toll: number;
+  /** Items on the ground, and how many of them the winner may keep. */
+  spoils: Item[];
+  picksLeft: number;
   outcome: CombatOutcome;
 };
+
+/** Won, lost, or still going. Rulebook §14: beat the final boss inside the limit. */
+export type Ending = "victory" | "outOfTime" | "partyLost";
 
 export type Phase =
   | "setup"
@@ -200,6 +218,8 @@ export type GameState = {
   hazards: Hazard[];
   /** The fight on screen right now, or null when nobody is fighting. */
   combat: Combat | null;
+  /** How it finished, once it has. */
+  ending: Ending | null;
   itemPile: Item[];
   eventDeck: EventCard[];
   /** Drives the turn's event draw. */

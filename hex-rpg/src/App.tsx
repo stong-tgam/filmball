@@ -5,17 +5,21 @@ import Log from "./ui/Log";
 import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
 import CombatModal from "./ui/CombatModal";
 import ShopModal from "./ui/ShopModal";
+import GameOver from "./ui/GameOver";
 import EventCardModal from "./ui/EventCard";
 import {
   useActivePlayer,
   useCanDonate,
+  useCanHeal,
+  useCanPayOff,
   useCanSearch,
   useCanTrade,
   useCombatants,
   useGame,
+  useHealTargets,
   useLegalMoves,
 } from "./game/store";
-import { stockFor } from "./game/actions";
+import { sellable, stockFor } from "./game/actions";
 import { key } from "./game/hex";
 import { elementsOf } from "./game/setup";
 import { ROLES } from "./game/players";
@@ -58,11 +62,17 @@ export default function App() {
   const canSearch = useCanSearch();
   const canTrade = useCanTrade();
   const canDonate = useCanDonate();
+  const canHeal = useCanHeal();
+  const canPayOff = useCanPayOff();
+  const healTargets = useHealTargets();
   const donate = useGame((s) => s.donate);
+  const heal = useGame((s) => s.heal);
+  const payOff = useGame((s) => s.payOff);
+  const sell = useGame((s) => s.sell);
 
   const [seedInput, setSeedInput] = useState("");
   const tile = selected ? game.tiles[selected] : null;
-  const over = game.phase === "gameOver";
+  const over = game.phase === "gameOver" || game.ending !== null;
 
   const composition = tile
     ? elementsOf(tile)
@@ -86,7 +96,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.6 — hazards</span>
+          <span className="version">v0.7 — by the rulebook</span>
         </div>
         <p className="turn-counter">
           Turn <strong>{game.turn}</strong>
@@ -110,10 +120,8 @@ export default function App() {
 
       {over ? (
         <div className="banner banner-over">
-          <h2>Time is up</h2>
-          <p className="banner-blurb">
-            Turn {game.turnLimit} was the last one. Start a new game to play again.
-          </p>
+          <h2>Game over</h2>
+          <p className="banner-blurb">Start a new game to play again.</p>
         </div>
       ) : (
         <ActivePlayerBanner player={player} moves={legalMoves.size} />
@@ -142,9 +150,13 @@ export default function App() {
           canSearch={canSearch}
           canTrade={canTrade}
           canDonate={canDonate}
+          canHeal={canHeal}
+          canPayOff={canPayOff}
           onSearch={search}
           onTrade={openShop}
           onDonate={donate}
+          onHeal={() => healTargets[0] && heal(healTargets[0].id)}
+          onPayOff={payOff}
           onEndTurn={endTurn}
           disabled={over || game.combat !== null}
         />
@@ -196,8 +208,12 @@ export default function App() {
         />
       )}
 
-      {game.draw && !game.combat && (
+      {game.draw && !game.combat && !game.ending && (
         <EventCardModal draw={game.draw} turn={game.turn} onClose={clearDraw} />
+      )}
+
+      {game.ending && (
+        <GameOver ending={game.ending} turn={game.turn} onNewGame={() => newGame()} />
       )}
 
       {shopOpen && !game.combat && (
@@ -205,7 +221,9 @@ export default function App() {
           player={player}
           gear={stockFor(game).gear}
           food={stockFor(game).food}
+          sellable={sellable(player)}
           onBuy={buy}
+          onSell={sell}
           onClose={closeShop}
         />
       )}

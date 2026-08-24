@@ -41,6 +41,7 @@ function Bar({ value, max, colour }: { value: number; max: number; colour: strin
 const RESULT: Record<string, { title: string; tone: string }> = {
   enemyDefeated: { title: "Beaten!", tone: "win" },
   enemyEscaped: { title: "It got away!", tone: "away" },
+  standoff: { title: "Dead even", tone: "away" },
   playerEscaped: { title: "Got away", tone: "away" },
   playerDown: { title: "Down", tone: "lose" },
 };
@@ -109,19 +110,15 @@ export default function CombatModal({
             <>
               <DiceRoller
                 dice={combat.playerRoll.dice}
-                bonus={attackValue(player)}
+                bonus={attackValue(player, enemy, ground)}
                 total={combat.playerRoll.damage}
                 label={`${player.name} swings`}
                 tone="player"
               />
-              {combat.enemyRoll && (
-                <DiceRoller
-                  dice={combat.enemyRoll.dice}
-                  bonus={beast.attack}
-                  total={combat.enemyRoll.damage}
-                  label={`${beast.name} hits back`}
-                  tone="enemy"
-                />
+              {combat.toll > 0 && (
+                <p className="fight-toll">
+                  Not enough. {player.name} loses {combat.toll} health.
+                </p>
               )}
             </>
           ) : (
@@ -134,17 +131,22 @@ export default function CombatModal({
             <p className="fight-result">{result.title}</p>
             <p className="muted">
               {combat.outcome === "enemyDefeated" && `The ${beast.name} is out of the game.`}
+              {combat.outcome === "standoff" &&
+                "Exactly even, so nothing happened at all. Back where you started."}
               {combat.outcome === "enemyEscaped" &&
                 `It went into the water with every wound you gave it. It cannot do that twice.`}
               {combat.outcome === "playerEscaped" &&
                 `The ${beast.name} keeps the ${enemy.damageTaken} damage it has taken. Come back for it.`}
-              {combat.outcome === "playerDown" && `${player.name} is out. The party plays on.`}
+              {combat.outcome === "playerDown" &&
+                `${player.name} is down. They get back up next turn, or a doctor can reach them now.`}
             </p>
-            {enemy.loot.length > 0 && (
+            {combat.spoils.length > 0 && combat.picksLeft > 0 && (
               <div className="loot">
-                <p className="loot-title">Take what you want:</p>
+                <p className="loot-title">
+                  Keep {combat.picksLeft} of {combat.spoils.length}. The rest goes back.
+                </p>
                 <ul className="stock">
-                  {enemy.loot.map((item) => {
+                  {combat.spoils.map((item) => {
                     const swapping = replacing(player, item);
                     return (
                       <li key={item.id}>
@@ -166,7 +168,8 @@ export default function CombatModal({
         ) : (
           <footer className="fight-foot">
             <p className="muted">
-              Round {combat.round + 1}. Hurting it counts even if you leave.
+              Round {combat.round + 1}. Hurting it counts even if you leave — and an
+              exact tie does nothing at all.
             </p>
             <div className="fight-buttons">
               <button type="button" className="ghost" onClick={onFlee}>
