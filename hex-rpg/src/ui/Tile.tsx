@@ -38,6 +38,12 @@ type Props = {
   legal: boolean;
   /** Ground the tornado has just been through. */
   wrecked: boolean;
+  /**
+   * Print the tile's name on it. False in the close-up view, where there is no map and
+   * a grid reference on a neighbouring hex would hand the party their own position.
+   * The label is still used to seed the scenery, so tiles stay put between renders.
+   */
+  showLabel?: boolean;
   onSelect: (label: string) => void;
 };
 
@@ -248,7 +254,17 @@ function Railway({ size, dirs }: { size: number; dirs: number[] }) {
   );
 }
 
-function TileView({ tile, label, size, railDirs, selected, legal, wrecked, onSelect }: Props) {
+function TileView({
+  tile,
+  label,
+  size,
+  railDirs,
+  selected,
+  legal,
+  wrecked,
+  showLabel = true,
+  onSelect,
+}: Props) {
   const { x, y } = hexToPixel(tile.hex, size);
   const rng = makeRng(hash(label));
   const grouped = runs(tile.sides);
@@ -299,9 +315,11 @@ function TileView({ tile, label, size, railDirs, selected, legal, wrecked, onSel
         </g>
       )}
       <polygon points={hexPoints(size)} className="tile-outline" />
-      <text className="tile-label" y={size * 0.82} textAnchor="middle" fontSize={size * 0.28}>
-        {label}
-      </text>
+      {showLabel && (
+        <text className="tile-label" y={size * 0.82} textAnchor="middle" fontSize={size * 0.28}>
+          {label}
+        </text>
+      )}
     </g>
   );
 }

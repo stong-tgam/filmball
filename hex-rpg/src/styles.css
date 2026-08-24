@@ -948,13 +948,38 @@ button.ghost {
 }
 
 /* ------------------------------------------------------------- the compass */
+.rose-edge polygon {
+  fill: #171b24;
+  stroke: #2f3646;
+  stroke-width: 2;
+  stroke-dasharray: 6 6;
+}
+.rose-edge text {
+  fill: #4d5768;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+.rose-you {
+  stroke: #10141b;
+  stroke-width: 3;
+}
+.compass-here {
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #2b3240;
+  text-transform: capitalize;
+}
+
 /*
   The whole of the player's view: six ways out, and bearings to whatever is within two
   moves. No grid, no position - see src/game/sense.ts for why.
 */
 .compass {
+  /* .stage centres its child, so without a width the whole view collapses to the
+     size of the hex flower and gets lost in the middle of a big empty panel. */
+  width: 100%;
+  max-width: 62rem;
   display: grid;
-  grid-template-columns: minmax(320px, 30rem) minmax(220px, 22rem);
+  grid-template-columns: minmax(320px, 34rem) minmax(220px, 1fr);
   gap: 1.5rem;
   align-items: center;
   justify-content: center;
@@ -1047,4 +1072,23 @@ button.ghost {
   height: 10px;
   border-radius: 50%;
   flex: none;
+}
+
+/*
+  Which hex you may step onto. The board's own highlight is tuned for sixty-one tiles
+  seen at once; with four on screen and no labels it needs to be unmissable, or the
+  player cannot tell a walkable neighbour from scenery.
+*/
+.compass .tile.is-legal .tile-face {
+  stroke: var(--who);
+  stroke-width: 4;
+}
+.compass .tile.is-legal:hover .tile-face {
+  stroke: #fff;
+}
+.compass .tile:not(.is-legal):not(.is-selected) {
+  opacity: 0.6;
+}
+.compass .tile.is-legal {
+  cursor: pointer;
 }

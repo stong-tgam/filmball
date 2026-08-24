@@ -78,15 +78,20 @@ tests/           vitest, node environment, no rendering
 The hard rule from the spec holds: `src/game/` never imports React, and every rule is
 a pure function over serialisable state.
 
-## v1.0: no map, only bearings
+## v1.1: the ground around you
 
-There is no board on screen and nothing shows where you are. You get a compass: six
-spokes for the six ways you can walk, the ground under your feet named in the middle,
-and a blip for anything within two moves — the dragon's smoke, a tornado, the robber,
-another player — each on the bearing it actually lies on, one move out or two.
+There is no board on screen and nothing shows where you are. What you see is the hex
+you are standing on and the hexes you could step onto, drawn properly — so you can tell
+that the tile to your north-east has a river through it, and that the one south is
+forest, before you choose. Past the rim of the board the hexes are drawn as dashed
+holes marked "edge": that way is the end of the world.
+
+Around that, a blip for anything within two moves — the dragon's smoke, a tornado, the
+robber, another player — each on the bearing it actually lies on, one move out or two.
 
 "Tornado, two moves south." That is all you are told. Where south*of what* is, is for
-you and your notebook and the other three people at the table.
+you and your notebook and the other three people at the table. You can see the ground; you cannot see where
+the ground is.
 
 Everything else works the way it did: monsters stay hidden until somebody walks into
 one, hazards are always felt, rivers hide chests. The log tells you which way you

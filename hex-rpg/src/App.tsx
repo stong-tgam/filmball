@@ -108,7 +108,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v1.0 — no map, only bearings</span>
+          <span className="version">v1.1 — the ground around you</span>
         </div>
         <button
           type="button"
@@ -170,7 +170,8 @@ export default function App() {
         ) : (
           <Compass
             viewer={player}
-            here={game.tiles[key(player.hex)]}
+            tiles={game.tiles}
+            turn={game.turn}
             sensed={sense(game, player)}
             legalMoves={legalMoves}
             onMove={moveTo}

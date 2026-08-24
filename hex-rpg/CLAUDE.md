@@ -117,13 +117,25 @@ assumes four.
 Hazard and event phases slot in ahead of the move phase when they exist; the phase
 names are already in `Phase`.
 
-## No map, only bearings (v1.0)
+## The ground around you (v1.1)
 
 The 3D experiment is gone. The view is 2D again, and there is **no board and no
 position on screen at all** - not the player's, not anybody's. What a player gets is
-`src/ui/Compass.tsx`: a rose with six spokes for the six ways they can walk, the ground
-under their own feet named in the middle, and a blip for everything within two moves,
-placed on the bearing it actually lies on.
+`src/ui/Compass.tsx`: **the real tile they are standing on and the real tiles they could
+step onto**, drawn with the ordinary `Tile` renderer, plus a blip for everything within
+two moves placed on the bearing it actually lies on.
+
+The distinction to hold on to: this shows **what is adjacent, never where any of it is**.
+You have to be able to see that the next hex is a river before deciding to walk into it
+— that is a choice, not a map. What stays hidden is position: no labels on the hexes
+(`showLabel={false}`), no grid, no coordinates. Two players can both be looking at a
+field with a river to the north-east and be nowhere near each other.
+
+How much ground is drawn comes from `sightOf`, so the Scout's extra ring appears here as
+two rings of real tiles — which is also what makes their two-tile move reachable. Hexes
+past the rim of the board are drawn as dashed "edge" holes: `neighbours()` filters
+off-board, so the view adds them itself with `allNeighbours`. A child needs to see that
+there is nothing that way, not an absence of drawing.
 
 `src/game/sense.ts` is the whole rule. `SENSE_RANGE` is two movements; past that you
 feel nothing. What is sensed follows the hidden-board rules exactly: hazards always,

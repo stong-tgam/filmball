@@ -1,31 +1,32 @@
 /**
- * The whole of what a player sees: a compass, and what they can feel from it.
+ * The whole of what a player sees: the ground around them, and bearings to the rest.
  *
- * No map, no grid, no position. Six spokes for the six ways you can walk, arrows for
- * everything within two moves, and the ground under your own feet named in the middle.
- * Where any of it *is* is not on screen and never will be - four people comparing
- * bearings in their notebooks is the game.
+ * There is no board and no position. What there *is* is the tile underfoot and the
+ * tiles they could step onto, drawn properly - you have to be able to see that the next
+ * hex is a river before you decide to walk into it. Around and beyond that, anything
+ * within two moves shows as a blip on the bearing it actually lies on.
  *
- * Kept flat 2D on purpose after the 3D experiment: the information here is a set of
- * directions and distances, and a diagram says that in one glance where a first-person
- * view made you turn around to find it.
+ * The distinction that matters: **this shows what is adjacent, never where any of it
+ * is.** No labels on the hexes, no grid, no coordinates. Two players can both be
+ * looking at a forest with a river to the north-east and be nowhere near each other,
+ * and working out whether they are is the game.
+ *
+ * How much ground is drawn comes from `sightOf`, so the Scout's extra ring shows up
+ * here as two rings of real tiles rather than one - which is also what makes their
+ * two-tile move legal to take.
  */
 
-import { DIRS, add, key } from "../game/hex";
+import Tile from "./Tile";
+import { DIRS, add, allNeighbours, distance, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
 import { compassName, type Sensed } from "../game/sense";
+import { sightOf, visibleFrom } from "../game/vision";
+import { isDestroyed } from "../game/hazards";
 import { ROLES } from "../game/players";
-import type { Player, Tile } from "../game/types";
+import type { Player, Tile as TileData } from "../game/types";
 
-const R = 116;
-const HUB = 34;
-
-/** Bearing of each of the six walkable directions, in the same frame as `sense`. */
-const SPOKE_BEARING = [90, 30, 330, 270, 210, 150];
-
-const point = (bearing: number, radius: number) => {
-  const rad = ((bearing - 90) * Math.PI) / 180;
-  return { x: Math.cos(rad) * radius, y: Math.sin(rad) * radius };
-};
+const SIZE = 46;
+/** Centre-to-centre distance between neighbours, which is where a one-move blip sits. */
+const STEP = Math.sqrt(3) * SIZE;
 
 const TONE: Record<Sensed["kind"], string> = {
   dragon: "#e2574c",
@@ -34,93 +35,140 @@ const TONE: Record<Sensed["kind"], string> = {
   player: "#57b7e8",
 };
 
+const point = (bearing: number, radius: number) => {
+  const rad = ((bearing - 90) * Math.PI) / 180;
+  return { x: Math.cos(rad) * radius, y: Math.sin(rad) * radius };
+};
+
+/** Which way the railway runs on, so a line does not stop dead at the tile edge. */
+function railConnections(tiles: Record<string, TileData>, tile: TileData): number[] {
+  return DIRS.flatMap((dir, i) => {
+    const n = add(tile.hex, dir);
+    return inBoard(n) && tiles[key(n)]?.rail ? [i] : [];
+  });
+}
+
 export default function Compass({
   viewer,
-  here,
+  tiles,
+  turn,
   sensed,
   legalMoves,
   onMove,
 }: {
   viewer: Player;
-  /** The tile underfoot - the one thing you can always examine. */
-  here: Tile;
+  tiles: Record<string, TileData>;
+  turn: number;
   sensed: Sensed[];
   legalMoves: Map<string, number>;
   onMove: (label: string) => void;
 }) {
-  const steps = DIRS.map((dir, i) => {
-    const label = key(add(viewer.hex, dir));
-    return { label, bearing: SPOKE_BEARING[i], legal: legalMoves.has(label) };
-  });
+  const origin = hexToPixel(viewer.hex, SIZE);
+  const ground = visibleFrom(viewer);
+  // `visibleFrom` walks the board, so it stops at the rim and the world just ends.
+  // Draw the hexes past the rim as holes: a child needs to see that there is nothing
+  // that way, not an absence of drawing.
+  const brink = ground
+    .flatMap(allNeighbours)
+    .filter((h) => !inBoard(h) && distance(viewer.hex, h) <= sightOf(viewer));
+  const seen = new Set(ground.map(key));
+  const around = [
+    ...ground,
+    ...brink.filter((h) => !seen.has(key(h)) && (seen.add(key(h)), true)),
+  ];
+  // Fit the drawing to what is actually on it: the furthest hex drawn, the furthest
+  // blip, and a hex of margin. Guessing from the ring count left it lost in the corner.
+  const furthest = Math.max(
+    ...around.map((h) => {
+      const p = hexToPixel(h, SIZE);
+      return Math.hypot(p.x - origin.x, p.y - origin.y);
+    }),
+    ...sensed.map((thing) => STEP * thing.steps),
+    STEP,
+  );
+  const span = furthest + SIZE * 1.5;
 
   return (
     <div className="compass" style={{ ["--who" as string]: ROLES[viewer.role].colour }}>
       <svg
         className="compass-rose"
-        viewBox="-150 -150 300 300"
+        viewBox={`${-span} ${-span} ${span * 2} ${span * 2}`}
         role="group"
-        aria-label="Which way you can walk, and what you can feel nearby"
+        aria-label="The ground around you, and what you can feel nearby"
       >
-        <circle className="rose-ring" r={R} />
-        <circle className="rose-ring rose-ring-inner" r={R * 0.55} />
-        <text className="rose-north" x="0" y={-R - 12} textAnchor="middle">
+        <text className="rose-north" x="0" y={-span + 22} textAnchor="middle">
           N
         </text>
 
-        {/* The six ways out. A spoke you cannot take is drawn but dead. */}
-        {steps.map(({ label, bearing, legal }) => {
-          const outer = point(bearing, R - 6);
-          const inner = point(bearing, HUB + 6);
-          return (
-            <g
-              key={label}
-              className={`rose-step${legal ? " is-legal" : ""}`}
-              onClick={() => legal && onMove(label)}
-              role={legal ? "button" : undefined}
-              aria-label={legal ? `Walk ${compassName(bearing)}` : undefined}
-            >
-              <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} />
-              <circle cx={outer.x} cy={outer.y} r={legal ? 15 : 7} />
-              {legal && (
-                <text x={outer.x} y={outer.y + 5} textAnchor="middle">
-                  ›
-                </text>
-              )}
-            </g>
-          );
-        })}
+        <g transform={`translate(${-origin.x} ${-origin.y})`}>
+          {around.map((hex) => {
+            const label = key(hex);
+            const tile = tiles[label];
+            const at = hexToPixel(hex, SIZE);
+
+            // Off the board: the edge of the world, drawn as a hole rather than left
+            // blank, or players cannot tell "nothing there" from "not drawn yet".
+            if (!tile) {
+              return (
+                <g key={label} className="rose-edge" transform={`translate(${at.x} ${at.y})`}>
+                  <polygon points={hexPoints(SIZE)} />
+                  <text y="5" textAnchor="middle">
+                    edge
+                  </text>
+                </g>
+              );
+            }
+
+            const mine = label === key(viewer.hex);
+            return (
+              <Tile
+                key={label}
+                tile={tile}
+                label={label}
+                size={SIZE}
+                railDirs={tile.rail ? railConnections(tiles, tile) : []}
+                selected={mine}
+                legal={legalMoves.has(label)}
+                wrecked={isDestroyed(tile, turn)}
+                showLabel={false}
+                onSelect={(l) => legalMoves.has(l) && onMove(l)}
+              />
+            );
+          })}
+        </g>
+
+        {/* You. Not a position on a map - just a marker for which hex is underfoot. */}
+        <circle className="rose-you" r="11" style={{ fill: ROLES[viewer.role].colour }} />
 
         {/*
-          Everything within two moves. Placed at the bearing it actually lies on rather
-          than snapped to a spoke: at two tiles out a thing can sit between two
-          directions, and rounding it would send the party the wrong way.
+          Bearings. A one-move blip lands exactly on the tile it is standing on, because
+          the six neighbours sit at exactly those bearings and that distance. A two-move
+          one is placed on its true bearing further out, which may be past the drawn
+          ground - that is the point of it.
         */}
         {sensed.map((thing) => {
-          const at = point(thing.bearing, thing.steps === 1 ? R * 0.55 : R * 0.86);
+          const at = point(thing.bearing, STEP * thing.steps);
           return (
             <g key={thing.id} className={`rose-blip rose-blip-${thing.kind}`}>
               <title>{`${thing.name}, ${thing.steps} away, ${compassName(thing.bearing)}`}</title>
-              <circle cx={at.x} cy={at.y} r="9" fill={TONE[thing.kind]} />
-              <text x={at.x} y={at.y + 4} textAnchor="middle">
+              <circle cx={at.x} cy={at.y} r="13" fill={TONE[thing.kind]} />
+              <text x={at.x} y={at.y + 5} textAnchor="middle">
                 {thing.steps}
               </text>
             </g>
           );
         })}
-
-        {/* Underfoot. */}
-        <circle className="rose-hub" r={HUB} style={{ fill: ROLES[viewer.role].colour }} />
-        <text className="rose-hub-label" x="0" y="-2" textAnchor="middle">
-          {here.base}
-        </text>
-        <text className="rose-hub-sub" x="0" y="12" textAnchor="middle">
-          {here.river ? "river" : here.rail ? "railway" : "underfoot"}
-        </text>
       </svg>
 
       <ul className="compass-read">
+        <li className="compass-here">
+          <span className="blip-dot" style={{ background: ROLES[viewer.role].colour }} />
+          <strong>Underfoot:</strong> {tiles[key(viewer.hex)]?.base}
+          {tiles[key(viewer.hex)]?.river ? ", on the river" : ""}
+          {tiles[key(viewer.hex)]?.rail ? ", by the railway" : ""}
+        </li>
         {sensed.length === 0 ? (
-          <li className="muted">Nothing within two moves. Wherever this is, it is quiet.</li>
+          <li className="muted">Nothing else within two moves. Wherever this is, it is quiet.</li>
         ) : (
           sensed.map((thing) => (
             <li key={thing.id}>
