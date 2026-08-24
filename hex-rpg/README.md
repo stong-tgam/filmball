@@ -78,19 +78,23 @@ tests/           vitest, node environment, no rendering
 The hard rule from the spec holds: `src/game/` never imports React, and every rule is
 a pure function over serialisable state.
 
-## v0.9: standing on the spot
+## v1.0: no map, only bearings
 
-There is no map on screen. You are on your tile, at eye height, looking around: drag to
-turn, tap the ringed ground ahead to walk onto it. Past the edge of the board the world
-drops away into a cliff.
+There is no board on screen and nothing shows where you are. You get a compass: six
+spokes for the six ways you can walk, the ground under your feet named in the middle,
+and a blip for anything within two moves — the dragon's smoke, a tornado, the robber,
+another player — each on the bearing it actually lies on, one move out or two.
 
-**This part is a rough MVP** — boxes and cones in flat colours, no artwork applied yet.
-It is there to find out whether standing on the ground is more fun than looking down at
-a hidden board, before anything is made to look nice. There is a **"Peek at the map"**
-button in the header for grown-ups who want to compare the two.
+"Tornado, two moves south." That is all you are told. Where south*of what* is, is for
+you and your notebook and the other three people at the table.
 
-The compass in the corner is not decoration: four people describing what they can see
-need a shared direction, and there are no tile labels to point at from down there.
+Everything else works the way it did: monsters stay hidden until somebody walks into
+one, hazards are always felt, rivers hide chests. The log tells you which way you
+walked, never which square you walked to — printing a grid reference would put the map
+straight back on the screen, and there is a test that fails if one ever appears.
+
+There is a **"Peek at the map"** button in the header for grown-ups. It shows the old
+2D board, positions and all. It is a debug switch, not part of the game.
 
 ## v0.8: nobody can see the map
 

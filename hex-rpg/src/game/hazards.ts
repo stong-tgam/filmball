@@ -224,7 +224,7 @@ export function meet(state: GameState, kind: HazardKind, playerId: string): Game
           `${player.name} had nothing to give, and spent the time looking after them. That is next turn gone.`,
         );
       }
-      return note(marked, `${player.name} met a traveller at ${key(player.hex)}.`);
+      return note(marked, `${player.name} met a traveller.`);
   }
 }
 
@@ -242,7 +242,7 @@ function flatten(state: GameState, hazard: Hazard): GameState {
   }
   return note(
     { ...state, tiles },
-    `The tornado is at ${key(hazard.hex)}. Everything around it is impassable.`,
+    "The tornado has moved. Everything around it is impassable.",
   );
 }
 
@@ -279,7 +279,7 @@ function blowAway(state: GameState, player: Player): GameState {
   };
   next = note(
     next,
-    `The tornado picked ${player.name} up and put them down at ${key(landing)}.`,
+    `The tornado picked ${player.name} up and put them down somewhere else.`,
   );
   if (player.supply.length > 0) {
     next = note(next, `Everything in ${player.name}'s pack went with it.`);
@@ -294,7 +294,7 @@ function blowAway(state: GameState, player: Player): GameState {
 function confront(state: GameState, player: Player, kind: "robber" | "pirates"): GameState {
   return note(
     state,
-    `${player.name} ran into ${kind === "pirates" ? "the Pirates" : "the Robber"} at ${key(player.hex)}. Fight, or pay up.`,
+    `${player.name} ran into ${kind === "pirates" ? "the Pirates" : "the Robber"}. Fight, or pay up.`,
   );
 }
 
@@ -335,7 +335,7 @@ export function payOff(state: GameState): GameState {
       e.kind === thief && gear ? { ...e, loot: [...e.loot, gear] } : e,
     ),
   };
-  next = note(next, `${player.name} handed over $${taken} and backed off to ${key(retreat)}.`);
+  next = note(next, `${player.name} handed over $${taken} and backed off.`);
   return gear ? note(next, `The pirates took their ${gear.name} too.`) : next;
 }
 

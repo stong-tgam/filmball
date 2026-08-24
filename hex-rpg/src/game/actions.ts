@@ -170,7 +170,7 @@ export function search(state: GameState): GameState {
   };
   const acted = { ...player, actedThisTurn: true };
   next = withPlayer(next, acted);
-  next = note(next, `${player.name} ${searchKind(tile) === "chest" ? "fished a chest out of" : "searched"} ${key(player.hex)} and drew ${cardName(pull.card)}.`);
+  next = note(next, `${player.name} ${searchKind(tile) === "chest" ? "fished a chest out of the water" : "searched the ground here"} and drew ${cardName(pull.card)}.`);
 
   if (searchKind(tile) === "chest") return openChest(next, acted, pull.card);
 
@@ -247,7 +247,7 @@ export function openShop(state: GameState): GameState {
   if (!canTrade(state, player)) return state;
   return note(
     withPlayer(state, { ...player, actedThisTurn: true }),
-    `${player.name} went shopping in ${key(player.hex)}.`,
+    `${player.name} went shopping.`,
   );
 }
 
@@ -365,7 +365,7 @@ export function heal(state: GameState, targetId: string): GameState {
   return note(
     next,
     revived
-      ? `${healer.name} got ${target.name} back on their feet at ${key(patched.hex)}.`
+      ? `${healer.name} got ${target.name} back on their feet.`
       : `${healer.name} patched ${target.name} up to ${patched.health} health.`,
   );
 }

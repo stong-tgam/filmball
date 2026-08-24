@@ -14,6 +14,7 @@ import { applyEvent, createEventDeck } from "./events";
 import { isDestroyed, meet, moveHazards } from "./hazards";
 import { fromLabel, key, reachable } from "./hex";
 import { ROLES } from "./players";
+import { bearingBetween, compassName } from "./sense";
 import { cardName } from "./cards";
 import type { EventCard, GameState, LogEntry, Player } from "./types";
 
@@ -77,7 +78,7 @@ export function movePlayer(state: GameState, destination: string): GameState {
   );
   const moved = note(
     { ...state, players },
-    `${player.name} moved to ${destination} (${steps} ${steps === 1 ? "tile" : "tiles"}).`,
+    `${player.name} walked ${steps === 1 ? "one tile" : `${steps} tiles`} ${compassName(bearingBetween(player.hex, hex))}.`,
   );
 
   // Walking into a hazard sets it off, the same as it walking into you.
@@ -156,7 +157,7 @@ function tendTheFallen(state: GameState): GameState {
             : p,
         ),
       },
-      `${player.name} picked themselves up at ${key(player.fellAt ?? player.hex)}, on one health.`,
+      `${player.name} picked themselves up, on one health.`,
     );
   }
   return next;
@@ -173,7 +174,7 @@ export function endTurn(state: GameState): GameState {
   const player = activePlayer(state);
   let next = state;
   if (!player.movedThisTurn && !player.dead) {
-    next = note(next, `${player.name} held position at ${key(player.hex)}.`);
+    next = note(next, `${player.name} held position.`);
   }
 
   // Rulebook §7: the fallen can pick themselves up after a full turn, and a doctor

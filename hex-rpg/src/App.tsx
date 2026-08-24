@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Board from "./ui/Board";
-import FirstPerson from "./ui/FirstPerson";
+import Compass from "./ui/Compass";
 import Notebook from "./ui/Notebook";
 import ActionBar from "./ui/ActionBar";
 import Log from "./ui/Log";
@@ -26,6 +26,7 @@ import { key } from "./game/hex";
 import { elementsOf } from "./game/setup";
 import { ROLES } from "./game/players";
 import { canSee, smellsSmoke } from "./game/vision";
+import { sense } from "./game/sense";
 import "./styles.css";
 
 const TERRAIN_BLURB: Record<string, string> = {
@@ -107,7 +108,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.9 — standing on the spot</span>
+          <span className="version">v1.0 — no map, only bearings</span>
         </div>
         <button
           type="button"
@@ -167,12 +168,10 @@ export default function App() {
             onSelect={tapTile}
           />
         ) : (
-          <FirstPerson
-            tiles={game.tiles}
+          <Compass
             viewer={player}
-            players={game.players}
-            enemies={game.enemies}
-            hazards={game.hazards}
+            here={game.tiles[key(player.hex)]}
+            sensed={sense(game, player)}
             legalMoves={legalMoves}
             onMove={moveTo}
           />

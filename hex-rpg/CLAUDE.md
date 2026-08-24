@@ -117,34 +117,34 @@ assumes four.
 Hazard and event phases slot in ahead of the move phase when they exist; the phase
 names are already in `Phase`.
 
-## Standing on the spot (v0.9)
+## No map, only bearings (v1.0)
 
-There is no map on screen at all now. `src/ui/FirstPerson.tsx` puts the camera on the
-player's tile at eye height: you see the ground you are on, whatever is next to it, and
-then a drop into nothing. Drag to look, tap the marked ground to walk. The 2D board is
-still in `Board.tsx` behind a **"Peek at the map"** button in the header - a grown-up's
-debug switch, off by default, kept only so the idea can be judged against what it
-replaced.
+The 3D experiment is gone. The view is 2D again, and there is **no board and no
+position on screen at all** - not the player's, not anybody's. What a player gets is
+`src/ui/Compass.tsx`: a rose with six spokes for the six ways they can walk, the ground
+under their own feet named in the middle, and a blip for everything within two moves,
+placed on the bearing it actually lies on.
 
-**It is an MVP for validating the idea. Boxes and cones in flat colours; the art
-direction has not been applied and should not be until the view is known to be fun.**
+`src/game/sense.ts` is the whole rule. `SENSE_RANGE` is two movements; past that you
+feel nothing. What is sensed follows the hidden-board rules exactly: hazards always,
+the dragon always because it smokes, an ordinary monster only once somebody has walked
+into it. **Never sense an unfound monster** - that would undo the ambush the hiding is
+for.
 
-Three things there are load-bearing rather than decorative:
+Bearings are continuous degrees, not one of the six flat sides. At two tiles out a
+thing can sit between two directions and snapping it would send the party the wrong way.
 
-- **The compass.** First person without one makes the table talk useless - "there is a
-  river on my left" means nothing to anybody else. North is fixed, always on screen,
-  and the letter counter-rotates so it stays readable.
-- **The cliff.** The board's rim extrudes down `CLIFF` units over a lit floor far
-  below. From on top of a tile you cannot see your own cliff face, so rim tiles also
-  get a pale lip - without it the edge of the world reads as unlit ground and players
-  walk at it repeatedly.
-- **The walkable rings.** A child cannot tell which shape in front of them is a step
-  and which is scenery. Hunting for the tappable spot is the fastest way to kill this.
+**The log never prints a tile label.** There is no map on screen, so a grid reference
+read out of the log hands the party the thing the design hides - "the tornado is at C2"
+was exactly that leak. Movement says which way and how far ("walked one tile west"),
+never which tile. `tests/sense.test.ts` plays a whole game and fails on any log line
+matching a tile label; if you add a message, say the direction, not the square.
 
-The look direction lives in a ref, not state: rebuilding the scene because somebody ate
-an apple must not spin the camera back to north.
+The 2D board survives in `Board.tsx` behind the header's **"Peek at the map"** button -
+a grown-up's debug switch, off by default. It does show positions, which is the point
+of it and the reason it is not something a player should be looking at.
 
-## The board is hidden (v0.8)
+## The board is hidden (v0.8, still the substrate)
 
 **There is no bird's-eye view and the game remembers nothing about the map.** A player
 sees the tile they stand on and the ring around it; everything else is blank paper, and

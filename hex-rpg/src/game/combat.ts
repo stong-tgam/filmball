@@ -142,7 +142,7 @@ export function startCombat(
   };
   next = note(
     { ...next, phase: "combat", combat },
-    `${player.name} met ${nameWithArticle(enemy.kind)} at ${key(enemy.hex)}.`,
+    `${player.name} met ${nameWithArticle(enemy.kind)}.`,
   );
 
   return openingBite(next, fighter);
@@ -202,7 +202,7 @@ function hurt(state: GameState, amount: number, why: string): GameState {
       : null,
   };
   next = note(next, `${why} ${player.name} is down to ${health} health.`);
-  return down ? note(next, `${player.name} has fallen at ${key(player.hex)}.`) : next;
+  return down ? note(next, `${player.name} has fallen.`) : next;
 }
 
 /* ---------------------------------------------------------------- one round */
@@ -274,7 +274,7 @@ function standoff(state: GameState, enemy: Enemy): GameState {
         : state.players,
       combat: { ...state.combat!, outcome: "standoff" },
     },
-    `Dead even against the ${ENEMIES[enemy.kind].name}. Nothing doing — back to ${back}.`,
+    `Dead even against the ${ENEMIES[enemy.kind].name}. Nothing doing — back where they started.`,
   );
 }
 
@@ -345,7 +345,7 @@ function escapeDownriver(state: GameState, enemy: Enemy): GameState {
       ),
       combat: { ...state.combat!, outcome: "enemyEscaped" },
     },
-    `The ${profile.name} went into the water and surfaced at ${key(bolthole)}, whole again. ${verb(
+    `The ${profile.name} went into the water and surfaced somewhere downriver, whole again. ${verb(
       enemy.kind,
       "It will",
       "They will",
@@ -416,7 +416,7 @@ export function flee(state: GameState): GameState {
         ),
         combat: { ...state.combat, outcome: "playerEscaped" },
       },
-      `${player.name} found ${nameWithArticle(enemy.kind)} at ${key(enemy.hex)} and backed straight out to ${back}.`,
+      `${player.name} found ${nameWithArticle(enemy.kind)} and backed straight out again.`,
     );
   }
 
@@ -428,7 +428,7 @@ export function flee(state: GameState): GameState {
       ),
       combat: { ...state.combat, outcome: "playerEscaped" },
     },
-    `${player.name} backed off to ${back}. The ${ENEMIES[enemy.kind].name} ${verb(
+    `${player.name} backed off. The ${ENEMIES[enemy.kind].name} ${verb(
       enemy.kind,
       "keeps its",
       "keep their",

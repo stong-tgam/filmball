@@ -946,3 +946,105 @@ button.ghost {
   border-color: #f2b705;
   color: #f2b705;
 }
+
+/* ------------------------------------------------------------- the compass */
+/*
+  The whole of the player's view: six ways out, and bearings to whatever is within two
+  moves. No grid, no position - see src/game/sense.ts for why.
+*/
+.compass {
+  display: grid;
+  grid-template-columns: minmax(320px, 30rem) minmax(220px, 22rem);
+  gap: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  height: 100%;
+}
+@media (max-width: 900px) {
+  .compass {
+    grid-template-columns: 1fr;
+  }
+}
+.compass-rose {
+  width: 100%;
+  max-height: 68vh;
+}
+.rose-ring {
+  fill: none;
+  stroke: #333c4d;
+  stroke-width: 2;
+}
+.rose-ring-inner {
+  stroke-dasharray: 4 8;
+}
+.rose-north {
+  fill: #f2b705;
+  font-weight: 700;
+  font-size: 16px;
+}
+.rose-step line {
+  stroke: #2c333f;
+  stroke-width: 3;
+}
+.rose-step circle {
+  fill: #2c333f;
+}
+.rose-step text {
+  font-size: 18px;
+  font-weight: 700;
+  fill: #10141b;
+  pointer-events: none;
+}
+.rose-step.is-legal {
+  cursor: pointer;
+}
+.rose-step.is-legal line {
+  stroke: var(--who, #7aa2f7);
+}
+.rose-step.is-legal circle {
+  fill: var(--who, #7aa2f7);
+}
+.rose-step.is-legal:hover circle {
+  fill: #fff;
+}
+.rose-blip text {
+  font-size: 11px;
+  font-weight: 700;
+  fill: #10141b;
+  pointer-events: none;
+}
+.rose-hub {
+  stroke: #10141b;
+  stroke-width: 3;
+}
+.rose-hub-label {
+  font-size: 13px;
+  font-weight: 700;
+  fill: #10141b;
+  text-transform: capitalize;
+}
+.rose-hub-sub {
+  font-size: 9px;
+  fill: #10141b;
+  opacity: 0.7;
+}
+.compass-read {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+}
+.compass-read li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.blip-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}

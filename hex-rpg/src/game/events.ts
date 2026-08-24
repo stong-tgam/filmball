@@ -323,7 +323,7 @@ export const EVENTS: EventDefinition[] = [
       if (!asleep) return note(s, "Not a bandit left awake to catch napping.");
       return note(
         { ...s, enemies: s.enemies.map((e) => (e.id === asleep.id ? { ...e, defeated: true } : e)) },
-        `The bandit at ${key(asleep.hex)} slept through the whole thing.`,
+        "One bandit slept through the whole thing.",
       );
     },
   },

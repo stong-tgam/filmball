@@ -144,7 +144,12 @@ describe("moving", () => {
     expect(key(moved.hex)).toBe(destination);
     expect(moved.movedThisTurn).toBe(true);
     expect(legalMoves(after, moved).size).toBe(0);
-    expect(after.log.at(-1)?.text).toContain(destination);
+    // The log says which way, never which tile: there is no map on screen, so a grid
+    // reference in the log would hand the party the thing the design hides.
+    expect(after.log.at(-1)?.text).not.toContain(destination);
+    expect(after.log.at(-1)?.text).toMatch(
+      /\b(north|south|east|west|north-east|north-west|south-east|south-west)\b/,
+    );
   });
 
   it("refuses a tile out of range, an occupied tile, and nonsense", () => {
