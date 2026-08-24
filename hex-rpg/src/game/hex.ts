@@ -90,14 +90,16 @@ export function hexesInRange(origin: Hex, range: number): Hex[] {
 /**
  * Breadth-first search over passable tiles.
  *
- * `passable` decides which tiles may be entered (the origin is always entered).
- * Returns a map from tile label to the number of steps taken to reach it, for
- * every tile reachable within `maxSteps`. v0.2 uses this to highlight legal moves.
+ * `passable` decides which tiles may be entered at all; `blocksThrough` marks tiles
+ * that may be entered but not continued past - which is what standing in something's
+ * way means. Returns a map from tile label to the number of steps taken to reach it,
+ * for every tile reachable within `maxSteps`.
  */
 export function reachable(
   origin: Hex,
   maxSteps: number,
   passable: (h: Hex) => boolean = () => true,
+  blocksThrough: (h: Hex) => boolean = () => false,
 ): Map<string, number> {
   const seen = new Map<string, number>([[key(origin), 0]]);
   let frontier: Hex[] = [origin];
@@ -107,7 +109,7 @@ export function reachable(
       for (const n of neighbours(h)) {
         if (seen.has(key(n)) || !passable(n)) continue;
         seen.set(key(n), step);
-        next.push(n);
+        if (!blocksThrough(n)) next.push(n);
       }
     }
     if (next.length === 0) break;
@@ -181,9 +183,51 @@ export function hexLine(a: Hex, b: Hex): Hex[] {
   return out;
 }
 
+/** The six corner tiles of the board hexagon, clockwise from the east corner. */
+export function boardCorners(): Hex[] {
+  return [
+    { q: RADIUS, r: 0 },
+    { q: RADIUS, r: -RADIUS },
+    { q: 0, r: -RADIUS },
+    { q: -RADIUS, r: 0 },
+    { q: -RADIUS, r: RADIUS },
+    { q: 0, r: RADIUS },
+  ];
+}
+
 /** The 24 tiles on the outer ring of the board. */
 export function edgeHexes(): Hex[] {
   return allHexes().filter((h) => distance(h, { q: 0, r: 0 }) === RADIUS);
+}
+
+/** A point in SVG pixel space, relative to the centre of a tile. */
+export type Point = { x: number; y: number };
+
+/**
+ * Geometry of one side of a tile.
+ *
+ * Side `d` is the edge shared with the neighbour in direction `DIRS[d]`, and sits at
+ * angle -60d degrees from the centre. Tiles are composed side by side (see
+ * `Tile.sides`), so the renderer needs the two corners bounding each one.
+ */
+export const sideAngle = (d: number): number => (-60 * d * Math.PI) / 180;
+
+const atAngle = (angle: number, radius: number): Point => ({
+  x: radius * Math.cos(angle),
+  y: radius * Math.sin(angle),
+});
+
+/** The two corners bounding side `d`, ordered anticlockwise on screen. */
+export function sideCorners(d: number, size: number): [Point, Point] {
+  const a = sideAngle(d);
+  const thirty = Math.PI / 6;
+  return [atAngle(a + thirty, size), atAngle(a - thirty, size)];
+}
+
+/** Midpoint of side `d`, at `radius` out from the centre (defaults to the edge). */
+export function sidePoint(d: number, size: number, fraction = 1): Point {
+  // The edge midpoint sits closer in than a corner: cos(30) of the circumradius.
+  return atAngle(sideAngle(d), size * Math.cos(Math.PI / 6) * fraction);
 }
 
 /** Pixel centre of a hex, pointy-top, for an SVG of the given tile size. */

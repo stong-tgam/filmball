@@ -11,13 +11,34 @@ import type { Hex } from "./hex";
 
 export type Terrain = "field" | "forest" | "city";
 
+/**
+ * What can occupy part of a tile. Terrain plus water: a river is an element of the
+ * tiles it runs through, not a stripe painted over them.
+ */
+export type Element = Terrain | "water";
+
+/** How many distinct elements one tile may hold. */
+export const MAX_ELEMENTS = 3;
+
 export type Tile = {
   hex: Hex;
+  /**
+   * The tile's dominant land terrain - what the rules key off ("search on forest or
+   * field", "trade in a city"). The tile may hold other elements alongside it.
+   */
   base: Terrain;
+  /**
+   * One element per side, indexed by `DIRS`. A tile is a composition of up to
+   * MAX_ELEMENTS of them, and every element it holds owns at least one side, so a
+   * tile can be field with a wood along its north edge and a river cutting the west.
+   */
+  sides: Element[];
   river: boolean;
   rail: boolean;
   /** Turn number the tile recovers on; null when undamaged. Tornado damage. */
   destroyedUntil: number | null;
+  /** A tile gives up its findings once. Stops the party camping on one square. */
+  searched: boolean;
 };
 
 export type Role = "knight" | "rogue" | "scout" | "doctor";
@@ -46,6 +67,10 @@ export type Player = {
   boots: Item | null;
   supply: Item[];
   dead: boolean;
+  /** One move per turn; cleared when the player's next turn begins. */
+  movedThisTurn: boolean;
+  /** One action per turn - search, trade or a fight. Eating is free and not this. */
+  actedThisTurn: boolean;
   /** Homeless-person donation: extra dice on the next fight only. */
   bonusDiceNextFight: number;
   joinedFightThisRound: boolean;
@@ -99,6 +124,32 @@ export type LogEntry = {
   text: string;
 };
 
+/**
+ * One roll: the dice that came up, and what they came to once the attacker's own
+ * strength was added. Kept in state so the UI can show the dice that were actually
+ * rolled rather than re-rolling its own for display.
+ */
+export type Roll = {
+  dice: number[];
+  /** Dice total plus the attacker's weapon or claws. */
+  damage: number;
+};
+
+export type CombatOutcome = "ongoing" | "enemyDefeated" | "playerEscaped" | "playerDown";
+
+/** A fight in progress. Only one runs at a time: it is the active player's turn. */
+export type Combat = {
+  enemyId: string;
+  playerId: string;
+  /** Tile the player came from, so running away puts them back where they were. */
+  from: string;
+  round: number;
+  /** The last exchange, for the dice display. Null before the first roll. */
+  playerRoll: Roll | null;
+  enemyRoll: Roll | null;
+  outcome: CombatOutcome;
+};
+
 export type Phase =
   | "setup"
   | "hazardMove"
@@ -110,6 +161,11 @@ export type Phase =
 
 export type GameState = {
   seed: number;
+  /**
+   * The dice generator's current position. Every roll advances it, so a saved game
+   * resumes the same sequence it would have rolled had it never been put down.
+   */
+  rngState: number;
   turn: number;
   turnLimit: number;
   phase: Phase;
@@ -119,6 +175,8 @@ export type GameState = {
   players: Player[];
   enemies: Enemy[];
   hazards: Hazard[];
+  /** The fight on screen right now, or null when nobody is fighting. */
+  combat: Combat | null;
   itemPile: Item[];
   eventDeck: EventCard[];
   pokerDeck: Card[];

@@ -1,7 +1,21 @@
 import { useState } from "react";
 import Board from "./ui/Board";
-import { useGame } from "./game/store";
-import { countTerrain, TILE_COUNT } from "./game/setup";
+import ActionBar from "./ui/ActionBar";
+import Log from "./ui/Log";
+import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
+import CombatModal from "./ui/CombatModal";
+import ShopModal from "./ui/ShopModal";
+import {
+  useActivePlayer,
+  useCanSearch,
+  useCanTrade,
+  useCombatants,
+  useGame,
+  useLegalMoves,
+} from "./game/store";
+import { stockFor } from "./game/actions";
+import { elementsOf } from "./game/setup";
+import { ROLES } from "./game/players";
 import "./styles.css";
 
 const TERRAIN_BLURB: Record<string, string> = {
@@ -10,19 +24,55 @@ const TERRAIN_BLURB: Record<string, string> = {
   city: "Trade here: food, and whatever gear is still in the pile.",
 };
 
+const ELEMENT_NAME: Record<string, string> = {
+  field: "Field",
+  forest: "Forest",
+  city: "City",
+  water: "Water",
+};
+
 export default function App() {
   const game = useGame((s) => s.game);
   const selected = useGame((s) => s.selected);
   const select = useGame((s) => s.select);
   const newGame = useGame((s) => s.newGame);
+  const moveTo = useGame((s) => s.moveTo);
+  const endTurn = useGame((s) => s.endTurn);
+  const player = useActivePlayer();
+  const legalMoves = useLegalMoves();
+  const fight = useCombatants();
+  const attack = useGame((s) => s.attack);
+  const flee = useGame((s) => s.flee);
+  const closeCombat = useGame((s) => s.closeCombat);
+  const takeLoot = useGame((s) => s.takeLoot);
+  const search = useGame((s) => s.search);
+  const eat = useGame((s) => s.eat);
+  const shopOpen = useGame((s) => s.shopOpen);
+  const openShop = useGame((s) => s.openShop);
+  const closeShop = useGame((s) => s.closeShop);
+  const buy = useGame((s) => s.buy);
+  const canSearch = useCanSearch();
+  const canTrade = useCanTrade();
 
   const [seedInput, setSeedInput] = useState("");
-  const counts = countTerrain(game.tiles);
   const tile = selected ? game.tiles[selected] : null;
+  const over = game.phase === "gameOver";
+
+  const composition = tile
+    ? elementsOf(tile)
+        .map((element) => ({ element, sides: tile.sides.filter((s) => s === element).length }))
+        .sort((a, b) => b.sides - a.sides)
+    : [];
 
   const start = () => {
     const parsed = Number.parseInt(seedInput, 10);
     newGame(Number.isFinite(parsed) && seedInput.trim() !== "" ? parsed >>> 0 : undefined);
+  };
+
+  /** A tap on a glowing tile moves; a tap anywhere else just looks. */
+  const tapTile = (label: string | null) => {
+    if (label !== null && legalMoves.has(label)) moveTo(label);
+    else select(label);
   };
 
   return (
@@ -30,8 +80,12 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.1 — the board</span>
+          <span className="version">v0.4 — gear and money</span>
         </div>
+        <p className="turn-counter">
+          Turn <strong>{game.turn}</strong>
+          <span className="of">/{game.turnLimit}</span>
+        </p>
         <div className="seedbar">
           <label htmlFor="seed">Seed</label>
           <input
@@ -43,27 +97,51 @@ export default function App() {
             onKeyDown={(e) => e.key === "Enter" && start()}
           />
           <button type="button" onClick={start}>
-            New board
+            New game
           </button>
         </div>
       </header>
 
+      {over ? (
+        <div className="banner banner-over">
+          <h2>Time is up</h2>
+          <p className="banner-blurb">
+            Turn {game.turnLimit} was the last one. Start a new game to play again.
+          </p>
+        </div>
+      ) : (
+        <ActivePlayerBanner player={player} moves={legalMoves.size} />
+      )}
+
       <main className="stage">
-        <Board tiles={game.tiles} selected={selected} onSelect={select} />
+        <Board
+          tiles={game.tiles}
+          selected={selected}
+          legalMoves={legalMoves}
+          players={game.players}
+          enemies={game.enemies}
+          activeId={player.id}
+          activeColour={ROLES[player.role].colour}
+          onSelect={tapTile}
+        />
       </main>
 
       <aside className="sidebar">
+        <ActionBar
+          canMove={legalMoves.size > 0}
+          moved={player.movedThisTurn}
+          acted={player.actedThisTurn}
+          canSearch={canSearch}
+          canTrade={canTrade}
+          onSearch={search}
+          onTrade={openShop}
+          onEndTurn={endTurn}
+          disabled={over || game.combat !== null}
+        />
+
         <section className="panel">
-          <h2>Board</h2>
-          <dl className="stats">
-            <div><dt>Seed</dt><dd className="mono">{game.seed}</dd></div>
-            <div><dt>Tiles</dt><dd>{Object.keys(game.tiles).length} / {TILE_COUNT}</dd></div>
-            <div><dt>Fields</dt><dd>{counts.field}</dd></div>
-            <div><dt>Forest</dt><dd>{counts.forest}</dd></div>
-            <div><dt>Cities</dt><dd>{counts.city}</dd></div>
-            <div><dt>River</dt><dd>{counts.river} tiles</dd></div>
-            <div><dt>Railway</dt><dd>{counts.rail} tiles</dd></div>
-          </dl>
+          <h2>Party</h2>
+          <PartyList players={game.players} activeId={player.id} onEat={eat} />
         </section>
 
         <section className="panel">
@@ -75,27 +153,47 @@ export default function App() {
               </p>
               <p className="muted">{TERRAIN_BLURB[tile.base]}</p>
               <ul className="tags">
-                {tile.river && <li className="tag tag-river">River</li>}
+                {composition.map(({ element, sides }) => (
+                  <li key={element} className={`tag tag-${element}`}>
+                    {ELEMENT_NAME[element]}
+                    <span className="tag-count">{sides}</span>
+                  </li>
+                ))}
                 {tile.rail && <li className="tag tag-rail">Railway</li>}
-                {!tile.river && !tile.rail && <li className="tag tag-plain">No features</li>}
               </ul>
-              <p className="muted mono small">
-                axial q={tile.hex.q}, r={tile.hex.r}
-              </p>
             </>
           ) : (
-            <p className="muted">Tap a tile to inspect it.</p>
+            <p className="muted">Tap a quiet tile to look at it.</p>
           )}
         </section>
 
-        <section className="panel">
-          <h2>Next up</h2>
-          <p className="muted">
-            v0.2 puts four players on this board and lets them move. Nothing is placed
-            yet — this build is the map only.
-          </p>
+        <section className="panel panel-log">
+          <h2>Log</h2>
+          <Log entries={game.log} />
         </section>
       </aside>
+
+      {game.combat && fight && (
+        <CombatModal
+          combat={game.combat}
+          player={fight.player}
+          enemy={fight.enemy}
+          onAttack={attack}
+          onFlee={flee}
+          onTakeLoot={takeLoot}
+          onClose={closeCombat}
+        />
+      )}
+
+      {shopOpen && !game.combat && (
+        <ShopModal
+          player={player}
+          gear={stockFor(game).gear}
+          food={stockFor(game).food}
+          onBuy={buy}
+          onClose={closeShop}
+        />
+      )}
     </div>
   );
 }

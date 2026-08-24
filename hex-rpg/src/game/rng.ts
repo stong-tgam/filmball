@@ -16,9 +16,21 @@ export type Rng = {
   shuffle<T>(items: readonly T[]): T[];
   /** Weighted pick; weights need not sum to 1. */
   weighted<T>(entries: readonly [T, number][]): T;
+  /**
+   * The generator's internal state, which is a single 32-bit number.
+   *
+   * Play needs randomness that survives a save: dice rolled on turn 6 must come out
+   * the same when the game is reloaded, and the same again when the bug is replayed.
+   * So `GameState` carries this number, and anything that rolls dice reads it, draws,
+   * and writes the new one back.
+   */
+  state(): number;
 };
 
-/** mulberry32 - small, fast, good enough for a board game. */
+/**
+ * mulberry32 - small, fast, good enough for a board game, and its whole state is one
+ * number, which is what makes it storable in `GameState`.
+ */
 export function makeRng(seed: number): Rng {
   let a = seed >>> 0;
   const next = () => {
@@ -31,6 +43,7 @@ export function makeRng(seed: number): Rng {
 
   const rng: Rng = {
     next,
+    state: () => a,
     int: (min, max) => min + Math.floor(next() * (max - min + 1)),
     chance: (p) => next() < p,
     pick: (items) => items[Math.floor(next() * items.length)],

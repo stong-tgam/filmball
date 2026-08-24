@@ -11,6 +11,7 @@
 import {
   DIRS,
   RADIUS,
+  add,
   allHexes,
   distance,
   edgeHexes,
@@ -21,12 +22,18 @@ import {
   type Hex,
 } from "./hex";
 import { makeRng, type Rng } from "./rng";
-import type { GameState, Tile } from "./types";
+import { createPlayers } from "./players";
+import { placeEnemies } from "./enemies";
+import { createItemPile } from "./items";
+import { MAX_ELEMENTS, type Element, type GameState, type Tile } from "./types";
 
 export const CITY_COUNT = 5;
 /** Cities must be this far apart, so no two are a single step from each other. */
 export const CITY_MIN_DISTANCE = 3;
-export const FOREST_CLUSTERS = 5;
+export const FOREST_CLUSTERS = 7;
+/** Woods are seeded this far apart, so they spread over the board instead of massing
+ *  in one corner and leaving whole rows as empty grass. */
+export const FOREST_MIN_DISTANCE = 3;
 export const DEFAULT_TURN_LIMIT = 25;
 
 type Draft = Map<string, Tile>;
@@ -35,7 +42,15 @@ const blankBoard = (): Draft =>
   new Map(
     allHexes().map((hex) => [
       key(hex),
-      { hex, base: "field", river: false, rail: false, destroyedUntil: null } as Tile,
+      {
+        hex,
+        base: "field",
+        sides: Array<Element>(6).fill("field"),
+        river: false,
+        rail: false,
+        destroyedUntil: null,
+        searched: false,
+      },
     ]),
   );
 
@@ -145,13 +160,19 @@ function placeCities(board: Draft, rng: Rng): Hex[] {
   return placed;
 }
 
-/** Forests grow in clumps from a handful of seed tiles. */
+/** Forests grow in clumps from a handful of seed tiles, spread across the board. */
 function growForests(board: Draft, rng: Rng): void {
   const open = (h: Hex) => at(board, h).base === "field";
-  const seeds = rng.shuffle(allHexes().filter(open)).slice(0, FOREST_CLUSTERS);
+
+  const seeds: Hex[] = [];
+  for (const h of rng.shuffle(allHexes().filter(open))) {
+    if (seeds.length === FOREST_CLUSTERS) break;
+    if (seeds.some((s) => distance(s, h) < FOREST_MIN_DISTANCE)) continue;
+    seeds.push(h);
+  }
 
   for (const seed of seeds) {
-    const size = rng.int(2, 5);
+    const size = rng.int(2, 4);
     let frontier = [seed];
     const clump = new Set<string>();
     while (frontier.length && clump.size < size) {
@@ -164,6 +185,87 @@ function growForests(board: Draft, rng: Rng): void {
   }
 }
 
+/**
+ * How often a neighbour's terrain creeps across the side the two tiles share.
+ *
+ * This is what turns a board of flat single-terrain tiles into a landscape: a field
+ * beside a wood carries trees along that edge, a field beside a city carries the
+ * edge of town. Terrain stops being a property of a tile and becomes something that
+ * fades from one into the next.
+ */
+export const BLEED_CHANCE = 0.45;
+
+/** A tile keeps at least this many sides of its own terrain, water permitting. */
+export const MIN_BASE_SIDES = 2;
+
+/** Every element the tile holds, in side order, without repeats. */
+export const elementsOf = (tile: Tile): Element[] => [...new Set(tile.sides)];
+
+const countSides = (sides: Element[], element: Element): number =>
+  sides.filter((s) => s === element).length;
+
+/**
+ * Compose each tile out of its elements.
+ *
+ * Runs last, over a board whose terrain, river and railway are already decided: it
+ * reads the macro layout and works out what each individual tile is made of. Water
+ * takes the sides the river actually flows through, so a river tile points at its
+ * upstream and downstream neighbours; the rest of the tile is its own terrain, with
+ * neighbouring terrain bleeding across shared sides.
+ */
+function composeSides(board: Draft, rng: Rng): void {
+  for (const tile of board.values()) {
+    const sides = Array<Element>(6).fill(tile.base);
+
+    if (tile.river) {
+      const flows = DIRS.map((d, i) => [i, add(tile.hex, d)] as const)
+        .filter(([, n]) => inBoard(n) && at(board, n).river)
+        .map(([i]) => i);
+      // A river reaching the rim carries on off the map rather than stopping dead.
+      if (flows.length === 1 && !inBoard(add(tile.hex, DIRS[(flows[0] + 3) % 6]))) {
+        flows.push((flows[0] + 3) % 6);
+      }
+      for (const i of flows) sides[i] = "water";
+    }
+
+    DIRS.forEach((d, i) => {
+      if (sides[i] === "water") return;
+      const n = add(tile.hex, d);
+      if (!inBoard(n)) return;
+      const neighbourTerrain = at(board, n).base;
+      if (neighbourTerrain !== tile.base && rng.chance(BLEED_CHANCE)) {
+        sides[i] = neighbourTerrain;
+      }
+    });
+
+    // Bleeding from several directions at once can push a tile past the element cap,
+    // or crowd its own terrain out entirely. Give the rarest borrowed element back
+    // to the tile until neither is true.
+    const borrowed = () =>
+      elementsOf({ ...tile, sides }).filter((e) => e !== "water" && e !== tile.base);
+
+    const reclaim = () => {
+      const rarest = borrowed().sort(
+        (a, b) => countSides(sides, a) - countSides(sides, b),
+      )[0];
+      if (rarest === undefined) return false;
+      sides.forEach((s, i) => {
+        if (s === rarest) sides[i] = tile.base;
+      });
+      return true;
+    };
+
+    while (elementsOf({ ...tile, sides }).length > MAX_ELEMENTS && reclaim()) {
+      // reclaim() does the work; the guard stops it looping when nothing is borrowed.
+    }
+    while (countSides(sides, tile.base) < MIN_BASE_SIDES && reclaim()) {
+      // Same, for a tile that has bled away almost all of its own terrain.
+    }
+
+    tile.sides = sides;
+  }
+}
+
 /** The 61 tiles of the board, keyed by label. Deterministic in `seed`. */
 export function generateBoard(seed: number): Record<string, Tile> {
   const rng = makeRng(seed);
@@ -173,29 +275,42 @@ export function generateBoard(seed: number): Record<string, Tile> {
   layRailway(board, rng);
   placeCities(board, rng);
   growForests(board, rng);
+  composeSides(board, rng);
 
   return Object.fromEntries(board);
 }
 
 /**
- * A new game. v0.1 stops at the board: players, enemies and hazards arrive in
- * later phases, and the phase machine stays parked at "setup" until they do.
+ * A new game: the board, the party on its corners, and the enemies scattered over
+ * it. Hazards, items and events arrive in later phases, and the phases they belong
+ * to are already named in `Phase`.
  */
 export function createInitialState(seed: number): GameState {
+  // A second generator, so adding a draw here can never shift the board a seed
+  // produces. Board and party stay independently reproducible.
+  const rng = makeRng(seed ^ 0x9e3779b9);
+
+  const players = createPlayers(rng);
+
   return {
     seed,
+    rngState: rng.state(),
     turn: 1,
     turnLimit: DEFAULT_TURN_LIMIT,
-    phase: "setup",
+    phase: "playerMove",
     activePlayerIndex: 0,
     tiles: generateBoard(seed),
-    players: [],
-    enemies: [],
+    players,
+    enemies: placeEnemies(rng, players),
     hazards: [],
-    itemPile: [],
+    combat: null,
+    itemPile: createItemPile(rng),
     eventDeck: [],
     pokerDeck: [],
-    log: [{ turn: 1, text: `New board generated (seed ${seed}).` }],
+    log: [
+      { turn: 1, text: `New game, seed ${seed}.` },
+      { turn: 1, text: "— Turn 1 —" },
+    ],
   };
 }
 

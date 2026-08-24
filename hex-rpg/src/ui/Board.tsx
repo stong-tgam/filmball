@@ -8,8 +8,10 @@
 
 import { useMemo } from "react";
 import Tile from "./Tile";
+import TokenLayer from "./TokenLayer";
+import EnemyLayer from "./EnemyLayer";
 import { DIRS, add, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
-import type { Tile as TileData } from "../game/types";
+import type { Enemy, Player, Tile as TileData } from "../game/types";
 
 const SIZE = 40;
 const PADDING = SIZE * 0.9;
@@ -17,20 +19,29 @@ const PADDING = SIZE * 0.9;
 type Props = {
   tiles: Record<string, TileData>;
   selected: string | null;
+  /** Tile label to the number of steps it takes the active player to get there. */
+  legalMoves: Map<string, number>;
+  players: Player[];
+  enemies: Enemy[];
+  activeId: string;
+  /** The active player's colour: legal moves are drawn in it. */
+  activeColour: string;
   onSelect: (label: string | null) => void;
 };
 
 /**
- * Which of the six directions a river or railway continues into.
+ * Which of the six directions the railway continues into.
  *
  * A line that ends on the rim of the board gets one extra spoke pointing off the
  * edge, so it looks like it carries on past the map rather than stopping dead.
+ * (The river needs no equivalent: water is part of a tile's own composition, and
+ * `Tile.sides` already says which sides it flows through.)
  */
-function connections(tiles: Record<string, TileData>, tile: TileData, of: "river" | "rail"): number[] {
+function railConnections(tiles: Record<string, TileData>, tile: TileData): number[] {
   const dirs: number[] = [];
   DIRS.forEach((d, i) => {
     const n = add(tile.hex, d);
-    if (inBoard(n) && tiles[key(n)]?.[of]) dirs.push(i);
+    if (inBoard(n) && tiles[key(n)]?.rail) dirs.push(i);
   });
   if (dirs.length === 1) {
     const outward = (dirs[0] + 3) % 6;
@@ -39,7 +50,16 @@ function connections(tiles: Record<string, TileData>, tile: TileData, of: "river
   return dirs;
 }
 
-export default function Board({ tiles, selected, onSelect }: Props) {
+export default function Board({
+  tiles,
+  selected,
+  legalMoves,
+  players,
+  enemies,
+  activeId,
+  activeColour,
+  onSelect,
+}: Props) {
   const entries = useMemo(() => Object.entries(tiles), [tiles]);
 
   const viewBox = useMemo(() => {
@@ -53,16 +73,10 @@ export default function Board({ tiles, selected, onSelect }: Props) {
     return `${minX} ${minY} ${width} ${height}`;
   }, [entries]);
 
-  const links = useMemo(
+  const rails = useMemo(
     () =>
       Object.fromEntries(
-        entries.map(([label, tile]) => [
-          label,
-          {
-            river: tile.river ? connections(tiles, tile, "river") : [],
-            rail: tile.rail ? connections(tiles, tile, "rail") : [],
-          },
-        ]),
+        entries.map(([label, tile]) => [label, tile.rail ? railConnections(tiles, tile) : []]),
       ),
     [entries, tiles],
   );
@@ -70,6 +84,7 @@ export default function Board({ tiles, selected, onSelect }: Props) {
   return (
     <svg
       className="board"
+      style={{ ["--who" as string]: activeColour }}
       viewBox={viewBox}
       xmlns="http://www.w3.org/2000/svg"
       role="group"
@@ -103,12 +118,15 @@ export default function Board({ tiles, selected, onSelect }: Props) {
           label={label}
           tile={tile}
           size={SIZE}
-          riverDirs={links[label].river}
-          railDirs={links[label].rail}
+          railDirs={rails[label]}
           selected={selected === label}
+          legal={legalMoves.has(label)}
           onSelect={onSelect}
         />
       ))}
+
+      <EnemyLayer enemies={enemies} size={SIZE} />
+      <TokenLayer players={players} activeId={activeId} size={SIZE} />
     </svg>
   );
 }

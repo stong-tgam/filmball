@@ -3,28 +3,83 @@
 Hotseat (one device, passed around) digital version of the Hex RPG tabletop game.
 Built to the plan in `reference/webapp-spec.md`.
 
-**This build is v0.1: the board.** 61 tiles generate from a seed and render as an SVG
-map with labels. There are no players, enemies, hazards, items or turns yet — those
-are v0.2 onwards, in the order the spec lays out.
+**This build is v0.4: gear and money.** Four players move round the board, fight what
+they find, search the ground, and spend what they earn in city markets. There are no
+events or hazards yet — those are v0.5 and v0.6, in the order the spec lays out.
 
 ## Running it
 
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 48 tests over the hex maths and board generation
+npm test           # 138 tests over the hex maths, board, turns, combat and gear
 npm run build      # type-check + production build into dist/
 ```
 
-## What v0.1 does
+## What v0.4 adds
+
+- **One pile of gear for the whole game** — three big sticks, two swords, one great
+  axe, armour and boots: thirteen items, and no more than that. Cities sell from it,
+  searches turn it up, and beaten bosses drop it. It runs out.
+- **Searching**: on open ground or in woods, once per tile. Woods hide more than
+  fields. You get gear, coins, or nothing.
+- **Markets**: city tiles sell unlimited food and whatever three items of the pile are
+  on the shelf. Buying gear for a slot you have filled swaps the old piece out, and it
+  goes back into the world for somebody else to find.
+- **Equipment does something**: weapons add damage, armour takes it off, boots add a
+  tile of movement.
+- **Food can be eaten at any moment** — on someone else's turn, in the middle of a
+  fight — straight from the party list. That is the spec's rule, and it means the
+  child watching their sibling's turn still has something to do.
+- **Loot**: beaten enemies pay out coins on the spot, and bosses drop gear to pick
+  over. What nobody takes goes back into the pile.
+- **One action a turn**: search, shop, or fight. Eating is free and does not count.
+
+## What v0.3 added
+
+- **Enemies on the board**: six bandits, two ogres, and a dragon in the middle tile,
+  which gives the map a destination. Nothing spawns within two tiles of a player, so
+  turn 1 is never an ambush. Enemies are angular where players are round.
+- **Fighting**: walk onto an enemy and the fight starts. Three dice, faces
+  `[1,1,1,2,2,3]`, plus your weapon; the enemy answers with one die plus its own
+  strength. Roll again or back off, round after round.
+- **Damage accumulates.** Hurting something and walking away is a real move — the
+  wound is still there next turn, and the token on the board carries a health bar
+  showing it.
+- **Running away is always available and always free.** A child should be able to see
+  the way out of a fight they are losing without asking an adult.
+- **Dice are the moment**: they tumble before they settle, faces are pips rather than
+  numerals, and the sum is spelled out — `1 + 1 + 1 = 3 damage` — as arithmetic a
+  seven-year-old can check.
+
+## What v0.2 added
+
+- **The party**: four roles (knight, rogue, scout, doctor), one to a corner of the
+  board. Corners are always four tiles apart and all the same distance from the
+  middle, so nobody starts closer to anything than anybody else.
+- **Movement**: one tile per turn for everyone, two for the rogue. Legal tiles glow
+  in the active player's own colour with a pip in the middle; tap one to move there.
+- **Turn order and the turn counter**: play passes round the party, the counter rolls
+  over when it comes back to the first player, and the game ends at the turn limit.
+- **Hotseat furniture**: a full-width banner for whose turn it is, the party list with
+  health and money, a confirm step before ending a turn, and a log of what happened.
+
+## What v0.1 did
 
 - **Axial hex coordinates** with neighbours, distance, range, and breadth-first
   pathing (`src/game/hex.ts`). The A1–I5 labels players use at the table are a
   display conversion, not the internal representation.
 - **Seeded board generation** (`src/game/setup.ts`): a hexagon of radius 4, a river
   bending from one rim to the far rim, a dead-straight railway crossing it, five
-  cities spaced apart and preferring the railway, and forests in clumps. Everything
-  is a pure function of the seed, so `4471` always builds the same board.
+  cities spaced apart and preferring the railway, and woods in clumps spread across
+  the board. Everything is a pure function of the seed, so `4471` always builds the
+  same board.
+- **Tiles are compositions, not single terrains.** Each tile carries one element per
+  side — field, forest, city or water — and holds up to three of them, every element
+  owning at least one side. Water takes the sides the river actually flows through,
+  and neighbouring terrain bleeds across shared sides, so woods spill into the fields
+  beside them and towns have outskirts. `Tile.base` stays the tile's dominant terrain,
+  which is what the rules key off; the sides are what the board is made of.
 - **SVG renderer** (`src/ui/`): one `<g>` per tile, artwork drawn in SVG, rivers and
   railways joined across tile edges into continuous lines. Tap a tile to inspect it.
 
@@ -59,10 +114,40 @@ movement unit-testable later, and keeps a networked rewrite possible.
   `src/ui/Tile.tsx`. They are deliberately simple and recolour from CSS custom
   properties in `src/styles.css`, so swapping in the real art is a contained change.
 - **Board composition is a judgement call**, not a rule from the rulebook: five
-  cities at least three tiles apart, five forest clumps of two to five tiles, one
-  river, one railway. The constants are at the top of `src/game/setup.ts`.
+  cities at least three tiles apart, seven woods of two to four tiles seeded three
+  apart, one river, one railway, and a 45% chance of a neighbour's terrain bleeding
+  across a shared side. The constants are at the top of `src/game/setup.ts`.
+- **Prices and stats are placeholders** (`src/game/items.ts`, `src/game/enemies.ts`):
+  bandit 6 health, ogre 12 with +1, dragon 20 with +2; sticks $3 up to the axe at $10. A bandit is about two good rolls; the dragon cannot be
+  beaten bare-handed, which is what the spec says it should be — that fight needs the
+  gear that arrives in v0.4.
+- **What happens to a downed player is the biggest open question in the game.** The
+  spec models `dead`, so that is what this implements: out, and the turn order skips
+  them. For a game whose whole point is family night, that is probably wrong, and
+  CLAUDE.md flags it. Escape being always free is the mitigation for now.
+- **Enemies block movement**, where players do not: you may walk onto one, which
+  starts the fight, but never past it.
+- **A tile can be searched once per game.** Otherwise the best play is to stand still
+  and search the same square for twenty-five turns, which is not a game.
+- **Nothing can be sold**, and searching draws from the seeded generator rather than
+  the second poker deck the spec calls for — that deck arrives with v0.5.
+- **Two movement rules were mine to pick, and the rulebook should overrule them.**
+  The *pass-through rule*: a player may move through a tile someone is standing on
+  but may not stop there — the friendlier of the two readings, since being boxed in
+  by your own family is a miserable way for a seven-year-old to lose a turn. And
+  *rivers do not slow anyone down*; crossing costs nothing.
+- **Role stats are placeholders**, marked as such at the top of `src/game/players.ts`:
+  health 9–12, move 2–3, starting money $5–8. Chosen so no pick feels like a mistake,
+  not balanced.
+- **The entry-side question stays open.** Sides are stored per direction, so "which
+  element you are standing in depends on the side you entered from" is available as a
+  rule. v0.2 does not use it: a move is a move, and `base` decides what a tile is
+  for. Reopen it if the rulebook says otherwise.
 - Terrain generation is tested for structure rather than exact output — the river is
   connected, crosses the board, and actually bends; the railway is straight and
   crosses the river rather than running alongside it; cities are never adjacent.
   Those tests are what stop a plausible-looking generator from producing a sawtooth
-  river or a canal ruled straight across the map.
+  river or a canal ruled straight across the map. Tile composition is tested the same
+  way: at most three elements, each holding at least one side, water only where the
+  river runs and only pointing at neighbours it also runs through, and borrowed
+  terrain only ever borrowed from the tile actually on that side.
