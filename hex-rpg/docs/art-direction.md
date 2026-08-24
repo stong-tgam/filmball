@@ -135,12 +135,25 @@ directional stroke is what the current flat-vector tiles are missing.
 | `src/ui/art/CrayonDefs.tsx` | The six wobble filters and the grain filter. Mount once. |
 | `src/ui/art/monsters.tsx` | Five bandits, two ogres, the dragon, the two thieves |
 | `src/ui/art/features.tsx` | The five boss feature cards, and what each does |
+| `src/ui/art/items.tsx` | All fifteen pieces of gear and all twenty-three foods |
+| `src/ui/art/terrain.tsx` | The hex tile, in pencil: hatching, trees, cottages, river, rail |
 | `src/ui/Token.tsx` | The chit: drawing on the front, details on the back |
 | `src/ui/art/UploadArt.tsx` | "Use my drawing" |
 
 CSS classes for the chit are `chit`, `chit-front`, `chit-back` — **not** `token`. The
 board's SVG player pieces already own `.token`, and that rule sets
 `pointer-events: none`, which silently kills every tap on a flip card.
+
+**Wrap wobbled groups in `<Wobble>`, never `filter={wobbleFor(...)}` by hand.** An SVG
+filter measured in objectBoundingBox units collapses when the box has no width or no
+height, and the browser then draws nothing at all with no warning. A railway drawn as
+two horizontal lines is exactly that case. `Wobble` puts an invisible rect underneath
+to guarantee a box.
+
+**Hatching is a `<pattern>`, not paths.** Sixty-one tiles of real hatch lines costs
+frames; `hatch-furrow-a` / `hatch-furrow-b` / `flick-grass` live in `CrayonDefs`. Two
+angles exist so neighbouring fields do not merge into one big field — `terrain.tsx`
+picks between them from the tile label.
 
 There are more monsters on the board than there are drawings: fifteen bandits share
 five faces, four ogres share two. `pickFor(enemy.id, MOBS)` decides which, so a monster
