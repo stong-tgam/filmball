@@ -242,16 +242,24 @@ describe("tile composition", () => {
 });
 
 describe("createInitialState", () => {
-  it("opens a game on the board with nothing placed yet", () => {
+  it("opens on turn 1 with the party placed and nobody else on the board yet", () => {
     const state = createInitialState(4471);
     expect(state.seed).toBe(4471);
     expect(state.turn).toBe(1);
-    expect(state.phase).toBe("setup");
+    expect(state.phase).toBe("playerMove");
+    expect(state.activePlayerIndex).toBe(0);
     expect(Object.keys(state.tiles)).toHaveLength(TILE_COUNT);
-    expect(state.players).toEqual([]);
+    expect(state.players).toHaveLength(4);
+    // Enemies, hazards, items and events belong to v0.3 onwards.
     expect(state.enemies).toEqual([]);
     expect(state.hazards).toEqual([]);
-    expect(state.log).toHaveLength(1);
+    expect(state.itemPile).toEqual([]);
+    expect(state.log).toHaveLength(2);
+  });
+
+  it("generates the same board whether or not the party draws from the seed", () => {
+    // Party placement uses its own generator, so board output is unaffected by it.
+    expect(createInitialState(4471).tiles).toEqual(generateBoard(4471));
   });
 
   it("survives a round trip through JSON, so autosave and undo stay possible", () => {

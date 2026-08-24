@@ -3,20 +3,33 @@
 Hotseat (one device, passed around) digital version of the Hex RPG tabletop game.
 Built to the plan in `reference/webapp-spec.md`.
 
-**This build is v0.1: the board.** 61 tiles generate from a seed and render as an SVG
-map with labels. There are no players, enemies, hazards, items or turns yet — those
-are v0.2 onwards, in the order the spec lays out.
+**This build is v0.2: players and movement.** Four players start on the board, move
+one tile-click at a time in turn order, and the turn counter runs to a limit. There
+are no enemies, items, events or hazards yet — those are v0.3 onwards, in the order
+the spec lays out.
 
 ## Running it
 
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 56 tests over the hex maths and board generation
+npm test           # 76 tests over the hex maths, board generation and turns
 npm run build      # type-check + production build into dist/
 ```
 
-## What v0.1 does
+## What v0.2 adds
+
+- **The party**: four roles (knight, rogue, scout, doctor), one to a corner of the
+  board. Corners are always four tiles apart and all the same distance from the
+  middle, so nobody starts closer to anything than anybody else.
+- **Movement**: legal tiles glow in the active player's own colour with a pip in the
+  middle; tap one to move there. Range comes from the role. One move per turn.
+- **Turn order and the turn counter**: play passes round the party, the counter rolls
+  over when it comes back to the first player, and the game ends at the turn limit.
+- **Hotseat furniture**: a full-width banner for whose turn it is, the party list with
+  health and money, a confirm step before ending a turn, and a log of what happened.
+
+## What v0.1 did
 
 - **Axial hex coordinates** with neighbours, distance, range, and breadth-first
   pathing (`src/game/hex.ts`). The A1–I5 labels players use at the table are a
@@ -69,10 +82,18 @@ movement unit-testable later, and keeps a networked rewrite possible.
   cities at least three tiles apart, seven woods of two to four tiles seeded three
   apart, one river, one railway, and a 45% chance of a neighbour's terrain bleeding
   across a shared side. The constants are at the top of `src/game/setup.ts`.
-- **One open question the rules will have to settle.** Sides are stored per direction,
-  so "which element you are standing in depends on the side you entered from" is
-  available as a rule if you want it. Nothing uses it yet — for now `base` decides
-  what a tile is for searching and trading.
+- **Two movement rules were mine to pick, and the rulebook should overrule them.**
+  The *pass-through rule*: a player may move through a tile someone is standing on
+  but may not stop there — the friendlier of the two readings, since being boxed in
+  by your own family is a miserable way for a seven-year-old to lose a turn. And
+  *rivers do not slow anyone down*; crossing costs nothing.
+- **Role stats are placeholders**, marked as such at the top of `src/game/players.ts`:
+  health 9–12, move 2–3, starting money $5–8. Chosen so no pick feels like a mistake,
+  not balanced.
+- **The entry-side question stays open.** Sides are stored per direction, so "which
+  element you are standing in depends on the side you entered from" is available as a
+  rule. v0.2 does not use it: a move is a move, and `base` decides what a tile is
+  for. Reopen it if the rulebook says otherwise.
 - Terrain generation is tested for structure rather than exact output — the river is
   connected, crosses the board, and actually bends; the railway is straight and
   crosses the river rather than running alongside it; cities are never adjacent.

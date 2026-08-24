@@ -34,6 +34,8 @@ type Props = {
   /** Indices into DIRS of the neighbours the railway continues into. */
   railDirs: number[];
   selected: boolean;
+  /** A tile the active player may move to this turn. */
+  legal: boolean;
   onSelect: (label: string) => void;
 };
 
@@ -244,7 +246,7 @@ function Railway({ size, dirs }: { size: number; dirs: number[] }) {
   );
 }
 
-function TileView({ tile, label, size, railDirs, selected, onSelect }: Props) {
+function TileView({ tile, label, size, railDirs, selected, legal, onSelect }: Props) {
   const { x, y } = hexToPixel(tile.hex, size);
   const rng = makeRng(hash(label));
   const grouped = runs(tile.sides);
@@ -256,11 +258,11 @@ function TileView({ tile, label, size, railDirs, selected, onSelect }: Props) {
   return (
     <g
       transform={`translate(${x.toFixed(2)} ${y.toFixed(2)})`}
-      className={`tile tile-${tile.base}${selected ? " is-selected" : ""}`}
+      className={`tile tile-${tile.base}${selected ? " is-selected" : ""}${legal ? " is-legal" : ""}`}
       onClick={() => onSelect(label)}
       role="button"
       tabIndex={0}
-      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}`}
+      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}${legal ? ", you can move here" : ""}`}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -285,6 +287,14 @@ function TileView({ tile, label, size, railDirs, selected, onSelect }: Props) {
 
       {tile.rail && <Railway size={size} dirs={railDirs} />}
 
+      {legal && (
+        <g className="legal" pointerEvents="none">
+          <polygon points={hexPoints(size)} className="tile-legal" />
+          {/* A pip in the active player's colour: "your piece can stand here". A
+              wash on its own reads as greyed-out rather than as an invitation. */}
+          <circle className="legal-pip" r={size * 0.11} />
+        </g>
+      )}
       <polygon points={hexPoints(size)} className="tile-outline" />
       <text className="tile-label" y={size * 0.82} textAnchor="middle" fontSize={size * 0.28}>
         {label}

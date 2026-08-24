@@ -65,6 +65,8 @@ export type Player = {
   boots: Item | null;
   supply: Item[];
   dead: boolean;
+  /** One move per turn; cleared when the player's next turn begins. */
+  movedThisTurn: boolean;
   /** Homeless-person donation: extra dice on the next fight only. */
   bonusDiceNextFight: number;
   joinedFightThisRound: boolean;

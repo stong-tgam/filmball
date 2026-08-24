@@ -58,16 +58,22 @@ npm test           # 56 tests
 npm run build      # type-check + production build
 ```
 
-## Current state: v0.1, the board
+## Current state: v0.2, players and movement
 
-Shipped: hex coordinates with neighbours/distance/range/BFS pathing, seeded
-generation of the 61-tile hexagon, the SVG renderer, a tile inspector and seed entry.
-**No players, enemies, hazards, items or turns yet.**
+Shipped: hex coordinates with pathing, seeded board generation, the SVG renderer, the
+four-role party placed one to a corner, click-to-move with legal tiles highlighted,
+turn order, the turn counter and limit, the active-player banner, party list and log.
+**No enemies, items, events or hazards yet.**
 
 Build order from the spec, one phase at a time — ship each working before starting
-the next: **v0.2** players and movement · **v0.3** combat (playtest here before going
-further; this is the core loop) · **v0.4** items and economy · **v0.5** features and
-events · **v0.6** hazards · **v0.7** autosave, undo, win/lose screens.
+the next: **v0.3** combat (playtest here before going further; this is the core
+loop) · **v0.4** items and economy · **v0.5** features and events · **v0.6**
+hazards · **v0.7** autosave, undo, win/lose screens.
+
+Turn logic lives in `src/game/turn.ts` as pure functions — `legalMoves`,
+`movePlayer`, `endTurn`. v0.2 runs the short version of the spec's loop (each player
+moves once, then the turn passes); hazard and event phases slot in ahead of it when
+they exist, and the phase names are already in `Phase`.
 
 ## Conventions worth keeping
 
@@ -92,6 +98,13 @@ The spec's §9 lists rules the code will need branches for — turn limit, how l
 tornado damage lasts, whether a hazard hit costs your turn, whether mid bosses must
 die before the final boss. Defaults are suggested there; confirm before v0.6.
 
-One this build added: sides are stored per direction, so "which element you are
-standing in depends on the side you entered from" is *available* as a rule. Nothing
-uses it. Decide before v0.2 movement, since it changes what a move means.
+Decisions taken in the absence of the rulebook, all marked in the code where they
+are made, all cheap to reverse:
+
+- **Pass-through**: you may move *through* another player, not stop on them
+  (`legalMoves` in `turn.ts`).
+- **Rivers do not cost movement.** No terrain does, yet.
+- **Role stats are placeholders** (`players.ts`) — health 9–12, move 2–3, money $5–8.
+- **Entry side is not a rule.** Sides are stored per direction, so "which element you
+  are standing in depends on the side you entered from" remains available; nothing
+  uses it, and `base` decides what a tile is for.

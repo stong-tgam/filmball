@@ -1,7 +1,11 @@
 import { useState } from "react";
 import Board from "./ui/Board";
-import { useGame } from "./game/store";
-import { countTerrain, elementsOf, TILE_COUNT } from "./game/setup";
+import ActionBar from "./ui/ActionBar";
+import Log from "./ui/Log";
+import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
+import { useActivePlayer, useGame, useLegalMoves } from "./game/store";
+import { elementsOf } from "./game/setup";
+import { ROLES } from "./game/players";
 import "./styles.css";
 
 const TERRAIN_BLURB: Record<string, string> = {
@@ -22,14 +26,15 @@ export default function App() {
   const selected = useGame((s) => s.selected);
   const select = useGame((s) => s.select);
   const newGame = useGame((s) => s.newGame);
+  const moveTo = useGame((s) => s.moveTo);
+  const endTurn = useGame((s) => s.endTurn);
+  const player = useActivePlayer();
+  const legalMoves = useLegalMoves();
 
   const [seedInput, setSeedInput] = useState("");
-  const counts = countTerrain(game.tiles);
   const tile = selected ? game.tiles[selected] : null;
-  const mixed = Object.values(game.tiles).filter((t) => elementsOf(t).length > 1).length;
+  const over = game.phase === "gameOver";
 
-  // What the selected tile is made of: each element it holds, and how many of its
-  // six sides that element owns.
   const composition = tile
     ? elementsOf(tile)
         .map((element) => ({ element, sides: tile.sides.filter((s) => s === element).length }))
@@ -41,13 +46,23 @@ export default function App() {
     newGame(Number.isFinite(parsed) && seedInput.trim() !== "" ? parsed >>> 0 : undefined);
   };
 
+  /** A tap on a glowing tile moves; a tap anywhere else just looks. */
+  const tapTile = (label: string | null) => {
+    if (label !== null && legalMoves.has(label)) moveTo(label);
+    else select(label);
+  };
+
   return (
     <div className="app">
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.1 — the board</span>
+          <span className="version">v0.2 — players and movement</span>
         </div>
+        <p className="turn-counter">
+          Turn <strong>{game.turn}</strong>
+          <span className="of">/{game.turnLimit}</span>
+        </p>
         <div className="seedbar">
           <label htmlFor="seed">Seed</label>
           <input
@@ -59,28 +74,45 @@ export default function App() {
             onKeyDown={(e) => e.key === "Enter" && start()}
           />
           <button type="button" onClick={start}>
-            New board
+            New game
           </button>
         </div>
       </header>
 
+      {over ? (
+        <div className="banner banner-over">
+          <h2>Time is up</h2>
+          <p className="banner-blurb">
+            Turn {game.turnLimit} was the last one. Start a new game to play again.
+          </p>
+        </div>
+      ) : (
+        <ActivePlayerBanner player={player} moves={legalMoves.size} />
+      )}
+
       <main className="stage">
-        <Board tiles={game.tiles} selected={selected} onSelect={select} />
+        <Board
+          tiles={game.tiles}
+          selected={selected}
+          legalMoves={legalMoves}
+          players={game.players}
+          activeId={player.id}
+          activeColour={ROLES[player.role].colour}
+          onSelect={tapTile}
+        />
       </main>
 
       <aside className="sidebar">
+        <ActionBar
+          canMove={legalMoves.size > 0}
+          moved={player.movedThisTurn}
+          onEndTurn={endTurn}
+          disabled={over}
+        />
+
         <section className="panel">
-          <h2>Board</h2>
-          <dl className="stats">
-            <div><dt>Seed</dt><dd className="mono">{game.seed}</dd></div>
-            <div><dt>Tiles</dt><dd>{Object.keys(game.tiles).length} / {TILE_COUNT}</dd></div>
-            <div><dt>Fields</dt><dd>{counts.field}</dd></div>
-            <div><dt>Forest</dt><dd>{counts.forest}</dd></div>
-            <div><dt>Cities</dt><dd>{counts.city}</dd></div>
-            <div><dt>River</dt><dd>{counts.river} tiles</dd></div>
-            <div><dt>Railway</dt><dd>{counts.rail} tiles</dd></div>
-            <div><dt>Mixed tiles</dt><dd>{mixed}</dd></div>
-          </dl>
+          <h2>Party</h2>
+          <PartyList players={game.players} activeId={player.id} />
         </section>
 
         <section className="panel">
@@ -100,26 +132,15 @@ export default function App() {
                 ))}
                 {tile.rail && <li className="tag tag-rail">Railway</li>}
               </ul>
-              <p className="muted small">
-                {composition.length === 1
-                  ? "One element, all six sides."
-                  : `${composition.length} elements, by the sides each one holds.`}
-              </p>
-              <p className="muted mono small">
-                axial q={tile.hex.q}, r={tile.hex.r}
-              </p>
             </>
           ) : (
-            <p className="muted">Tap a tile to inspect it.</p>
+            <p className="muted">Tap a quiet tile to look at it.</p>
           )}
         </section>
 
-        <section className="panel">
-          <h2>Next up</h2>
-          <p className="muted">
-            v0.2 puts four players on this board and lets them move. Nothing is placed
-            yet — this build is the map only.
-          </p>
+        <section className="panel panel-log">
+          <h2>Log</h2>
+          <Log entries={game.log} />
         </section>
       </aside>
     </div>

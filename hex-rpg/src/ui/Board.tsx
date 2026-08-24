@@ -8,8 +8,9 @@
 
 import { useMemo } from "react";
 import Tile from "./Tile";
+import TokenLayer from "./TokenLayer";
 import { DIRS, add, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
-import type { Tile as TileData } from "../game/types";
+import type { Player, Tile as TileData } from "../game/types";
 
 const SIZE = 40;
 const PADDING = SIZE * 0.9;
@@ -17,6 +18,12 @@ const PADDING = SIZE * 0.9;
 type Props = {
   tiles: Record<string, TileData>;
   selected: string | null;
+  /** Tile label to the number of steps it takes the active player to get there. */
+  legalMoves: Map<string, number>;
+  players: Player[];
+  activeId: string;
+  /** The active player's colour: legal moves are drawn in it. */
+  activeColour: string;
   onSelect: (label: string | null) => void;
 };
 
@@ -41,7 +48,15 @@ function railConnections(tiles: Record<string, TileData>, tile: TileData): numbe
   return dirs;
 }
 
-export default function Board({ tiles, selected, onSelect }: Props) {
+export default function Board({
+  tiles,
+  selected,
+  legalMoves,
+  players,
+  activeId,
+  activeColour,
+  onSelect,
+}: Props) {
   const entries = useMemo(() => Object.entries(tiles), [tiles]);
 
   const viewBox = useMemo(() => {
@@ -66,6 +81,7 @@ export default function Board({ tiles, selected, onSelect }: Props) {
   return (
     <svg
       className="board"
+      style={{ ["--who" as string]: activeColour }}
       viewBox={viewBox}
       xmlns="http://www.w3.org/2000/svg"
       role="group"
@@ -101,9 +117,12 @@ export default function Board({ tiles, selected, onSelect }: Props) {
           size={SIZE}
           railDirs={rails[label]}
           selected={selected === label}
+          legal={legalMoves.has(label)}
           onSelect={onSelect}
         />
       ))}
+
+      <TokenLayer players={players} activeId={activeId} size={SIZE} />
     </svg>
   );
 }

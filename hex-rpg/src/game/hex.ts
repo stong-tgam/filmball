@@ -181,6 +181,18 @@ export function hexLine(a: Hex, b: Hex): Hex[] {
   return out;
 }
 
+/** The six corner tiles of the board hexagon, clockwise from the east corner. */
+export function boardCorners(): Hex[] {
+  return [
+    { q: RADIUS, r: 0 },
+    { q: RADIUS, r: -RADIUS },
+    { q: 0, r: -RADIUS },
+    { q: -RADIUS, r: 0 },
+    { q: -RADIUS, r: RADIUS },
+    { q: 0, r: RADIUS },
+  ];
+}
+
 /** The 24 tiles on the outer ring of the board. */
 export function edgeHexes(): Hex[] {
   return allHexes().filter((h) => distance(h, { q: 0, r: 0 }) === RADIUS);
