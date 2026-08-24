@@ -1,43 +1,49 @@
 # Prompt for generating Hex RPG token art
 
-Paste **Part 1** into Gemini once, at the top of the conversation. Then work through
-**Part 2** one line at a time — the style block keeps applying. Save each result under
-the exact filename in **Part 3** and drop them all into this folder.
+This is a **continuation** prompt: paste it into the same Gemini conversation that
+already has the children's drawings and already produced the sticker sheet. It does not
+re-describe the style, because Gemini already has it and you already approved it — it
+locks it and changes the packaging to one token per image.
+
+Paste **Part 1** once, then work through **Part 2**. Save each result under the exact
+filename in **Part 3** and drop them all into this folder.
 
 ---
 
-## Part 1 — the style block (paste once)
+## Part 1 — the continuation prompt (paste once)
 
-> I'm making token art for a children's hex-crawl board game. I'll ask you for one
-> object at a time. Every image must follow these rules exactly and never vary, because
-> the tokens sit next to each other on a board and must look like one set.
+> That sticker sheet you made is exactly right — that is the style for the whole game.
+> Lock it in: the same coloured-pencil-and-marker look, the same wobbly hand-drawn
+> outlines, the same bright palette, the same chunky friendly shapes, the same goofy
+> not-scary monsters, and the same faithfulness to the children's original drawings I
+> gave you. Every image from here on must look like it came off that same sheet, drawn
+> by the same hand on the same afternoon. Do not restyle, do not "improve", do not drift
+> toward a cleaner or more polished look as we go.
 >
-> **Style.** A child's drawing, made with coloured pencils and felt-tip markers on
-> off-white paper. Visible pencil strokes with the paper showing through the colour —
-> never a flat digital fill, never a gradient, never airbrushing. A slightly wobbly
-> hand-drawn dark outline around every shape, the kind you get from going over a line
-> twice. Bright, saturated marker colours: red, pink, orange, yellow, green, blue,
-> purple, brown. Simple, chunky, friendly shapes with big heads and clear silhouettes.
-> Warm and cheerful, the way a picture book for five-to-ten-year-olds looks. No
-> realistic rendering, no photorealism, no 3D, no cel-shaded anime, no vector clip art,
-> no glossy icons.
+> What changes is only how you deliver them. I need each object as **its own separate
+> image**, because they are going into a game one token at a time and I have to cut them
+> out programmatically. So for every image from now on:
 >
-> **Monsters must be funny, not frightening.** Big eyes, silly teeth, a bit goofy. No
-> blood, no gore, no horror, no menace. A seven-year-old should want to pick it up.
+> - **One single object per image.** Never a sheet, never a grid, never two objects.
+> - **Square, 1:1, 1024×1024.**
+> - **Centred, whole subject in frame** with a clear margin — nothing clipped by the
+>   edge. Subject fills roughly 80% of the picture.
+> - **Pure flat white (#FFFFFF) background, or transparent.** No paper texture, no
+>   scene, no ground line, no cast or drop shadow.
+> - **No text of any kind** — no label, no name, no caption, no number, no watermark.
+>   The names on the sticker sheet were useful to me but they must not appear now.
+> - **No sticker outline, no white die-cut border, no frame, no circle** around the
+>   subject. Just the drawing on white.
 >
-> **Composition.** One single subject, centred, facing the viewer, whole body inside the
-> frame with a comfortable margin — nothing touching or cropped by the edge. The subject
-> fills about 80% of the image. Square 1:1 aspect ratio, 1024×1024.
+> Those last two are the ones that break my build, so please check each image against
+> them before you send it.
 >
-> **Background.** Pure flat white (#FFFFFF) and nothing else. No paper texture, no
-> scene, no ground, no horizon, no cast shadow, no drop shadow, no vignette. Transparent
-> background is even better if you can do it.
->
-> **Absolutely no text.** No labels, no captions, no names, no numbers, no watermarks,
-> no signature. No frame, no border, no circle, no sticker die-cut outline around the
-> subject.
->
-> Confirm you've understood, then wait for my first object.
+> I'll list the objects one at a time. Reply "ready" and I'll start.
+
+**If Gemini drifts** — and it will, after fifteen or twenty images — paste this:
+
+> Stop. Compare this against the original sticker sheet: it has drifted. Go back to that
+> exact style — rougher pencil, wobblier outline, simpler shapes — and redo the last one.
 
 ---
 
@@ -116,10 +122,10 @@ Ask for each one as: **"Draw: `<description>`"**
 56. A hot dog in a bun with a zigzag of mustard
 
 ### Terrain tiles (8) — these ones are DIFFERENT
-For these eight only, override the composition rule:
-> Draw this as a flat top-down map tile in the shape of a **regular hexagon with a thick
-> wobbly black hand-drawn border**, filling the whole square frame. Same coloured-pencil
-> and marker style. Flat overhead view, no perspective. Pure white outside the hexagon.
+You already drew these on the hex tile sheet. Same eight, one per image. Say this first:
+> The next eight are map tiles, like the hexagon tile sheet you drew earlier — keep that
+> exact look. Flat top-down view, a regular hexagon with a thick wobbly black hand-drawn
+> border, filling the square frame, pure white outside the hexagon. Still no labels.
 
 57. Hexagon tile: a dense forest of green leafy and pine trees on light green grass
 58. Hexagon tile: a ploughed brown field, drawn as diagonal pencil furrow lines, with a small scarecrow
@@ -157,9 +163,14 @@ tile-forest-field  tile-city-rail      tile-field-rail      tile-river-rail
 
 ## Notes
 
-- **Order of value.** Characters, monsters, bosses and hazards are what players look at,
-  so do those first (1–18). Tiles next (57–64). Food and gear last — the current drawn
-  versions of those are the most passable.
+- **You already have some of these.** The sticker sheet covers the four characters, five
+  mobs, the scarecrow, the sea serpent, the dragon, the tornado, the pirates, the robber
+  and the family — eighteen of the sixty-four. Ask Gemini to re-issue those individually
+  at the new spec rather than reinventing them; it should recognise its own work. Same
+  for the eight hex tiles.
+- **Order of value.** Characters, monsters, bosses and hazards first (1–18). Tiles next
+  (57–64). Food and gear last — the current drawn versions of those are the most
+  passable, and the children already drew ten of the foods themselves.
 - **Partial is fine.** Anything missing keeps its existing drawn artwork, so send what
   you have and add more later.
 - **Batches.** One image per request gives the most consistent results. If you'd rather
