@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Board from "./ui/Board";
+import FirstPerson from "./ui/FirstPerson";
 import Notebook from "./ui/Notebook";
 import ActionBar from "./ui/ActionBar";
 import Log from "./ui/Log";
@@ -57,6 +58,10 @@ export default function App() {
   const search = useGame((s) => s.search);
   const eat = useGame((s) => s.eat);
   const writeNotes = useGame((s) => s.writeNotes);
+  // The overhead board is a grown-up's debug peek, off by default. The game is the
+  // first-person view; being able to flip between them is only here so the map idea
+  // can be judged against the thing it replaced.
+  const [overhead, setOverhead] = useState(false);
   const shopOpen = useGame((s) => s.shopOpen);
   const openShop = useGame((s) => s.openShop);
   const closeShop = useGame((s) => s.closeShop);
@@ -102,8 +107,17 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.8 — nobody can see the map</span>
+          <span className="version">v0.9 — standing on the spot</span>
         </div>
+        <button
+          type="button"
+          className="peek"
+          aria-pressed={overhead}
+          title="Grown-up's peek: the overhead board the players are not supposed to have"
+          onClick={() => setOverhead((on) => !on)}
+        >
+          {overhead ? "Back to the ground" : "Peek at the map"}
+        </button>
         <p className="turn-counter">
           Turn <strong>{game.turn}</strong>
           <span className="of">/{game.turnLimit}</span>
@@ -138,19 +152,31 @@ export default function App() {
       )}
 
       <main className="stage">
-        <Board
-          tiles={game.tiles}
-          selected={selected}
-          legalMoves={legalMoves}
-          players={game.players}
-          enemies={game.enemies}
-          hazards={game.hazards}
-          turn={game.turn}
-          activeId={player.id}
-          viewer={player}
-          activeColour={ROLES[player.role].colour}
-          onSelect={tapTile}
-        />
+        {overhead ? (
+          <Board
+            tiles={game.tiles}
+            selected={selected}
+            legalMoves={legalMoves}
+            players={game.players}
+            enemies={game.enemies}
+            hazards={game.hazards}
+            turn={game.turn}
+            activeId={player.id}
+            viewer={player}
+            activeColour={ROLES[player.role].colour}
+            onSelect={tapTile}
+          />
+        ) : (
+          <FirstPerson
+            tiles={game.tiles}
+            viewer={player}
+            players={game.players}
+            enemies={game.enemies}
+            hazards={game.hazards}
+            legalMoves={legalMoves}
+            onMove={moveTo}
+          />
+        )}
       </main>
 
       <aside className="sidebar">
@@ -177,6 +203,7 @@ export default function App() {
           <PartyList players={game.players} activeId={player.id} onEat={eat} />
         </section>
 
+        {overhead && (
         <section className="panel">
           <h2>Tile</h2>
           {tile && !seesSelected ? (
@@ -203,6 +230,7 @@ export default function App() {
             <p className="muted">Tap a quiet tile to look at it.</p>
           )}
         </section>
+        )}
 
         <section className="panel">
           <h2>Notes</h2>

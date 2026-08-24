@@ -78,6 +78,20 @@ tests/           vitest, node environment, no rendering
 The hard rule from the spec holds: `src/game/` never imports React, and every rule is
 a pure function over serialisable state.
 
+## v0.9: standing on the spot
+
+There is no map on screen. You are on your tile, at eye height, looking around: drag to
+turn, tap the ringed ground ahead to walk onto it. Past the edge of the board the world
+drops away into a cliff.
+
+**This part is a rough MVP** — boxes and cones in flat colours, no artwork applied yet.
+It is there to find out whether standing on the ground is more fun than looking down at
+a hidden board, before anything is made to look nice. There is a **"Peek at the map"**
+button in the header for grown-ups who want to compare the two.
+
+The compass in the corner is not decoration: four people describing what they can see
+need a shared direction, and there are no tile labels to point at from down there.
+
 ## v0.8: nobody can see the map
 
 The board is hidden. On your turn you see the tile you are standing on and the ring
