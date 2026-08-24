@@ -35,7 +35,11 @@ export function ActivePlayerBanner({ player, moves }: { player: Player; moves: n
         </div>
         <div>
           <dt>Move</dt>
-          <dd>{player.movedThisTurn ? "used" : `${moveRange(player)} tiles`}</dd>
+          <dd>
+            {player.movedThisTurn
+              ? "used"
+              : `${moveRange(player)} ${moveRange(player) === 1 ? "tile" : "tiles"}`}
+          </dd>
         </div>
       </dl>
       <p className="banner-hint">
@@ -43,7 +47,7 @@ export function ActivePlayerBanner({ player, moves }: { player: Player; moves: n
           ? "Move used. End the turn when you are ready."
           : moves === 0
             ? "Nowhere to move from here. End the turn to stay put."
-            : `${moves} tiles to choose from. Tap one to move, or end the turn to stay put.`}
+            : `${moves} ${moves === 1 ? "tile" : "tiles"} to choose from. Tap one to move, or end the turn to stay put.`}
       </p>
     </div>
   );

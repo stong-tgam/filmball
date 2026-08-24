@@ -79,32 +79,35 @@ describe("legal moves", () => {
     }
   });
 
-  it("counts what a corner can reach: 9 tiles in range, so 8 moves", () => {
+  it("gives everyone one tile a turn, and the rogue two", () => {
+    const state = game();
+    for (const player of state.players) {
+      expect(moveRange(player)).toBe(player.role === "rogue" ? 2 : 1);
+    }
+  });
+
+  it("offers a corner its three neighbours, and no more", () => {
     const state = game();
     const knight = state.players[0];
-    // A corner is hemmed in by the rim: 3 neighbours and 5 tiles at two steps,
-    // against the 18 a middle tile would offer. The ninth tile is the one it is
-    // standing on, which is not a move.
-    expect(moveRange(knight)).toBe(2);
-    expect(hexesInRange(knight.hex, 2)).toHaveLength(9);
-    expect(legalMoves(state, knight).size).toBe(8);
+    // A corner is hemmed in by the rim: three neighbours, against a middle tile's six.
+    expect(hexesInRange(knight.hex, 1)).toHaveLength(4);
+    expect(legalMoves(state, knight).size).toBe(3);
   });
 
   it("lets a player pass through another but never stop on them", () => {
-    const state = game();
-    const player = activePlayer(state);
-    const blocker = { ...state.players[1], hex: { ...player.hex, q: player.hex.q - 1 } };
-    const beyond = { q: player.hex.q - 2, r: player.hex.r };
-    if (!inBoard(blocker.hex) || !inBoard(beyond)) throw new Error("fixture off the board");
+    // Only the rogue can show this: at one tile a turn, nobody else can reach
+    // past anything. Rogue in the middle, someone standing due east of them.
+    const base = game();
+    const rogue = { ...base.players[1], hex: { q: 0, r: 0 } };
+    const blocker = { ...base.players[0], hex: { q: 1, r: 0 } };
+    const beyond = { q: 2, r: 0 };
+    const state: GameState = { ...base, activePlayerIndex: 0, players: [rogue, blocker] };
 
-    const withBlocker: GameState = {
-      ...state,
-      players: [player, blocker, ...state.players.slice(2)],
-    };
-    const moves = legalMoves(withBlocker, player);
-
+    expect(moveRange(rogue)).toBe(2);
+    const moves = legalMoves(state, rogue);
     expect(moves.has(label(blocker.hex))).toBe(false);
     expect(moves.has(label(beyond))).toBe(true);
+    expect(moves.get(label(beyond))).toBe(2);
   });
 
   it("offers nothing once the player has moved, or is dead, or the game is over", () => {

@@ -40,6 +40,10 @@ These are the tiebreakers when a design question comes up mid-task:
   dice, direction rolls, card draws, feature draws — comes from it. Never call
   `Math.random()` in game logic. A game must be reproducible from its seed, so bugs
   arrive as "seed 4471, turn 6".
+- **Anything rolling dice mid-game reads and writes `GameState.rngState`.** The
+  generator's whole state is one number, so it saves with the game and a reloaded
+  game rolls the sequence it would have rolled. `rollDice` returns the new value;
+  put it back in the state you return.
 - **Axial coordinates for maths, A1–I5 labels for display.** Never do geometry on the
   labels; row widths change direction at the middle row.
 
@@ -58,22 +62,28 @@ npm test           # 56 tests
 npm run build      # type-check + production build
 ```
 
-## Current state: v0.2, players and movement
+## Current state: v0.3, enemies and fighting
 
 Shipped: hex coordinates with pathing, seeded board generation, the SVG renderer, the
-four-role party placed one to a corner, click-to-move with legal tiles highlighted,
-turn order, the turn counter and limit, the active-player banner, party list and log.
-**No enemies, items, events or hazards yet.**
+four-role party on its corners, click-to-move, turn order and limit, enemies on the
+board, and the fight — dice, accumulating damage, escape, and going down.
+**No items, events or hazards yet.**
 
-Build order from the spec, one phase at a time — ship each working before starting
-the next: **v0.3** combat (playtest here before going further; this is the core
-loop) · **v0.4** items and economy · **v0.5** features and events · **v0.6**
+**This is the core loop. Playtest it before building v0.4.** The spec says so and it
+is right: if fighting is not fun at a table, nothing after it will save the game.
+
+Build order from here, one phase at a time — ship each working before starting the
+next: **v0.4** items and economy · **v0.5** features and events · **v0.6**
 hazards · **v0.7** autosave, undo, win/lose screens.
 
-Turn logic lives in `src/game/turn.ts` as pure functions — `legalMoves`,
-`movePlayer`, `endTurn`. v0.2 runs the short version of the spec's loop (each player
-moves once, then the turn passes); hazard and event phases slot in ahead of it when
-they exist, and the phase names are already in `Phase`.
+- `turn.ts` — `legalMoves`, `movePlayer`, `endTurn`. One move per turn; moving onto
+  an enemy starts a fight, and the turn cannot pass while one is running.
+- `combat.ts` — `startCombat`, `attack`, `flee`, `endCombat`. A round is one
+  exchange: you swing, it swings back if it is still up.
+- `enemies.ts` — profiles, placement, `healthLeft`, `enemyAt`.
+
+Hazard and event phases slot in ahead of the move phase when they exist; the phase
+names are already in `Phase`.
 
 ## Conventions worth keeping
 
@@ -101,10 +111,20 @@ die before the final boss. Defaults are suggested there; confirm before v0.6.
 Decisions taken in the absence of the rulebook, all marked in the code where they
 are made, all cheap to reverse:
 
+- **A downed player is out** (`dead`), and the turn order skips them. This is what
+  the spec models and it is the decision most likely to be wrong: a child knocked out
+  on turn 8 of 25 has nothing to do for the rest of family night. Escape being always
+  free is the mitigation. A "knocked out, revived by the doctor" variant is a small
+  change to `combat.ts` and `turn.ts` — take it as soon as the rulebook, or a
+  playtest, says so.
+- **Enemy and player stats are placeholders** (`enemies.ts`, `players.ts`).
 - **Pass-through**: you may move *through* another player, not stop on them
-  (`legalMoves` in `turn.ts`).
+  (`legalMoves` in `turn.ts`). Enemies are the opposite: onto, never past.
 - **Rivers do not cost movement.** No terrain does, yet.
-- **Role stats are placeholders** (`players.ts`) — health 9–12, move 2–3, money $5–8.
+- **Movement is one tile a turn, two for the rogue.** That one is a rule, not a
+  placeholder: a turn should be a single decision.
 - **Entry side is not a rule.** Sides are stored per direction, so "which element you
   are standing in depends on the side you entered from" remains available; nothing
   uses it, and `base` decides what a tile is for.
+- **Fights are one player against one enemy.** `Player.joinedFightThisRound` exists
+  in the types for the party-joins-a-fight rule and nothing sets it yet.

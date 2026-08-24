@@ -7,6 +7,8 @@
  * actions do not exist yet. The phases they slot into are already named in `Phase`.
  */
 
+import { startCombat } from "./combat";
+import { enemyAt } from "./enemies";
 import { fromLabel, key, reachable } from "./hex";
 import { ROLES } from "./players";
 import type { GameState, LogEntry, Player } from "./types";
@@ -32,6 +34,9 @@ const note = (state: GameState, text: string): GameState => ({
  * the two readings, since being boxed in by your own family is a miserable way for a
  * seven-year-old to lose a turn. Reverse it by passing a `passable` predicate to
  * `reachable` below.
+ *
+ * Enemies are the opposite: you may walk onto one, which starts a fight, but you may
+ * not walk past it. Something in your way is in your way.
  */
 export function legalMoves(state: GameState, player: Player): Map<string, number> {
   if (player.dead || player.movedThisTurn || state.phase === "gameOver") return new Map();
@@ -40,8 +45,10 @@ export function legalMoves(state: GameState, player: Player): Map<string, number
     state.players.filter((p) => p.id !== player.id && !p.dead).map((p) => key(p.hex)),
   );
 
+  const guarded = (h: { q: number; r: number }) => enemyAt(state.enemies, key(h)) !== undefined;
+
   const moves = new Map<string, number>();
-  for (const [label, steps] of reachable(player.hex, moveRange(player))) {
+  for (const [label, steps] of reachable(player.hex, moveRange(player), () => true, guarded)) {
     if (steps === 0 || occupied.has(label)) continue;
     moves.set(label, steps);
   }
@@ -58,10 +65,14 @@ export function movePlayer(state: GameState, destination: string): GameState {
   const players = state.players.map((p) =>
     p.id === player.id ? { ...p, hex, movedThisTurn: true } : p,
   );
-  return note(
+  const moved = note(
     { ...state, players },
     `${player.name} moved to ${destination} (${steps} ${steps === 1 ? "tile" : "tiles"}).`,
   );
+
+  // Walking onto something starts the fight there and then.
+  const enemy = enemyAt(moved.enemies, destination);
+  return enemy ? startCombat(moved, enemy, key(player.hex)) : moved;
 }
 
 /**
@@ -69,7 +80,8 @@ export function movePlayer(state: GameState, destination: string): GameState {
  * party comes back round to the start.
  */
 export function endTurn(state: GameState): GameState {
-  if (state.phase === "gameOver") return state;
+  // A fight has to finish, or be fled, before the turn can pass.
+  if (state.phase === "gameOver" || state.combat) return state;
 
   const player = activePlayer(state);
   let next = state;

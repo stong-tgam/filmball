@@ -242,7 +242,7 @@ describe("tile composition", () => {
 });
 
 describe("createInitialState", () => {
-  it("opens on turn 1 with the party placed and nobody else on the board yet", () => {
+  it("opens on turn 1 with the party and the enemies placed", () => {
     const state = createInitialState(4471);
     expect(state.seed).toBe(4471);
     expect(state.turn).toBe(1);
@@ -250,8 +250,9 @@ describe("createInitialState", () => {
     expect(state.activePlayerIndex).toBe(0);
     expect(Object.keys(state.tiles)).toHaveLength(TILE_COUNT);
     expect(state.players).toHaveLength(4);
-    // Enemies, hazards, items and events belong to v0.3 onwards.
-    expect(state.enemies).toEqual([]);
+    expect(state.enemies).toHaveLength(9);
+    expect(state.combat).toBeNull();
+    // Hazards, items and events belong to v0.4 onwards.
     expect(state.hazards).toEqual([]);
     expect(state.itemPile).toEqual([]);
     expect(state.log).toHaveLength(2);

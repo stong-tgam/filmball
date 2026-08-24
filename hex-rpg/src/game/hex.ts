@@ -90,14 +90,16 @@ export function hexesInRange(origin: Hex, range: number): Hex[] {
 /**
  * Breadth-first search over passable tiles.
  *
- * `passable` decides which tiles may be entered (the origin is always entered).
- * Returns a map from tile label to the number of steps taken to reach it, for
- * every tile reachable within `maxSteps`. v0.2 uses this to highlight legal moves.
+ * `passable` decides which tiles may be entered at all; `blocksThrough` marks tiles
+ * that may be entered but not continued past - which is what standing in something's
+ * way means. Returns a map from tile label to the number of steps taken to reach it,
+ * for every tile reachable within `maxSteps`.
  */
 export function reachable(
   origin: Hex,
   maxSteps: number,
   passable: (h: Hex) => boolean = () => true,
+  blocksThrough: (h: Hex) => boolean = () => false,
 ): Map<string, number> {
   const seen = new Map<string, number>([[key(origin), 0]]);
   let frontier: Hex[] = [origin];
@@ -107,7 +109,7 @@ export function reachable(
       for (const n of neighbours(h)) {
         if (seen.has(key(n)) || !passable(n)) continue;
         seen.set(key(n), step);
-        next.push(n);
+        if (!blocksThrough(n)) next.push(n);
       }
     }
     if (next.length === 0) break;

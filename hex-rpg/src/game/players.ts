@@ -1,12 +1,13 @@
 /**
  * The four roles, and how a party is set up.
  *
- * PLACEHOLDER STATS. The rulebook is the authority on health, movement and starting
- * money, and it is missing (see `reference/README.md`). The numbers here are chosen
- * to be legible to a child rather than balanced: everyone survives a few hits,
- * nobody moves so far that the board stops mattering, and the differences between
- * roles are small enough that no pick feels like a mistake. Replace them wholesale
- * when the rulebook turns up.
+ * Movement is one tile per turn for everyone. The rogue is the exception: +1, so two.
+ * That is a rule, not a placeholder - it keeps a turn to a single decision, which is
+ * the whole point at a table with a seven-year-old at it.
+ *
+ * PLACEHOLDER STATS: health and starting money. The rulebook is the authority on
+ * those and it is missing (see `reference/README.md`). They are set so everyone
+ * survives a few hits and no pick feels like a mistake, not balanced.
  */
 
 import { boardCorners, type Hex } from "./hex";
@@ -19,7 +20,7 @@ export type RoleProfile = {
   /** One line a child can act on, not a stat block. */
   blurb: string;
   maxHealth: number;
-  /** Tiles per turn, before boots. */
+  /** Tiles per turn, before boots. One for everyone; the rogue has the only bonus. */
   move: number;
   money: number;
   /**
@@ -34,23 +35,23 @@ export const ROLES: Record<Role, RoleProfile> = {
     name: "Knight",
     blurb: "Tough. Stands in front and takes the hits.",
     maxHealth: 12,
-    move: 2,
+    move: 1,
     money: 5,
     colour: "#d64545",
   },
   rogue: {
     name: "Rogue",
-    blurb: "Quick and light-fingered. Starts with more money.",
+    blurb: "Quick and light-fingered. Moves an extra tile, and starts with more money.",
     maxHealth: 9,
-    move: 3,
+    move: 2,
     money: 8,
     colour: "#9b5de5",
   },
   scout: {
     name: "Scout",
-    blurb: "Covers ground. Finds things first.",
+    blurb: "Sharp-eyed. Finds things nobody else spots.",
     maxHealth: 10,
-    move: 3,
+    move: 1,
     money: 5,
     colour: "#17b3c9",
   },
@@ -58,7 +59,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     name: "Doctor",
     blurb: "Patches up the party.",
     maxHealth: 10,
-    move: 2,
+    move: 1,
     money: 6,
     colour: "#f0ece0",
   },

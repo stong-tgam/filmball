@@ -7,7 +7,8 @@ import { create } from "zustand";
 import { createInitialState } from "./setup";
 import { randomSeed } from "./rng";
 import { activePlayer, endTurn, legalMoves, movePlayer } from "./turn";
-import type { GameState, Player, Tile } from "./types";
+import { attack, combatants, endCombat, flee } from "./combat";
+import type { Enemy, GameState, Player, Tile } from "./types";
 
 type Store = {
   game: GameState;
@@ -18,6 +19,10 @@ type Store = {
   tile: (label: string) => Tile | undefined;
   moveTo: (label: string) => void;
   endTurn: () => void;
+  attack: () => void;
+  flee: () => void;
+  /** Close the fight, and pass the turn on now that it is spent. */
+  closeCombat: () => void;
 };
 
 export const useGame = create<Store>((set, get) => ({
@@ -28,9 +33,16 @@ export const useGame = create<Store>((set, get) => ({
   tile: (label) => get().game.tiles[label],
   moveTo: (label) => set({ game: movePlayer(get().game, label), selected: null }),
   endTurn: () => set({ game: endTurn(get().game), selected: null }),
+  attack: () => set({ game: attack(get().game) }),
+  flee: () => set({ game: flee(get().game) }),
+  closeCombat: () => set({ game: endTurn(endCombat(get().game)), selected: null }),
 }));
 
 /** Selectors, so components subscribe to the narrowest slice they can. */
 export const useActivePlayer = (): Player => useGame((s) => activePlayer(s.game));
 export const useLegalMoves = (): Map<string, number> =>
   useGame((s) => legalMoves(s.game, activePlayer(s.game)));
+
+/** The two sides of the fight on screen, or null when nobody is fighting. */
+export const useCombatants = (): { player: Player; enemy: Enemy } | null =>
+  useGame((s) => combatants(s.game));

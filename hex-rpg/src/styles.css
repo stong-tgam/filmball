@@ -379,3 +379,117 @@ button.ghost {
 }
 
 .log-turn { color: var(--ink); font-weight: 600; margin-top: 6px; }
+
+/* ---------- enemies on the board ---------- */
+
+.enemy { pointer-events: none; }
+.enemy-initial { font-weight: 800; font-family: system-ui, sans-serif; }
+
+/* ---------- the fight ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 11, 14, 0.72);
+  z-index: 20;
+}
+
+.modal {
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+.fight-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.fighter { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fighter h2 { margin: 0 0 5px; font-size: 17px; }
+.fighter-enemy { justify-content: flex-end; text-align: right; flex-direction: row-reverse; }
+.fighter-stat { margin: 4px 0 0; font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+.fighter-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 3px solid #141a1f;
+  flex: none;
+}
+
+.fighter-enemy .fighter-dot { border-radius: 4px; transform: rotate(45deg); }
+
+.versus { color: var(--ink-muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; }
+
+.bar { height: 10px; border-radius: 999px; background: #10151a; overflow: hidden; min-width: 90px; }
+.bar-fill { display: block; height: 100%; border-radius: 999px; transition: width 260ms ease; }
+
+.fight-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #10151a;
+  min-height: 128px;
+  align-content: center;
+}
+
+.fight-intro { margin: 0; text-align: center; color: var(--ink-muted); }
+
+.roll-label { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted); }
+.roll-sum { margin: 6px 0 0; font-size: 14px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.roll-sum strong { color: var(--ink); font-size: 17px; }
+.roll-bonus { color: var(--accent); }
+.roll-enemy { border-top: 1px solid var(--line); padding-top: 10px; }
+
+.dice { display: flex; gap: 8px; }
+
+.die { width: 42px; height: 42px; display: block; animation: tumble 480ms ease-out both; }
+.die svg { width: 100%; height: 100%; }
+.die rect { fill: #f2efe6; stroke: #c8c2b2; stroke-width: 3; }
+.die .pip { fill: #23282d; }
+.roll-enemy .die rect { fill: #e6d2d2; }
+
+@keyframes tumble {
+  0% { transform: rotate(-140deg) scale(0.4); opacity: 0; }
+  60% { transform: rotate(18deg) scale(1.12); opacity: 1; }
+  100% { transform: rotate(0) scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .die { animation: none; }
+  .bar-fill { transition: none; }
+}
+
+.fight-foot { display: grid; gap: 8px; }
+.fight-foot .muted { margin: 0; font-size: 13px; }
+.fight-buttons { display: flex; gap: 8px; }
+.fight-buttons button { flex: 1; }
+
+.fight-result { margin: 0; font-size: 22px; font-weight: 700; }
+.fight-win .fight-result { color: #7fd490; }
+.fight-away .fight-result { color: var(--accent); }
+.fight-lose .fight-result { color: #e2685f; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

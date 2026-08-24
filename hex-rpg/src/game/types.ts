@@ -120,6 +120,32 @@ export type LogEntry = {
   text: string;
 };
 
+/**
+ * One roll: the dice that came up, and what they came to once the attacker's own
+ * strength was added. Kept in state so the UI can show the dice that were actually
+ * rolled rather than re-rolling its own for display.
+ */
+export type Roll = {
+  dice: number[];
+  /** Dice total plus the attacker's weapon or claws. */
+  damage: number;
+};
+
+export type CombatOutcome = "ongoing" | "enemyDefeated" | "playerEscaped" | "playerDown";
+
+/** A fight in progress. Only one runs at a time: it is the active player's turn. */
+export type Combat = {
+  enemyId: string;
+  playerId: string;
+  /** Tile the player came from, so running away puts them back where they were. */
+  from: string;
+  round: number;
+  /** The last exchange, for the dice display. Null before the first roll. */
+  playerRoll: Roll | null;
+  enemyRoll: Roll | null;
+  outcome: CombatOutcome;
+};
+
 export type Phase =
   | "setup"
   | "hazardMove"
@@ -131,6 +157,11 @@ export type Phase =
 
 export type GameState = {
   seed: number;
+  /**
+   * The dice generator's current position. Every roll advances it, so a saved game
+   * resumes the same sequence it would have rolled had it never been put down.
+   */
+  rngState: number;
   turn: number;
   turnLimit: number;
   phase: Phase;
@@ -140,6 +171,8 @@ export type GameState = {
   players: Player[];
   enemies: Enemy[];
   hazards: Hazard[];
+  /** The fight on screen right now, or null when nobody is fighting. */
+  combat: Combat | null;
   itemPile: Item[];
   eventDeck: EventCard[];
   pokerDeck: Card[];

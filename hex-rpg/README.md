@@ -3,27 +3,44 @@
 Hotseat (one device, passed around) digital version of the Hex RPG tabletop game.
 Built to the plan in `reference/webapp-spec.md`.
 
-**This build is v0.2: players and movement.** Four players start on the board, move
-one tile-click at a time in turn order, and the turn counter runs to a limit. There
-are no enemies, items, events or hazards yet — those are v0.3 onwards, in the order
-the spec lays out.
+**This build is v0.3: enemies and fighting.** Four players move round the board in
+turn order and fight what they find there — dice, accumulating damage, running away,
+and going down. There are no items, events or hazards yet — those are v0.4 onwards,
+in the order the spec lays out.
 
 ## Running it
 
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 76 tests over the hex maths, board generation and turns
+npm test           # 102 tests over the hex maths, board, turns and combat
 npm run build      # type-check + production build into dist/
 ```
 
-## What v0.2 adds
+## What v0.3 adds
+
+- **Enemies on the board**: six bandits, two ogres, and a dragon in the middle tile,
+  which gives the map a destination. Nothing spawns within two tiles of a player, so
+  turn 1 is never an ambush. Enemies are angular where players are round.
+- **Fighting**: walk onto an enemy and the fight starts. Three dice, faces
+  `[1,1,1,2,2,3]`, plus your weapon; the enemy answers with one die plus its own
+  strength. Roll again or back off, round after round.
+- **Damage accumulates.** Hurting something and walking away is a real move — the
+  wound is still there next turn, and the token on the board carries a health bar
+  showing it.
+- **Running away is always available and always free.** A child should be able to see
+  the way out of a fight they are losing without asking an adult.
+- **Dice are the moment**: they tumble before they settle, faces are pips rather than
+  numerals, and the sum is spelled out — `1 + 1 + 1 = 3 damage` — as arithmetic a
+  seven-year-old can check.
+
+## What v0.2 added
 
 - **The party**: four roles (knight, rogue, scout, doctor), one to a corner of the
   board. Corners are always four tiles apart and all the same distance from the
   middle, so nobody starts closer to anything than anybody else.
-- **Movement**: legal tiles glow in the active player's own colour with a pip in the
-  middle; tap one to move there. Range comes from the role. One move per turn.
+- **Movement**: one tile per turn for everyone, two for the rogue. Legal tiles glow
+  in the active player's own colour with a pip in the middle; tap one to move there.
 - **Turn order and the turn counter**: play passes round the party, the counter rolls
   over when it comes back to the first player, and the game ends at the turn limit.
 - **Hotseat furniture**: a full-width banner for whose turn it is, the party list with
@@ -82,6 +99,16 @@ movement unit-testable later, and keeps a networked rewrite possible.
   cities at least three tiles apart, seven woods of two to four tiles seeded three
   apart, one river, one railway, and a 45% chance of a neighbour's terrain bleeding
   across a shared side. The constants are at the top of `src/game/setup.ts`.
+- **Combat stats are placeholders** (`src/game/enemies.ts`): bandit 6 health, ogre 12
+  with +1, dragon 20 with +2. A bandit is about two good rolls; the dragon cannot be
+  beaten bare-handed, which is what the spec says it should be — that fight needs the
+  gear that arrives in v0.4.
+- **What happens to a downed player is the biggest open question in the game.** The
+  spec models `dead`, so that is what this implements: out, and the turn order skips
+  them. For a game whose whole point is family night, that is probably wrong, and
+  CLAUDE.md flags it. Escape being always free is the mitigation for now.
+- **Enemies block movement**, where players do not: you may walk onto one, which
+  starts the fight, but never past it.
 - **Two movement rules were mine to pick, and the rulebook should overrule them.**
   The *pass-through rule*: a player may move through a tile someone is standing on
   but may not stop there — the friendlier of the two readings, since being boxed in

@@ -23,6 +23,7 @@ import {
 } from "./hex";
 import { makeRng, type Rng } from "./rng";
 import { createPlayers } from "./players";
+import { placeEnemies } from "./enemies";
 import { MAX_ELEMENTS, type Element, type GameState, type Tile } from "./types";
 
 export const CITY_COUNT = 5;
@@ -278,25 +279,29 @@ export function generateBoard(seed: number): Record<string, Tile> {
 }
 
 /**
- * A new game. v0.2 puts the party on the board and starts the first turn; enemies,
- * hazards, items and events arrive in later phases, and the phases they belong to
- * are already named in `Phase`.
+ * A new game: the board, the party on its corners, and the enemies scattered over
+ * it. Hazards, items and events arrive in later phases, and the phases they belong
+ * to are already named in `Phase`.
  */
 export function createInitialState(seed: number): GameState {
   // A second generator, so adding a draw here can never shift the board a seed
   // produces. Board and party stay independently reproducible.
   const rng = makeRng(seed ^ 0x9e3779b9);
 
+  const players = createPlayers(rng);
+
   return {
     seed,
+    rngState: rng.state(),
     turn: 1,
     turnLimit: DEFAULT_TURN_LIMIT,
     phase: "playerMove",
     activePlayerIndex: 0,
     tiles: generateBoard(seed),
-    players: createPlayers(rng),
-    enemies: [],
+    players,
+    enemies: placeEnemies(rng, players),
     hazards: [],
+    combat: null,
     itemPile: [],
     eventDeck: [],
     pokerDeck: [],

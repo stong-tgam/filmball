@@ -3,7 +3,8 @@ import Board from "./ui/Board";
 import ActionBar from "./ui/ActionBar";
 import Log from "./ui/Log";
 import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
-import { useActivePlayer, useGame, useLegalMoves } from "./game/store";
+import CombatModal from "./ui/CombatModal";
+import { useActivePlayer, useCombatants, useGame, useLegalMoves } from "./game/store";
 import { elementsOf } from "./game/setup";
 import { ROLES } from "./game/players";
 import "./styles.css";
@@ -30,6 +31,10 @@ export default function App() {
   const endTurn = useGame((s) => s.endTurn);
   const player = useActivePlayer();
   const legalMoves = useLegalMoves();
+  const fight = useCombatants();
+  const attack = useGame((s) => s.attack);
+  const flee = useGame((s) => s.flee);
+  const closeCombat = useGame((s) => s.closeCombat);
 
   const [seedInput, setSeedInput] = useState("");
   const tile = selected ? game.tiles[selected] : null;
@@ -57,7 +62,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.2 — players and movement</span>
+          <span className="version">v0.3 — enemies and fighting</span>
         </div>
         <p className="turn-counter">
           Turn <strong>{game.turn}</strong>
@@ -96,6 +101,7 @@ export default function App() {
           selected={selected}
           legalMoves={legalMoves}
           players={game.players}
+          enemies={game.enemies}
           activeId={player.id}
           activeColour={ROLES[player.role].colour}
           onSelect={tapTile}
@@ -107,7 +113,7 @@ export default function App() {
           canMove={legalMoves.size > 0}
           moved={player.movedThisTurn}
           onEndTurn={endTurn}
-          disabled={over}
+          disabled={over || game.combat !== null}
         />
 
         <section className="panel">
@@ -143,6 +149,17 @@ export default function App() {
           <Log entries={game.log} />
         </section>
       </aside>
+
+      {game.combat && fight && (
+        <CombatModal
+          combat={game.combat}
+          player={fight.player}
+          enemy={fight.enemy}
+          onAttack={attack}
+          onFlee={flee}
+          onClose={closeCombat}
+        />
+      )}
     </div>
   );
 }
