@@ -81,9 +81,18 @@ input {
   color: var(--ink);
 }
 
-input:focus-visible, button:focus-visible, .tile:focus-visible {
+input:focus-visible, button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* A rectangular focus ring around a hex looks like a bug. Keyboard focus gets the
+   same ring the tile outline already draws, in the shape of the tile. */
+.tile:focus { outline: none; }
+.tile:focus-visible .tile-outline {
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-dasharray: 6 4;
 }
 
 button {
