@@ -51,22 +51,27 @@ These are the tiebreakers when a design question comes up mid-task:
 ## Where things are
 
 ```
-src/game/     pure logic - hex.ts, types.ts, rng.ts, setup.ts, store.ts
-src/ui/       Board.tsx (SVG map), Tile.tsx (one hex)
+src/game/     pure logic, no React - hex, rng, setup, turn, combat, actions,
+              hazards, events, items, enemies, vision, sense, store
+src/ui/       Compass.tsx (what a player sees), Tile.tsx (one hex),
+              Board.tsx (the grown-up's map peek), art/ (the drawings)
+tools/        sim.ts (bot playtests), inline.mjs (single-file build)
 tests/        vitest, node environment, no rendering
-reference/    the spec; the rulebook and card/tile/token HTML are missing
+reference/    the rulebook, the build spec, and the token art prompt
 ```
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 248 tests
+npm test           # 272 tests
 npm run build      # type-check + production build
+npm run build:play # one self-contained .html you can hand to somebody
+npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
 ```
 
-## Current state: v0.8, nobody can see the map
+## Current state: v1.4
 
 Every system is in, and every earlier placeholder has been replaced with what the
-rulebook says. The numbers are small on purpose: **3 health, $2, one tile a turn, and
+rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
 a failed roll costs exactly one health.** Do not inflate them without a playtest —
 the whole game is legible to a child because it runs on single digits.
 
@@ -281,13 +286,16 @@ Still genuinely undecided, from the rulebook's §15:
 
 - **Must mid bosses die before the dragon?** Nothing stops a party running at it on
   turn one. The dice punish that, but no rule forbids it.
-- **Group fights (§8)** are unbuilt, and the boss maths in §7.4 assumes them.
+- **Group fights (§8)** are unbuilt, and the boss maths in §7.4 assumes them. This is
+  the biggest gap in the game: one player at 3 health grinding down a 20-30 health
+  dragon alone is why over half of simulated games run out the clock.
 
-Choices the rulebook leaves open (its §15), all marked in the code where they are
-made:
+Choices the rulebook leaves open (its §15), all marked in the code where they are made:
 
 - **A downed player gets up on their own after a full turn, at 1 health**, and a
   doctor reaching them is instant — §7's suggested compromise, not both rules at once.
+  Nobody is out of the game for good; a child knocked out on turn 8 of 32 with nothing
+  to do for the rest of the evening is the failure this avoids.
 - **Wrecked ground recovers as soon as the tornado moves on** — §15's own suggestion.
 - **A beaten thief is gone for good.**
 - **Two poker decks**, one for events and one for searches.
@@ -296,57 +304,31 @@ made:
   corners, which is this build's choice, not the rulebook's (its sample setup clusters
   them at the top edge).
 - **The tornado picks which piece of gear it takes and where it drops you.** The
-  rulebook makes both the player's choice; automating them keeps a turn moving, and
-  it takes the least useful piece.
+  rulebook makes both the player's choice; automating them keeps a turn moving, and it
+  takes the least useful piece.
 - **Another player blocks outright.** The old rule let you move *through* somebody so
   long as you did not stop on them, which only worked when a multi-tile move was chosen
   in one go. Spent a step at a time you could always simply end the turn standing on
   them, so the rule was unenforceable — walk round your friend. Enemies are unchanged:
   onto, never past (§5).
-- **A tile can be searched once per game**, or standing still beats playing.
-
-## Open questions
-
-Still genuinely undecided, from the rulebook's §15:
-
-- **Must mid bosses die before the dragon?** Nothing stops a party running at it on
-  turn one. The dice punish that, but no rule forbids it.
-- **Group fights (§8)** are unbuilt, and the boss maths in §7.4 assumes them.
-
-Choices the rulebook leaves open (its §15), all marked in the code where they are
-made:
-
-- **A downed player is out** (`dead`), and the turn order skips them. This is what
-  the spec models and it is the decision most likely to be wrong: a child knocked out
-  on turn 8 of 25 has nothing to do for the rest of family night. Escape being always
-  free is the mitigation. A "knocked out, revived by the doctor" variant is a small
-  change to `combat.ts` and `turn.ts` — take it as soon as the rulebook, or a
-  playtest, says so.
-- **Enemy and player stats are placeholders** (`enemies.ts`, `players.ts`).
-- **Another player blocks outright** (`legalMoves` in `turn.ts`), since step-by-step
-  movement makes "through but not onto" unenforceable. Enemies: onto, never past.
+- **Movement is spent one tile at a time** (`stepsTaken`, `stepsLeft`). Never offer a
+  multi-tile destination up front: on a board nobody can see, that is a leap into the
+  dark, and it turns the Scout's bonus from scouting into teleporting.
 - **Rivers do not cost movement.** No terrain does, yet.
-- **Movement is spent one tile at a time** (`stepsTaken`, `stepsLeft`). A Scout with
-  two tiles takes a step, *sees what that step revealed*, and only then decides whether
-  to spend the second or do something else. Never offer a two-tile destination up
-  front: on a board nobody can see, that is a leap into the dark, and it turns the
-  Scout's bonus from scouting into teleporting. `legalMoves` therefore always returns
-  neighbours and only neighbours.
 - **Entry side is not a rule.** Sides are stored per direction, so "which element you
-  are standing in depends on the side you entered from" remains available; nothing
-  uses it, and `base` decides what a tile is for.
-- **Fights are one player against one enemy.** `Player.joinedFightThisRound` exists
-  in the types for the party-joins-a-fight rule and nothing sets it yet.
+  are standing in depends on the side you entered from" remains available; nothing uses
+  it, and `base` decides what a tile is for.
+- **Fights are one player against one enemy.** `Player.joinedFightThisRound` exists in
+  the types for the party-joins-a-fight rule and nothing sets it yet.
 - **A tile can be searched once per game** (`Tile.searched`), or standing still beats
   playing.
-- **Nothing can be sold back**, and swapped-out gear returns to the shared pile.
+- **Swapped-out gear returns to the shared pile**, and so does anything a mishap takes:
+  nothing ever leaves the game.
 - **The hazard rules are the spec's §9 defaults**, taken as suggested (`hazards.ts`).
-  A tornado costs the next turn; the traveller and the thieves do not. Wrecked ground
-  recovers when the tornado moves on. Players are pushed clear, monsters stay. A
-  beaten thief is gone for good.
-- **A feature that matches the ground adds 1 to the monster's hit** (`combat.ts`).
-  The spec names five features and specifies only the water escape; the rest is a
-  guess, chosen because "the ogre is strong in the woods" explains itself at a table.
+  A tornado costs the next turn; the traveller and the thieves do not.
+- **A feature that matches the ground adds 1 to the monster's hit** (`combat.ts`). The
+  spec names five features and specifies only the water escape; the rest is a guess,
+  chosen because "the ogre is strong in the woods" explains itself at a table.
 - **Every event resolves the moment it is read.** No lingering effects, no markers to
   remember — that is what keeps them playable by a child. The spec's *Foggy morning*
   needs a modifier system that does not exist yet.

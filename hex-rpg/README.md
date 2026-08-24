@@ -13,8 +13,11 @@ rulebook actually says. **The goal is now a real goal: beat the dragon before tu
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 228 tests
+npm test           # 272 tests
 npm run build      # type-check + production build into dist/
+npm run build:play # one self-contained .html you can hand to somebody
+
+npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
 ```
 
 ## The game, in one paragraph
@@ -70,8 +73,17 @@ src/
     hazards.ts   the four wanderers
     events.ts    the event deck
     turn.ts      turn order, the draw, win and loss
+    vision.ts    what the player on turn can see, and what stays hidden
+    sense.ts     bearings to whatever is within two moves
     store.ts     zustand store wrapping the above
-  ui/            Board, Tile, tokens, fight, market, cards, endings
+  ui/
+    Compass.tsx  what a player actually sees: their tile, their steps, the bearings
+    Tile.tsx     one hex
+    Board.tsx    the overhead map, behind the grown-up's "Peek" button
+    art/         the drawings - monsters, gear, food, terrain, boss features
+tools/
+    sim.ts       a bot that plays a few hundred games and reports the endings
+    inline.mjs   folds a build into one self-contained .html
 tests/           vitest, node environment, no rendering
 ```
 
@@ -181,18 +193,21 @@ they end. Right now: 23% wins, 56% out of time, 21% wipes.
 - **Four event cards** that need effects lasting beyond the moment they are read:
   *Foggy morning*, *Trade caravan*, *Scarecrow*, *Lost puppy*. They need a modifier
   system; the other ~28 cards are in.
-- **Tier-2 boss drops and special supply (§12)** — the rulebook says to add these once
-  the base game plays smoothly.
+- **Special supply (§12)** — the rulebook's tier-2 consumables. Tier-2 *gear* is in as
+  the +1/+2 grades; this is the other half.
 - **Must mid bosses die first? (§15)** — nothing stops a party running at the dragon
   on turn one. The dice make that a bad idea, but no rule forbids it.
-- Autosave, undo and a seed you can share are still unbuilt.
-- **Too many games run out of time** (56% in the bot sim). More turns barely helps; the
-  binding constraint is one player grinding down a 20–30 health dragon alone. Group
-  fights are the fix.
+- Autosave and undo are unbuilt. The seed is already visible and typeable in the header.
+- **Too many games run out of time** (55% in the bot sim). More turns barely helps —
+  about +1% win per two turns — because the clock is not what binds. What binds is one
+  player at 3 health grinding down a 20–30 health dragon alone. Group fights are the fix.
+- **The art is two hands.** The drawings are cream paper; the app shell around them is
+  dark slate, and the hex tiles use their own older SVG renderer. Moving the shell onto
+  the paper theme is the remaining art job.
 
 ## Notes on this build
 
-- **The tile artwork is original.** `hex-rpg-tiles.html` and the card and token files
+- **All the artwork is original.** `hex-rpg-tiles.html` and the card and token files
   were never available; the fields, forests and cities are drawn from scratch in
   `src/ui/Tile.tsx` and recolour from CSS custom properties.
 - **Tiles are compositions.** Each carries one element per side — field, forest, city
