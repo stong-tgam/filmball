@@ -3,20 +3,38 @@
 Hotseat (one device, passed around) digital version of the Hex RPG tabletop game.
 Built to the plan in `reference/webapp-spec.md`.
 
-**This build is v0.5: events and features.** A poker card turns over at the top of
-every turn, bosses draw the ground they are strongest on, and searching reads off a
-second deck. Hazards are v0.6 — the last system before polish.
+**This build is v0.6: hazards.** All four wander the board — a tornado, a traveller,
+a robber and pirates — moving a tile a turn before the event card is drawn. Every
+system the spec asks for is now in. v0.7 is polish: autosave, undo, win and lose
+screens.
 
 ## Running it
 
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 174 tests over the maths, board, turns, combat, gear and events
+npm test           # 209 tests over the maths, board, turns, combat, gear, events and hazards
 npm run build      # type-check + production build into dist/
 ```
 
-## What v0.5 adds
+## What v0.6 adds
+
+- **Four hazards, moving a tile a turn** — and moving *before* the event card, which
+  the spec is explicit about and which matters: an event that changes the ground has
+  to land after the ground has been changed.
+- **The tornado** wrecks the tile it lands on. Wrecked ground is impassable until the
+  tornado moves on, anyone caught is thrown a tile clear, and the turn they lose is
+  spent getting up. Monsters sit tight.
+- **The traveller** asks rather than takes. Give them $2 and you roll an extra die in
+  your next fight. It does not cost your turn — the spec's own default.
+- **The robber** lifts $3 and carries it. The board shows what they are holding, and
+  beating them hands back every penny.
+- **The pirates** keep to the river and take gear rather than coins. Beat them and the
+  stolen piece is there in the loot to take back.
+- Both thieves are **hazards and monsters at once** — one wanders, one brawls, and one
+  function moves both so they can never end up on different tiles.
+
+## What v0.5 added
 
 - **A card a turn.** One poker card off the event deck at the top of every turn. A
   face card — jack, queen, king or ace — brings an event with it; anything else is a
@@ -156,6 +174,10 @@ movement unit-testable later, and keeps a networked rewrite possible.
 - **Every event resolves immediately.** Lingering effects like the spec's *Foggy
   morning* need a modifier system that does not exist; when one arrives, those cards
   belong in `events.ts` with the rest.
+- **The hazard rules are the spec's §9 defaults**, taken as suggested: a tornado costs
+  you your next turn and the others do not; wrecked ground recovers as soon as the
+  tornado moves on; players are pushed clear while monsters stay; a thief you beat is
+  gone for good. Change them in `src/game/hazards.ts`.
 - **Two movement rules were mine to pick, and the rulebook should overrule them.**
   The *pass-through rule*: a player may move through a tile someone is standing on
   but may not stop there — the friendlier of the two readings, since being boxed in

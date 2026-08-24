@@ -104,6 +104,15 @@ describe("placing enemies", () => {
     const twice = placeEnemies(makeRng(11), players);
     expect(once).toEqual(twice);
   });
+
+  it("always places the full complement, relaxing the spacing if it must", () => {
+    const players = createInitialState(4471).players;
+    for (let seed = 1; seed <= 30; seed++) {
+      const placed = placeEnemies(makeRng(seed), players);
+      expect(placed.filter((e) => e.kind === "mob")).toHaveLength(ENEMIES.mob.count);
+      expect(placed.filter((e) => e.kind === "midboss")).toHaveLength(ENEMIES.midboss.count);
+    }
+  });
 });
 
 describe("meeting an enemy", () => {

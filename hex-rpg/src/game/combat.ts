@@ -15,7 +15,7 @@
  * answer better than "you are out" - see CLAUDE.md.
  */
 
-import { ENEMIES, healthLeft } from "./enemies";
+import { ENEMIES, healthLeft, nameWithArticle, verb } from "./enemies";
 import { key, neighbours } from "./hex";
 import { makeRng } from "./rng";
 import type { Combat, Enemy, Feature, GameState, LogEntry, Player, Roll, Tile } from "./types";
@@ -65,9 +65,6 @@ export function activeFeatures(enemy: Enemy, tile: Tile | undefined): Feature[] 
 /** Each matching feature adds a point to what the monster hits for. */
 export const featureBonus = (enemy: Enemy, tile: Tile | undefined): number =>
   activeFeatures(enemy, tile).length;
-
-/** "a Bandit", but "an Ogre". Small thing; the log is read aloud at the table. */
-const an = (name: string): string => `${/^[aeiou]/i.test(name) ? "an" : "a"} ${name}`;
 
 const note = (state: GameState, text: string): GameState => ({
   ...state,
@@ -123,7 +120,7 @@ export function startCombat(state: GameState, enemy: Enemy, from: string): GameS
   };
   return note(
     { ...next, phase: "combat", combat },
-    `${player.name} met ${an(ENEMIES[enemy.kind].name)} at ${key(enemy.hex)}.`,
+    `${player.name} met ${nameWithArticle(enemy.kind)} at ${key(enemy.hex)}.`,
   );
 }
 
@@ -165,7 +162,10 @@ export function attack(state: GameState): GameState {
   if (slipsAway) return escapeDownriver(next, enemy);
 
   if (killed) {
-    return note(spoils({ ...next, combat: { ...next.combat!, outcome: "enemyDefeated" } }), `${profile.name} is beaten!`);
+    return note(
+      spoils({ ...next, combat: { ...next.combat!, outcome: "enemyDefeated" } }),
+      `${profile.name} ${verb(enemy.kind, "is", "are")} beaten!`,
+    );
   }
 
   // Still standing, so it hits back.
@@ -217,7 +217,11 @@ function escapeDownriver(state: GameState, enemy: Enemy): GameState {
       ),
       combat: { ...state.combat!, outcome: "enemyEscaped" },
     },
-    `The ${profile.name} went into the water and came up at ${key(bolthole)}. It will not get away twice.`,
+    `The ${profile.name} went into the water and came up at ${key(bolthole)}. ${verb(
+      enemy.kind,
+      "It will",
+      "They will",
+    )} not get away twice.`,
   );
 }
 
@@ -233,7 +237,9 @@ function spoils(state: GameState): GameState {
   const profile = ENEMIES[enemy.kind];
 
   const rng = makeRng(state.rngState);
-  const coins = rng.int(...profile.purse);
+  // A thief pays out what it has actually stolen, on top of its own purse.
+  const stolen = state.hazards.find((h) => h.kind === enemy.kind)?.carrying ?? 0;
+  const coins = rng.int(...profile.purse) + stolen;
   const drops = state.itemPile.slice(0, profile.drops);
   const rest = state.itemPile.slice(profile.drops);
 
@@ -241,7 +247,11 @@ function spoils(state: GameState): GameState {
     ...state,
     rngState: rng.state(),
     itemPile: rest,
-    enemies: state.enemies.map((e) => (e.id === enemy.id ? { ...e, loot: drops } : e)),
+    // Its own drops, plus whatever it lifted off the party.
+    enemies: state.enemies.map((e) =>
+      e.id === enemy.id ? { ...e, loot: [...e.loot, ...drops] } : e,
+    ),
+    hazards: state.hazards.map((h) => (h.kind === enemy.kind ? { ...h, carrying: 0 } : h)),
     players: state.players.map((p) =>
       p.id === player.id ? { ...p, money: p.money + coins } : p,
     ),
@@ -250,7 +260,9 @@ function spoils(state: GameState): GameState {
   if (drops.length > 0) {
     next = note(
       next,
-      `The ${profile.name} was carrying ${drops.map((d) => an(d.name)).join(" and ")}.`,
+      `The ${profile.name} ${verb(enemy.kind, "was", "were")} carrying ${drops
+        .map((d) => `${/^[aeiou]/i.test(d.name) ? "an" : "a"} ${d.name}`)
+        .join(" and ")}.`,
     );
   }
   return next;
@@ -272,7 +284,7 @@ export function flee(state: GameState): GameState {
       players: state.players.map((p) => (p.id === player.id ? { ...p, hex: destination } : p)),
       combat: { ...state.combat, outcome: "playerEscaped" },
     },
-    `${player.name} backed off to ${key(destination)}. The ${ENEMIES[enemy.kind].name} keeps its wounds.`,
+    `${player.name} backed off to ${key(destination)}. The ${ENEMIES[enemy.kind].name} ${verb(enemy.kind, "keeps its", "keep their")} wounds.`,
   );
 }
 

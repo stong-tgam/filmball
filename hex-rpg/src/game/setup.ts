@@ -23,7 +23,8 @@ import {
 } from "./hex";
 import { makeRng, type Rng } from "./rng";
 import { createPlayers } from "./players";
-import { placeEnemies } from "./enemies";
+import { placeEnemies, spawnThieves } from "./enemies";
+import { placeHazards } from "./hazards";
 import { beginTurn } from "./turn";
 import { createItemPile } from "./items";
 import { freshDeck } from "./cards";
@@ -294,6 +295,11 @@ export function createInitialState(seed: number): GameState {
   const rng = makeRng(seed ^ 0x9e3779b9);
 
   const players = createPlayers(rng);
+  const tiles = generateBoard(seed);
+  // Monsters first, then hazards around them: two things on one tile is a fight
+  // nobody chose, and the thieves are both at once.
+  const monsters = placeEnemies(rng, players);
+  const hazards = placeHazards(rng, players, tiles, monsters);
   // Two poker decks, per the spec: events and searches never share a shuffle.
   const poker = freshDeck(rng.state());
   const searches = freshDeck(poker.rngState);
@@ -306,10 +312,10 @@ export function createInitialState(seed: number): GameState {
     turnLimit: DEFAULT_TURN_LIMIT,
     phase: "playerMove",
     activePlayerIndex: 0,
-    tiles: generateBoard(seed),
+    tiles,
     players,
-    enemies: placeEnemies(rng, players),
-    hazards: [],
+    enemies: [...monsters, ...spawnThieves(hazards)],
+    hazards,
     combat: null,
     itemPile: createItemPile(rng),
     eventDeck: events.deck,

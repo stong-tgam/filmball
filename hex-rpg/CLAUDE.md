@@ -62,17 +62,19 @@ npm test           # 56 tests
 npm run build      # type-check + production build
 ```
 
-## Current state: v0.5, events and features
+## Current state: v0.6, hazards
 
 Shipped: the board, the party, movement, turn order and limit, enemies and the fight,
-the economy, and now the draws — a poker card a turn, ten events, boss features and
-the water escape. **Hazards are the only system left before polish.**
+the economy, the draws, and the four hazards. **Every system the spec asks for is in.**
 
-Build order from here: **v0.6** hazards (tornado, homeless, robber, pirates —
-movement, collisions, tile destruction) · **v0.7** autosave, undo, win/lose screens.
+What is left is **v0.7 — polish**: autosave to localStorage, a new game with a chosen
+seed (the seed box exists; nothing is persisted), the action log (exists), win and
+lose screens, and undo. Undo is the one with a design decision in it: the state is
+serialisable and the generator's position travels with it, so either snapshotting
+each turn or replaying from the seed will work.
 
-Note for v0.6: the spec is explicit that **hazards move before the event draw**. That
-means `beginTurn` in `turn.ts` gains a hazard step ahead of the card, not after it.
+There is no win condition yet. The game ends when the turn limit runs out; beating
+the dragon does nothing in particular. That is the first thing v0.7 should fix.
 
 - `turn.ts` — `legalMoves`, `movePlayer`, `endTurn`. One move per turn; moving onto
   an enemy starts a fight, and the turn cannot pass while one is running.
@@ -86,6 +88,9 @@ means `beginTurn` in `turn.ts` gains a hazard step ahead of the card, not after 
 - `cards.ts` — two poker decks, drawn down and reshuffled. Events and searches never
   share a shuffle; the spec is explicit about that.
 - `events.ts` — the deck and every card's effect. Add new events here.
+- `hazards.ts` — the four wanderers, their movement, what happens when they land on
+  somebody, and the tornado's tile destruction. `moveHazards` is the only thing that
+  moves a hazard, and for the two thieves it moves their monster record too.
 
 Hazard and event phases slot in ahead of the move phase when they exist; the phase
 names are already in `Phase`.
@@ -136,6 +141,10 @@ are made, all cheap to reverse:
 - **A tile can be searched once per game** (`Tile.searched`), or standing still beats
   playing.
 - **Nothing can be sold back**, and swapped-out gear returns to the shared pile.
+- **The hazard rules are the spec's §9 defaults**, taken as suggested (`hazards.ts`).
+  A tornado costs the next turn; the traveller and the thieves do not. Wrecked ground
+  recovers when the tornado moves on. Players are pushed clear, monsters stay. A
+  beaten thief is gone for good.
 - **A feature that matches the ground adds 1 to the monster's hit** (`combat.ts`).
   The spec names five features and specifies only the water escape; the rest is a
   guess, chosen because "the ogre is strong in the woods" explains itself at a table.

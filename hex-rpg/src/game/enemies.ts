@@ -30,6 +30,8 @@ export type EnemyProfile = {
   /** Coins it is carrying, as a range, and how many items of gear it drops. */
   purse: [number, number];
   drops: number;
+  /** "the Pirates keep their wounds", not "a Pirates keeps its". The log is read aloud. */
+  plural?: boolean;
 };
 
 export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
@@ -80,6 +82,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     colour: "#b0894a",
     scale: 0.75,
     glyph: "R",
+    // What a robber pays out is whatever it has stolen, tracked on its hazard record.
     purse: [0, 0],
     drops: 0,
   },
@@ -94,6 +97,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     glyph: "P",
     purse: [0, 0],
     drops: 0,
+    plural: true,
   },
 };
 
@@ -113,6 +117,17 @@ const spawn = (kind: EnemyKind, hex: Hex, n: number): Enemy => ({
   defeated: false,
 });
 
+/** "a Bandit", "an Ogre", "the Pirates". */
+export const nameWithArticle = (kind: EnemyKind): string => {
+  const { name, plural } = ENEMIES[kind];
+  if (plural) return `the ${name}`;
+  return `${/^[aeiou]/i.test(name) ? "an" : "a"} ${name}`;
+};
+
+/** "is beaten" or "are beaten", "keeps its wounds" or "keep their wounds". */
+export const verb = (kind: EnemyKind, singular: string, plural: string): string =>
+  ENEMIES[kind].plural ? plural : singular;
+
 /** Health an enemy has left. Damage accumulates across fights, so this is what a
  *  player is chipping away at over several turns. */
 export const healthLeft = (enemy: Enemy): number =>
@@ -121,6 +136,12 @@ export const healthLeft = (enemy: Enemy): number =>
 /** The enemy standing on a tile, if any is still up. */
 export const enemyAt = (enemies: Enemy[], label: string): Enemy | undefined =>
   enemies.find((e) => !e.defeated && key(e.hex) === label);
+
+/**
+ * The two thieves that are both hazards and enemies. They are placed by
+ * `placeHazards`, and `moveHazards` keeps the two records on the same tile.
+ */
+export const THIEVES: EnemyKind[] = ["robber", "pirates"];
 
 /**
  * Populate the board.
@@ -138,13 +159,27 @@ export function placeEnemies(rng: Rng, players: Player[]): Enemy[] {
     placed.every((e) => distance(e.hex, h) >= gap);
 
   for (const kind of ["midboss", "mob"] as const) {
-    const gap = kind === "midboss" ? 3 : 2;
-    let n = 0;
-    for (const hex of rng.shuffle(allHexes())) {
-      if (n === ENEMIES[kind].count) break;
-      if (!free(hex, gap)) continue;
-      placed.push(spawn(kind, hex, ++n));
+    const wanted = ENEMIES[kind].count;
+    const preferred = kind === "midboss" ? 3 : 2;
+    let placedOfKind = 0;
+
+    // Spread them out if the board allows it, but never place fewer than asked:
+    // relax the spacing rather than quietly dropping a monster.
+    for (let gap = preferred; gap >= 1 && placedOfKind < wanted; gap--) {
+      for (const hex of rng.shuffle(allHexes())) {
+        if (placedOfKind === wanted) break;
+        if (!free(hex, gap)) continue;
+        placed.push(spawn(kind, hex, ++placedOfKind));
+      }
     }
   }
   return placed;
+}
+
+/** Fightable records for the robber and the pirates, standing where their hazards do. */
+export function spawnThieves(hazards: { kind: string; hex: Hex }[]): Enemy[] {
+  return THIEVES.flatMap((kind) => {
+    const home = hazards.find((h) => h.kind === kind);
+    return home ? [spawn(kind, home.hex, 1)] : [];
+  });
 }

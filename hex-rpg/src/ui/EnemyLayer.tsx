@@ -11,7 +11,16 @@ import { hexToPixel } from "../game/hex";
 import { ENEMIES, healthLeft } from "../game/enemies";
 import type { Enemy } from "../game/types";
 
-export default function EnemyLayer({ enemies, size }: { enemies: Enemy[]; size: number }) {
+export default function EnemyLayer({
+  enemies,
+  size,
+  purses = {},
+}: {
+  enemies: Enemy[];
+  size: number;
+  /** Coins a thief is holding, by kind. Shown so the party can see the reward. */
+  purses?: Partial<Record<string, number>>;
+}) {
   return (
     <g className="enemies">
       {enemies
@@ -22,6 +31,7 @@ export default function EnemyLayer({ enemies, size }: { enemies: Enemy[]; size: 
           const r = size * 0.3 * beast.scale;
           const left = healthLeft(enemy);
           const hurt = enemy.damageTaken > 0;
+          const purse = purses[enemy.kind] ?? 0;
 
           return (
             <g
@@ -44,6 +54,12 @@ export default function EnemyLayer({ enemies, size }: { enemies: Enemy[]; size: 
               >
                 {beast.glyph}
               </text>
+
+              {purse > 0 && (
+                <text className="enemy-purse" y={-r * 1.3} textAnchor="middle" fontSize={r * 0.8}>
+                  ${purse}
+                </text>
+              )}
 
               {hurt && (
                 <g transform={`translate(${-r} ${r + size * 0.1})`}>

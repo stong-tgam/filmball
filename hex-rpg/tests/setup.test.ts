@@ -250,15 +250,15 @@ describe("createInitialState", () => {
     expect(state.activePlayerIndex).toBe(0);
     expect(Object.keys(state.tiles)).toHaveLength(TILE_COUNT);
     expect(state.players).toHaveLength(4);
-    expect(state.enemies).toHaveLength(9);
+    // Nine monsters, plus the robber and the pirates, who are hazards as well.
+    expect(state.enemies).toHaveLength(11);
     expect(state.combat).toBeNull();
     expect(state.itemPile).toHaveLength(13);
     expect(state.pokerDeck).toHaveLength(52);
     expect(state.searchDeck).toHaveLength(52);
     expect(state.eventDeck.length).toBeGreaterThan(0);
     expect(state.draw).toBeNull();
-    // Hazards belong to v0.6.
-    expect(state.hazards).toEqual([]);
+    expect(state.hazards).toHaveLength(4);
     expect(state.log).toHaveLength(2);
   });
 

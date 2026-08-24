@@ -654,3 +654,23 @@ button.ghost {
   background: #3a1c26;
   color: #f3aec1;
 }
+
+/* ---------- hazards ---------- */
+
+.hazard { pointer-events: none; }
+.hazard-glyph { font-weight: 700; font-family: system-ui, sans-serif; }
+.hazard-purse { fill: var(--accent); font-weight: 700; font-family: ui-monospace, Menlo, monospace; }
+
+.tile-wrecked {
+  fill: #1b1512;
+  fill-opacity: 0.66;
+  stroke: #4a3b30;
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  pointer-events: none;
+}
+
+.tile.is-wrecked { cursor: default; }
+.tile.is-wrecked .tile-label { fill: #d8c8b8; opacity: 0.7; }
+
+.enemy-purse { fill: var(--accent); font-weight: 700; font-family: ui-monospace, Menlo, monospace; }

@@ -83,6 +83,7 @@ const spawn = (role: Role, hex: Hex): Player => ({
   dead: false,
   movedThisTurn: false,
   actedThisTurn: false,
+  stunned: false,
   joinedFightThisRound: false,
   bonusDiceNextFight: 0,
 });

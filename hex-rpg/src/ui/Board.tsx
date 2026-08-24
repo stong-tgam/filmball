@@ -10,8 +10,10 @@ import { useMemo } from "react";
 import Tile from "./Tile";
 import TokenLayer from "./TokenLayer";
 import EnemyLayer from "./EnemyLayer";
+import HazardLayer from "./HazardLayer";
 import { DIRS, add, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
-import type { Enemy, Player, Tile as TileData } from "../game/types";
+import { isDestroyed } from "../game/hazards";
+import type { Enemy, Hazard, Player, Tile as TileData } from "../game/types";
 
 const SIZE = 40;
 const PADDING = SIZE * 0.9;
@@ -23,6 +25,9 @@ type Props = {
   legalMoves: Map<string, number>;
   players: Player[];
   enemies: Enemy[];
+  hazards: Hazard[];
+  /** The turn number, which decides which wrecked tiles have recovered. */
+  turn: number;
   activeId: string;
   /** The active player's colour: legal moves are drawn in it. */
   activeColour: string;
@@ -56,6 +61,8 @@ export default function Board({
   legalMoves,
   players,
   enemies,
+  hazards,
+  turn,
   activeId,
   activeColour,
   onSelect,
@@ -121,11 +128,17 @@ export default function Board({
           railDirs={rails[label]}
           selected={selected === label}
           legal={legalMoves.has(label)}
+          wrecked={isDestroyed(tile, turn)}
           onSelect={onSelect}
         />
       ))}
 
-      <EnemyLayer enemies={enemies} size={SIZE} />
+      <EnemyLayer
+        enemies={enemies}
+        size={SIZE}
+        purses={Object.fromEntries(hazards.map((h) => [h.kind, h.carrying]))}
+      />
+      <HazardLayer hazards={hazards} size={SIZE} />
       <TokenLayer players={players} activeId={activeId} size={SIZE} />
     </svg>
   );

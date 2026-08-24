@@ -11,6 +11,7 @@ import { draw as drawCard, isFace } from "./cards";
 import { startCombat } from "./combat";
 import { enemyAt } from "./enemies";
 import { applyEvent, createEventDeck } from "./events";
+import { isDestroyed, meet, moveHazards } from "./hazards";
 import { fromLabel, key, reachable } from "./hex";
 import { ROLES } from "./players";
 import { cardName } from "./cards";
@@ -50,9 +51,12 @@ export function legalMoves(state: GameState, player: Player): Map<string, number
   );
 
   const guarded = (h: { q: number; r: number }) => enemyAt(state.enemies, key(h)) !== undefined;
+  // Ground the tornado has just been through is nobody's idea of a route.
+  const standable = (h: { q: number; r: number }) =>
+    !isDestroyed(state.tiles[key(h)], state.turn);
 
   const moves = new Map<string, number>();
-  for (const [label, steps] of reachable(player.hex, moveRange(player), () => true, guarded)) {
+  for (const [label, steps] of reachable(player.hex, moveRange(player), standable, guarded)) {
     if (steps === 0 || occupied.has(label)) continue;
     moves.set(label, steps);
   }
@@ -74,27 +78,35 @@ export function movePlayer(state: GameState, destination: string): GameState {
     `${player.name} moved to ${destination} (${steps} ${steps === 1 ? "tile" : "tiles"}).`,
   );
 
+  // Walking into a hazard sets it off, the same as it walking into you.
+  let arrived = moved;
+  for (const hazard of moved.hazards) {
+    if (key(hazard.hex) === destination) arrived = meet(arrived, hazard.kind, player.id);
+  }
+
   // Walking onto something starts the fight there and then, and the fight is this
   // turn's action - you do not get to brawl and then go shopping.
-  const enemy = enemyAt(moved.enemies, destination);
-  if (!enemy) return moved;
+  const enemy = enemyAt(arrived.enemies, destination);
+  if (!enemy) return arrived;
   const fighting = {
-    ...moved,
-    players: moved.players.map((p) => (p.id === player.id ? { ...p, actedThisTurn: true } : p)),
+    ...arrived,
+    players: arrived.players.map((p) => (p.id === player.id ? { ...p, actedThisTurn: true } : p)),
   };
   return startCombat(fighting, enemy, key(player.hex));
 }
 
 /**
- * The top of a turn: a poker card off the event deck, and if it is a face card, an
- * event with it. The card sits in `state.draw` until the table has read it.
- *
- * Hazards move before this, once they exist - the spec is explicit that the order
- * matters, and the phase goes in ahead of this call.
+ * The top of a turn: the hazards each take a step, then a poker card comes off the
+ * event deck, and if it is a face card, an event with it. The card sits in
+ * `state.draw` until the table has read it.
  */
 export function beginTurn(state: GameState): GameState {
-  const pull = drawCard(state.pokerDeck, state.rngState);
-  let next: GameState = { ...state, pokerDeck: pull.deck, rngState: pull.rngState };
+  // Hazards move first. The spec is explicit about the order, and it matters: an
+  // event that changes the ground has to land after the ground has been changed.
+  const stirred = moveHazards(state);
+
+  const pull = drawCard(stirred.pokerDeck, stirred.rngState);
+  let next: GameState = { ...stirred, pokerDeck: pull.deck, rngState: pull.rngState };
 
   if (!isFace(pull.card)) {
     return note({ ...next, draw: { card: pull.card, event: null } }, `Drew ${cardName(pull.card)}. A quiet turn.`);
@@ -136,10 +148,24 @@ export function endTurn(state: GameState): GameState {
 
   let index = next.activePlayerIndex;
   let turn = next.turn;
-  do {
-    index = (index + 1) % next.players.length;
+  let players = next.players;
+
+  // Walk forward to the next player who can actually take a turn. The dead are
+  // skipped for good; anyone the tornado flattened is skipped once, and getting
+  // skipped is what clears it.
+  for (;;) {
+    index = (index + 1) % players.length;
     if (index === 0) turn += 1;
-  } while (next.players[index].dead);
+
+    if (players[index].dead) continue;
+    if (players[index].stunned) {
+      next = note(next, `${players[index].name} is still picking themselves up.`);
+      players = players.map((p, i) => (i === index ? { ...p, stunned: false } : p));
+      continue;
+    }
+    break;
+  }
+  next = { ...next, players };
 
   if (turn > next.turnLimit) {
     return note(
@@ -149,10 +175,10 @@ export function endTurn(state: GameState): GameState {
   }
 
   // A fresh turn for whoever is up next.
-  const players = next.players.map((p, i) =>
+  const ready = next.players.map((p, i) =>
     i === index ? { ...p, movedThisTurn: false, actedThisTurn: false } : p,
   );
-  const started = { ...next, players, activePlayerIndex: index, turn, phase: "playerMove" as const };
+  const started = { ...next, players: ready, activePlayerIndex: index, turn, phase: "playerMove" as const };
   // A new turn for the whole party, not just the next player, is what draws a card.
   return turn === next.turn ? started : beginTurn(note(started, `— Turn ${turn} —`));
 }

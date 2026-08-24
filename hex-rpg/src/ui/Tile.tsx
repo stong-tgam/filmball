@@ -36,6 +36,8 @@ type Props = {
   selected: boolean;
   /** A tile the active player may move to this turn. */
   legal: boolean;
+  /** Ground the tornado has just been through. */
+  wrecked: boolean;
   onSelect: (label: string) => void;
 };
 
@@ -246,7 +248,7 @@ function Railway({ size, dirs }: { size: number; dirs: number[] }) {
   );
 }
 
-function TileView({ tile, label, size, railDirs, selected, legal, onSelect }: Props) {
+function TileView({ tile, label, size, railDirs, selected, legal, wrecked, onSelect }: Props) {
   const { x, y } = hexToPixel(tile.hex, size);
   const rng = makeRng(hash(label));
   const grouped = runs(tile.sides);
@@ -258,11 +260,11 @@ function TileView({ tile, label, size, railDirs, selected, legal, onSelect }: Pr
   return (
     <g
       transform={`translate(${x.toFixed(2)} ${y.toFixed(2)})`}
-      className={`tile tile-${tile.base}${selected ? " is-selected" : ""}${legal ? " is-legal" : ""}`}
+      className={`tile tile-${tile.base}${selected ? " is-selected" : ""}${legal ? " is-legal" : ""}${wrecked ? " is-wrecked" : ""}`}
       onClick={() => onSelect(label)}
       role="button"
       tabIndex={0}
-      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}${legal ? ", you can move here" : ""}`}
+      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}${wrecked ? ", wrecked by the tornado" : ""}${legal ? ", you can move here" : ""}`}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -287,6 +289,7 @@ function TileView({ tile, label, size, railDirs, selected, legal, onSelect }: Pr
 
       {tile.rail && <Railway size={size} dirs={railDirs} />}
 
+      {wrecked && <polygon points={hexPoints(size)} className="tile-wrecked" />}
       {legal && (
         <g className="legal" pointerEvents="none">
           <polygon points={hexPoints(size)} className="tile-legal" />

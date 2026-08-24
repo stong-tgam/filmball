@@ -71,6 +71,8 @@ export type Player = {
   movedThisTurn: boolean;
   /** One action per turn - search, trade or a fight. Eating is free and not this. */
   actedThisTurn: boolean;
+  /** Flattened by the tornado: the next turn is spent getting up. */
+  stunned: boolean;
   /** Homeless-person donation: extra dice on the next fight only. */
   bonusDiceNextFight: number;
   joinedFightThisRound: boolean;
@@ -104,6 +106,11 @@ export type Hazard = {
   hex: Hex;
   /** Player ids already triggered on this tile; cleared when either one moves. */
   resolvedWith: string[];
+  /**
+   * Money a thief is holding. Beat it and you get the lot back, which is what makes
+   * chasing one worth a turn.
+   */
+  carrying: number;
 };
 
 export type Suit = "clubs" | "diamonds" | "hearts" | "spades";

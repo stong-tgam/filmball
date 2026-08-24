@@ -8,6 +8,7 @@ import ShopModal from "./ui/ShopModal";
 import EventCardModal from "./ui/EventCard";
 import {
   useActivePlayer,
+  useCanDonate,
   useCanSearch,
   useCanTrade,
   useCombatants,
@@ -56,6 +57,8 @@ export default function App() {
   const clearDraw = useGame((s) => s.clearDraw);
   const canSearch = useCanSearch();
   const canTrade = useCanTrade();
+  const canDonate = useCanDonate();
+  const donate = useGame((s) => s.donate);
 
   const [seedInput, setSeedInput] = useState("");
   const tile = selected ? game.tiles[selected] : null;
@@ -83,7 +86,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.5 — events and features</span>
+          <span className="version">v0.6 — hazards</span>
         </div>
         <p className="turn-counter">
           Turn <strong>{game.turn}</strong>
@@ -123,6 +126,8 @@ export default function App() {
           legalMoves={legalMoves}
           players={game.players}
           enemies={game.enemies}
+          hazards={game.hazards}
+          turn={game.turn}
           activeId={player.id}
           activeColour={ROLES[player.role].colour}
           onSelect={tapTile}
@@ -136,8 +141,10 @@ export default function App() {
           acted={player.actedThisTurn}
           canSearch={canSearch}
           canTrade={canTrade}
+          canDonate={canDonate}
           onSearch={search}
           onTrade={openShop}
+          onDonate={donate}
           onEndTurn={endTurn}
           disabled={over || game.combat !== null}
         />
