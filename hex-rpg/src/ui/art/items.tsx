@@ -11,6 +11,7 @@
  */
 
 import { MARKER, darken, lighten, wobbleFor } from "./crayon";
+import { Pen, Pencil, Shine } from "./pencil";
 
 type Art = (p: { seedName: string }) => JSX.Element;
 
@@ -18,26 +19,28 @@ const INK = "#23201C";
 const WOOD = MARKER.cocoa;
 const STEEL = "#9AA5B1";
 
-/** Outline plus fill, with the fill nudged so it misses the line on one side. */
+/**
+ * One coloured part of an item. Thin wrapper over `Pencil` so every item in the file
+ * picked up the coloured-pencil render at once; `fill="none"` means it is a line rather
+ * than a shape, and goes to `Pen` instead.
+ */
 function Marked({
   d,
   fill,
   stroke,
   width = 2.4,
-  nudge = [1, -1],
+  angle,
+  press,
 }: {
   d: string;
   fill: string;
   stroke?: string;
   width?: number;
-  nudge?: [number, number];
+  angle?: number;
+  press?: number;
 }) {
-  return (
-    <>
-      <path d={d} fill={fill} opacity="0.93" transform={`translate(${nudge[0]} ${nudge[1]})`} />
-      <path d={d} fill="none" stroke={stroke ?? darken(fill)} strokeWidth={width} strokeLinejoin="round" strokeLinecap="round" />
-    </>
-  );
+  if (fill === "none") return <Pen d={d} colour={stroke ?? INK} width={width} />;
+  return <Pencil d={d} fill={fill} stroke={stroke} width={width} angle={angle} press={press} />;
 }
 
 /* ------------------------------------------------------------------ weapons */
