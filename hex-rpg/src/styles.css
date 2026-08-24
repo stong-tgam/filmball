@@ -1,0 +1,205 @@
+/* Colours live as custom properties so the tile art recolours in one place. */
+:root {
+  --bg: #14181d;
+  --bg-panel: #1c2229;
+  --ink: #e8edf2;
+  --ink-muted: #94a3b1;
+  --line: #2c353f;
+  --accent: #f0a02c;
+
+  --field: #cbd67f;
+  --field-detail: #96a94f;
+  --forest: #7fae72;
+  --tree-canopy: #2f6b40;
+  --tree-canopy-light: #3c8550;
+  --tree-trunk: #6b4a2f;
+  --city: #c9bfae;
+  --building: #8d8577;
+  --building-edge: #6a6357;
+  --window: #f4e2a6;
+  --water: #4f9ed9;
+  --rail-bed: #6b6257;
+  --rail-tie: #35302a;
+
+  --tile-stroke: #3c4650;
+  --tile-selected: #f0a02c;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "top top" "stage side";
+  height: 100%;
+}
+
+/* ---------- top bar ---------- */
+
+.topbar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { font-size: 20px; margin: 0; letter-spacing: 0.01em; }
+.version { color: var(--ink-muted); font-size: 13px; }
+
+.seedbar { display: flex; align-items: center; gap: 8px; }
+.seedbar label { color: var(--ink-muted); font-size: 13px; }
+
+input, button {
+  font: inherit;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+input {
+  width: 130px;
+  padding: 0 10px;
+  background: #10151a;
+  color: var(--ink);
+}
+
+input:focus-visible, button:focus-visible, .tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button {
+  min-width: 110px;
+  padding: 0 16px;
+  background: var(--accent);
+  border-color: transparent;
+  color: #201603;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:active { transform: translateY(1px); }
+
+/* ---------- board ---------- */
+
+.stage {
+  grid-area: stage;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.board {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  touch-action: manipulation;
+}
+
+.board-base polygon { fill: #0d1114; }
+
+.tile { cursor: pointer; }
+.tile-face { fill: var(--field); }
+.tile-forest .tile-face { fill: var(--forest); }
+.tile-city .tile-face { fill: var(--city); }
+
+.tile-outline {
+  fill: none;
+  stroke: var(--tile-stroke);
+  stroke-width: 1.5;
+}
+
+.tile:hover .tile-outline { stroke: #ffffff88; }
+
+/* Selection outranks hover: on a tablet the finger is always on the tile it picked. */
+.tile.is-selected .tile-outline,
+.tile.is-selected:hover .tile-outline {
+  stroke: var(--tile-selected);
+  stroke-width: 4;
+}
+
+.tile-label {
+  fill: #1d2429;
+  font-weight: 700;
+  opacity: 0.55;
+  pointer-events: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ---------- sidebar ---------- */
+
+.sidebar {
+  grid-area: side;
+  border-left: 1px solid var(--line);
+  background: var(--bg-panel);
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel {
+  background: #171d23;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.stats { margin: 0; display: grid; gap: 4px; }
+.stats > div { display: flex; justify-content: space-between; gap: 12px; }
+.stats dt { color: var(--ink-muted); }
+.stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.tile-name { margin: 0 0 4px; font-size: 17px; font-weight: 600; text-transform: capitalize; }
+.muted { color: var(--ink-muted); margin: 0 0 8px; }
+.small { font-size: 12px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.tags { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0 0 8px; padding: 0; }
+.tag { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.tag-river { background: #1b3648; border-color: #2f6187; color: #9fd0f2; }
+.tag-rail { background: #322c25; border-color: #5f5648; color: #d8c8ae; }
+.tag-plain { color: var(--ink-muted); }
+
+/* ---------- narrow screens: sidebar drops below the board ----------
+   Tablet portrait (820px) belongs on this side of the line: side by side, the
+   board ends up smaller than the panel next to it. */
+
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas: "top" "stage" "side";
+  }
+  .sidebar { border-left: none; border-top: 1px solid var(--line); max-height: 42vh; }
+  .stage { padding: 6px; }
+}

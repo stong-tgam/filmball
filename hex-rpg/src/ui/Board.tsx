@@ -1,0 +1,114 @@
+/**
+ * The SVG map: 61 tiles, one <g> each, laid out pointy-top.
+ *
+ * The whole board is one SVG with a computed viewBox, so it scales to the window
+ * without any pixel maths in CSS - important on a tablet, which is where this gets
+ * played.
+ */
+
+import { useMemo } from "react";
+import Tile from "./Tile";
+import { DIRS, add, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
+import type { Tile as TileData } from "../game/types";
+
+const SIZE = 40;
+const PADDING = SIZE * 0.9;
+
+type Props = {
+  tiles: Record<string, TileData>;
+  selected: string | null;
+  onSelect: (label: string | null) => void;
+};
+
+/**
+ * Which of the six directions a river or railway continues into.
+ *
+ * A line that ends on the rim of the board gets one extra spoke pointing off the
+ * edge, so it looks like it carries on past the map rather than stopping dead.
+ */
+function connections(tiles: Record<string, TileData>, tile: TileData, of: "river" | "rail"): number[] {
+  const dirs: number[] = [];
+  DIRS.forEach((d, i) => {
+    const n = add(tile.hex, d);
+    if (inBoard(n) && tiles[key(n)]?.[of]) dirs.push(i);
+  });
+  if (dirs.length === 1) {
+    const outward = (dirs[0] + 3) % 6;
+    if (!inBoard(add(tile.hex, DIRS[outward]))) dirs.push(outward);
+  }
+  return dirs;
+}
+
+export default function Board({ tiles, selected, onSelect }: Props) {
+  const entries = useMemo(() => Object.entries(tiles), [tiles]);
+
+  const viewBox = useMemo(() => {
+    const points = entries.map(([, t]) => hexToPixel(t.hex, SIZE));
+    const xs = points.map((p) => p.x);
+    const ys = points.map((p) => p.y);
+    const minX = Math.min(...xs) - SIZE - PADDING;
+    const minY = Math.min(...ys) - SIZE - PADDING;
+    const width = Math.max(...xs) - Math.min(...xs) + 2 * (SIZE + PADDING);
+    const height = Math.max(...ys) - Math.min(...ys) + 2 * (SIZE + PADDING);
+    return `${minX} ${minY} ${width} ${height}`;
+  }, [entries]);
+
+  const links = useMemo(
+    () =>
+      Object.fromEntries(
+        entries.map(([label, tile]) => [
+          label,
+          {
+            river: tile.river ? connections(tiles, tile, "river") : [],
+            rail: tile.rail ? connections(tiles, tile, "rail") : [],
+          },
+        ]),
+      ),
+    [entries, tiles],
+  );
+
+  return (
+    <svg
+      className="board"
+      viewBox={viewBox}
+      xmlns="http://www.w3.org/2000/svg"
+      role="group"
+      aria-label="Game board, 61 hex tiles"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onSelect(null);
+      }}
+    >
+      <defs>
+        <filter id="board-shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.35" />
+        </filter>
+      </defs>
+
+      <g filter="url(#board-shadow)" className="board-base">
+        {entries.map(([label, tile]) => {
+          const p = hexToPixel(tile.hex, SIZE);
+          return (
+            <polygon
+              key={label}
+              points={hexPoints(SIZE)}
+              transform={`translate(${p.x} ${p.y})`}
+            />
+          );
+        })}
+      </g>
+
+      {entries.map(([label, tile]) => (
+        <Tile
+          key={label}
+          label={label}
+          tile={tile}
+          size={SIZE}
+          riverDirs={links[label].river}
+          railDirs={links[label].rail}
+          selected={selected === label}
+          onSelect={onSelect}
+        />
+      ))}
+    </svg>
+  );
+}
