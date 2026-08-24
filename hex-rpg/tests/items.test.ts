@@ -11,7 +11,9 @@ import {
   shopStock,
 } from "../src/game/items";
 import {
-  FIND_ODDS,
+  SEARCH_DRAWS,
+  SEARCH_TABLE,
+  searchResult,
   buy,
   canSearch,
   canTrade,
@@ -180,7 +182,7 @@ describe("searching", () => {
   });
 
   it("turns up gear, coins or nothing - and always one of the three", () => {
-    let found = { gear: 0, coins: 0, nothing: 0 };
+    const found = { gear: 0, coins: 0, nothing: 0 };
     for (let seed = 1; seed <= 40; seed++) {
       const before = standing("forest", game(seed));
       const after = search(before);
@@ -196,14 +198,38 @@ describe("searching", () => {
     expect(found.gear + found.coins + found.nothing).toBe(40);
   });
 
-  it("finds more in the woods than in the open", () => {
-    expect(FIND_ODDS.forest.item).toBeGreaterThan(FIND_ODDS.field.item);
+  it("reads the find off the card: face cards are gear, low cards are nothing", () => {
+    expect(searchResult({ suit: "spades", rank: "A" }).find).toBe("gear");
+    expect(searchResult({ suit: "hearts", rank: "J" }).find).toBe("gear");
+    expect(searchResult({ suit: "clubs", rank: "9" })).toMatchObject({ find: "coins", coins: 3 });
+    expect(searchResult({ suit: "clubs", rank: "6" })).toMatchObject({ find: "coins", coins: 1 });
+    expect(searchResult({ suit: "clubs", rank: "2" }).find).toBe("nothing");
+    // Every rank lands on a row: the table has no gaps.
+    for (const rank of ["2", "5", "8", "10", "J", "Q", "K", "A"] as const) {
+      expect(SEARCH_TABLE.some((row) => searchResult({ suit: "spades", rank }) === row)).toBe(true);
+    }
+  });
+
+  it("looks twice in the woods and once in the open", () => {
+    expect(SEARCH_DRAWS.forest).toBe(2);
+    expect(SEARCH_DRAWS.field).toBe(1);
+
+    const forest = search(standing("forest"));
+    const field = search(standing("field"));
+    expect(game().searchDeck.length - forest.searchDeck.length).toBe(2);
+    expect(game().searchDeck.length - field.searchDeck.length).toBe(1);
   });
 
   it("pays out coins instead when the world has run out of gear", () => {
-    const empty: GameState = { ...standing("forest"), itemPile: [] };
+    // Force a gear card onto the top of the deck with an empty pile behind it.
+    const empty: GameState = {
+      ...standing("field"),
+      itemPile: [],
+      searchDeck: [{ suit: "spades", rank: "A" }],
+    };
     const after = search(empty);
     expect(after.itemPile).toEqual([]);
+    expect(activePlayer(after).money).toBeGreaterThan(activePlayer(empty).money);
     expect(activePlayer(after).actedThisTurn).toBe(true);
   });
 

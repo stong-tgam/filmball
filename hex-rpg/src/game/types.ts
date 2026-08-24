@@ -116,7 +116,17 @@ export type Card = { suit: Suit; rank: Rank };
 export type EventCard = {
   id: string;
   title: string;
+  /** One line, read aloud at the table. */
   text: string;
+};
+
+/**
+ * The turn's draw: a poker card, and the event it brought with it if it was a face
+ * card. Held in state until somebody dismisses it, so the table gets to read it.
+ */
+export type Draw = {
+  card: Card;
+  event: EventCard | null;
 };
 
 export type LogEntry = {
@@ -135,7 +145,13 @@ export type Roll = {
   damage: number;
 };
 
-export type CombatOutcome = "ongoing" | "enemyDefeated" | "playerEscaped" | "playerDown";
+export type CombatOutcome =
+  | "ongoing"
+  | "enemyDefeated"
+  /** The water feature: a monster slipping away rather than going down. */
+  | "enemyEscaped"
+  | "playerEscaped"
+  | "playerDown";
 
 /** A fight in progress. Only one runs at a time: it is the active player's turn. */
 export type Combat = {
@@ -179,6 +195,11 @@ export type GameState = {
   combat: Combat | null;
   itemPile: Item[];
   eventDeck: EventCard[];
+  /** Drives the turn's event draw. */
   pokerDeck: Card[];
+  /** The second deck the spec calls for: this one drives searches. */
+  searchDeck: Card[];
+  /** This turn's card, waiting to be read. */
+  draw: Draw | null;
   log: LogEntry[];
 };

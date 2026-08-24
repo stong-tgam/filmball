@@ -3,20 +3,39 @@
 Hotseat (one device, passed around) digital version of the Hex RPG tabletop game.
 Built to the plan in `reference/webapp-spec.md`.
 
-**This build is v0.4: gear and money.** Four players move round the board, fight what
-they find, search the ground, and spend what they earn in city markets. There are no
-events or hazards yet — those are v0.5 and v0.6, in the order the spec lays out.
+**This build is v0.5: events and features.** A poker card turns over at the top of
+every turn, bosses draw the ground they are strongest on, and searching reads off a
+second deck. Hazards are v0.6 — the last system before polish.
 
 ## Running it
 
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 138 tests over the hex maths, board, turns, combat and gear
+npm test           # 174 tests over the maths, board, turns, combat, gear and events
 npm run build      # type-check + production build into dist/
 ```
 
-## What v0.4 adds
+## What v0.5 adds
+
+- **A card a turn.** One poker card off the event deck at the top of every turn. A
+  face card — jack, queen, king or ace — brings an event with it; anything else is a
+  quiet turn, and the card is shown either way, because turning it over is half the
+  fun.
+- **Ten events**, all of which resolve the moment they are read: market day, wolves,
+  the tax collector, the travelling baker, a blacksmith who takes pity on whoever has
+  the least money. Nothing lingers, nothing needs a marker on the table.
+- **Boss features.** The first time anyone meets an ogre or the dragon it draws two
+  of `water / railway / city / forest / field`. Standing on ground that matches makes
+  it hit harder, and the fight screen shows which of its features are biting here.
+- **The water escape**, the one feature effect the spec actually specifies: a monster
+  at home in water, beaten on a river tile, goes into the water instead of going down
+  and surfaces next door with every wound it had. Once per monster, ever.
+- **Searching now reads off cards**, from the second deck the spec asks for. Face card
+  finds gear, middling cards find coins, low cards find nothing — and in woods you
+  draw twice and keep the better card, which is what makes trees worth walking to.
+
+## What v0.4 added
 
 - **One pile of gear for the whole game** — three big sticks, two swords, one great
   axe, armour and boots: thirteen items, and no more than that. Cities sell from it,
@@ -129,8 +148,14 @@ movement unit-testable later, and keeps a networked rewrite possible.
   starts the fight, but never past it.
 - **A tile can be searched once per game.** Otherwise the best play is to stand still
   and search the same square for twenty-five turns, which is not a game.
-- **Nothing can be sold**, and searching draws from the seeded generator rather than
-  the second poker deck the spec calls for — that deck arrives with v0.5.
+- **Nothing can be sold.**
+- **What a feature does, beyond water, was mine to invent.** The spec names five
+  features and specifies only the water escape. Here a feature that matches the
+  ground adds 1 to what the monster hits for. It is legible at a table — "the ogre is
+  strong in the woods" — and it is a guess.
+- **Every event resolves immediately.** Lingering effects like the spec's *Foggy
+  morning* need a modifier system that does not exist; when one arrives, those cards
+  belong in `events.ts` with the rest.
 - **Two movement rules were mine to pick, and the rulebook should overrule them.**
   The *pass-through rule*: a player may move through a tile someone is standing on
   but may not stop there — the friendlier of the two readings, since being boxed in

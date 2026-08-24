@@ -8,10 +8,10 @@
 
 import DiceRoller from "./DiceRoller";
 import { ENEMIES, healthLeft } from "../game/enemies";
-import { attackValue } from "../game/combat";
+import { activeFeatures, attackValue } from "../game/combat";
 import { ROLES } from "../game/players";
 import { equipped } from "../game/items";
-import type { Combat, Enemy, Item, Player } from "../game/types";
+import type { Combat, Enemy, Item, Player, Tile } from "../game/types";
 
 /** What this item would push out of its slot, if anything. */
 const replacing = (player: Player, item: Item): Item | null =>
@@ -25,6 +25,8 @@ type Props = {
   onFlee: () => void;
   onTakeLoot: (itemId: string) => void;
   onClose: () => void;
+  /** The tile the fight is on: it decides which of the enemy's features bite. */
+  ground: Tile | undefined;
 };
 
 function Bar({ value, max, colour }: { value: number; max: number; colour: string }) {
@@ -38,6 +40,7 @@ function Bar({ value, max, colour }: { value: number; max: number; colour: strin
 
 const RESULT: Record<string, { title: string; tone: string }> = {
   enemyDefeated: { title: "Beaten!", tone: "win" },
+  enemyEscaped: { title: "It got away!", tone: "away" },
   playerEscaped: { title: "Got away", tone: "away" },
   playerDown: { title: "Down", tone: "lose" },
 };
@@ -50,6 +53,7 @@ export default function CombatModal({
   onFlee,
   onTakeLoot,
   onClose,
+  ground,
 }: Props) {
   const beast = ENEMIES[enemy.kind];
   const role = ROLES[player.role];
@@ -83,6 +87,19 @@ export default function CombatModal({
               <p className="fighter-stat">
                 {healthLeft(enemy)}/{enemy.maxHealth} health
               </p>
+              {enemy.featuresRevealed && (
+                <ul className="features">
+                  {enemy.features.map((feature) => {
+                    const biting = activeFeatures(enemy, ground).includes(feature);
+                    return (
+                      <li key={feature} className={`feature${biting ? " is-active" : ""}`}>
+                        {feature}
+                        {biting && " +1"}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           </div>
         </header>
@@ -117,6 +134,8 @@ export default function CombatModal({
             <p className="fight-result">{result.title}</p>
             <p className="muted">
               {combat.outcome === "enemyDefeated" && `The ${beast.name} is out of the game.`}
+              {combat.outcome === "enemyEscaped" &&
+                `It went into the water with every wound you gave it. It cannot do that twice.`}
               {combat.outcome === "playerEscaped" &&
                 `The ${beast.name} keeps the ${enemy.damageTaken} damage it has taken. Come back for it.`}
               {combat.outcome === "playerDown" && `${player.name} is out. The party plays on.`}

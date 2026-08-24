@@ -5,6 +5,7 @@ import Log from "./ui/Log";
 import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
 import CombatModal from "./ui/CombatModal";
 import ShopModal from "./ui/ShopModal";
+import EventCardModal from "./ui/EventCard";
 import {
   useActivePlayer,
   useCanSearch,
@@ -14,6 +15,7 @@ import {
   useLegalMoves,
 } from "./game/store";
 import { stockFor } from "./game/actions";
+import { key } from "./game/hex";
 import { elementsOf } from "./game/setup";
 import { ROLES } from "./game/players";
 import "./styles.css";
@@ -51,6 +53,7 @@ export default function App() {
   const openShop = useGame((s) => s.openShop);
   const closeShop = useGame((s) => s.closeShop);
   const buy = useGame((s) => s.buy);
+  const clearDraw = useGame((s) => s.clearDraw);
   const canSearch = useCanSearch();
   const canTrade = useCanTrade();
 
@@ -80,7 +83,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.4 — gear and money</span>
+          <span className="version">v0.5 — events and features</span>
         </div>
         <p className="turn-counter">
           Turn <strong>{game.turn}</strong>
@@ -182,7 +185,12 @@ export default function App() {
           onFlee={flee}
           onTakeLoot={takeLoot}
           onClose={closeCombat}
+          ground={game.tiles[key(fight.enemy.hex)]}
         />
+      )}
+
+      {game.draw && !game.combat && (
+        <EventCardModal draw={game.draw} turn={game.turn} onClose={clearDraw} />
       )}
 
       {shopOpen && !game.combat && (

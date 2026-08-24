@@ -7,20 +7,30 @@
  * player it applies to and ignores whose turn it is.
  */
 
+import { cardName, draw as drawCard, rankValue } from "./cards";
 import { key } from "./hex";
 import { canTake, consume, equip, shopStock, FOOD, SUPPLY_CAP, makeItem } from "./items";
-import { makeRng } from "./rng";
 import { activePlayer } from "./turn";
-import type { GameState, Item, LogEntry, Player, Tile } from "./types";
+import type { Card, GameState, Item, LogEntry, Player, Tile } from "./types";
 
-/** Chance a search turns up gear, by terrain. Woods hide more than open ground. */
-export const FIND_ODDS: Record<string, { item: number; money: number }> = {
-  forest: { item: 0.4, money: 0.4 },
-  field: { item: 0.2, money: 0.45 },
-};
+/**
+ * What a search turns up, read off the card you drew. The spec asks for a second
+ * poker deck to drive searches, and this is it.
+ *
+ * PLACEHOLDER TABLE, like everything else the missing rulebook should set.
+ */
+export const SEARCH_TABLE = [
+  { atLeast: 11, find: "gear" as const, text: "gear" }, // J, Q, K, A
+  { atLeast: 8, find: "coins" as const, coins: 3, text: "$3" },
+  { atLeast: 5, find: "coins" as const, coins: 1, text: "$1" },
+  { atLeast: 2, find: "nothing" as const, text: "nothing" },
+];
 
-/** Coins a search can turn up. */
-export const SEARCH_PURSE: [number, number] = [1, 3];
+/** Cards drawn per terrain. In woods you look twice and keep the better card. */
+export const SEARCH_DRAWS: Record<string, number> = { forest: 2, field: 1 };
+
+export const searchResult = (card: Card) =>
+  SEARCH_TABLE.find((row) => rankValue(card) >= row.atLeast)!;
 
 /** "a Sword", but "an Axe". The log gets read aloud. */
 const an = (name: string): string => `${/^[aeiou]/i.test(name) ? "an" : "a"} ${name}`;
@@ -52,46 +62,65 @@ export function canTrade(state: GameState, player: Player): boolean {
 }
 
 /**
- * Turn over the ground you are standing on. Gear, coins, or nothing at all - and if
- * the pile has run dry, what would have been gear is coins instead.
+ * Turn over the ground you are standing on: draw from the search deck and read what
+ * it says. Open ground gets one card; woods get two and you keep the better one,
+ * which is what makes the trees worth walking to.
+ *
+ * If the world has run out of gear, a card that would have found some pays coins.
  */
 export function search(state: GameState): GameState {
   const player = activePlayer(state);
   if (!canSearch(state, player)) return state;
 
   const tile = tileUnder(state, player);
-  const rng = makeRng(state.rngState);
-  const odds = FIND_ODDS[tile.base];
-  const roll = rng.next();
+  const draws = SEARCH_DRAWS[tile.base] ?? 1;
+
+  let deck = state.searchDeck;
+  let rngState = state.rngState;
+  const cards: Card[] = [];
+  for (let i = 0; i < draws; i++) {
+    const pull = drawCard(deck, rngState);
+    cards.push(pull.card);
+    deck = pull.deck;
+    rngState = pull.rngState;
+  }
+  const best = cards.reduce((a, b) => (rankValue(b) > rankValue(a) ? b : a));
+  const result = searchResult(best);
 
   let next: GameState = {
     ...state,
-    rngState: rng.state(),
+    rngState,
+    searchDeck: deck,
     tiles: { ...state.tiles, [key(player.hex)]: { ...tile, searched: true } },
   };
+  next = note(
+    next,
+    `${player.name} searched ${key(player.hex)} and turned up ${cards.map(cardName).join(" and ")}.`,
+  );
   const acted = { ...player, actedThisTurn: true };
 
-  if (roll < odds.item && next.itemPile.length > 0) {
+  if (result.find === "gear" && next.itemPile.length > 0) {
     const [found, ...rest] = next.itemPile;
     const { player: carrying, returned } = equip(acted, found);
-    next = { ...next, itemPile: returned ? [...rest, returned] : rest };
-    next = withPlayer(next, carrying);
+    next = withPlayer({ ...next, itemPile: returned ? [...rest, returned] : rest }, carrying);
     return note(
       next,
       returned
-        ? `${player.name} found ${an(found.name)} at ${key(player.hex)} but had no room for it.`
-        : `${player.name} found ${an(found.name)} at ${key(player.hex)}!`,
+        ? `${player.name} found ${an(found.name)} but had no room for it.`
+        : `${player.name} found ${an(found.name)}!`,
     );
   }
 
-  if (roll < odds.item + odds.money) {
-    const coins = rng.int(...SEARCH_PURSE);
-    next = { ...next, rngState: rng.state() };
-    next = withPlayer(next, { ...acted, money: acted.money + coins });
-    return note(next, `${player.name} turned up $${coins} at ${key(player.hex)}.`);
+  // Gear on a card, but nothing left in the world to find: coins instead.
+  const coins = result.find === "gear" ? 3 : (result.coins ?? 0);
+  if (coins > 0) {
+    return note(
+      withPlayer(next, { ...acted, money: acted.money + coins }),
+      `${player.name} picked up $${coins}.`,
+    );
   }
 
-  return note(withPlayer(next, acted), `${player.name} searched ${key(player.hex)} and found nothing.`);
+  return note(withPlayer(next, acted), `${player.name} found nothing.`);
 }
 
 /** Opening a shop is the player's action for the turn; buying inside it is free. */

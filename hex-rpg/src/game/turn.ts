@@ -7,11 +7,14 @@
  * actions do not exist yet. The phases they slot into are already named in `Phase`.
  */
 
+import { draw as drawCard, isFace } from "./cards";
 import { startCombat } from "./combat";
 import { enemyAt } from "./enemies";
+import { applyEvent, createEventDeck } from "./events";
 import { fromLabel, key, reachable } from "./hex";
 import { ROLES } from "./players";
-import type { GameState, LogEntry, Player } from "./types";
+import { cardName } from "./cards";
+import type { EventCard, GameState, LogEntry, Player } from "./types";
 
 export const activePlayer = (state: GameState): Player => state.players[state.activePlayerIndex];
 
@@ -83,6 +86,38 @@ export function movePlayer(state: GameState, destination: string): GameState {
 }
 
 /**
+ * The top of a turn: a poker card off the event deck, and if it is a face card, an
+ * event with it. The card sits in `state.draw` until the table has read it.
+ *
+ * Hazards move before this, once they exist - the spec is explicit that the order
+ * matters, and the phase goes in ahead of this call.
+ */
+export function beginTurn(state: GameState): GameState {
+  const pull = drawCard(state.pokerDeck, state.rngState);
+  let next: GameState = { ...state, pokerDeck: pull.deck, rngState: pull.rngState };
+
+  if (!isFace(pull.card)) {
+    return note({ ...next, draw: { card: pull.card, event: null } }, `Drew ${cardName(pull.card)}. A quiet turn.`);
+  }
+
+  // A face card brings an event. The deck reshuffles rather than running dry.
+  const deck: EventCard[] = next.eventDeck.length > 0 ? next.eventDeck : createDeck(next);
+  const [event, ...rest] = deck;
+  next = note(next, `Drew ${cardName(pull.card)} — an event!`);
+  next = applyEvent({ ...next, eventDeck: rest }, event);
+  return { ...next, draw: { card: pull.card, event } };
+}
+
+/** Reshuffles the event deck in place when the last card has been played. */
+function createDeck(state: GameState): EventCard[] {
+  const { deck } = createEventDeck(state.rngState);
+  return deck;
+}
+
+/** Put the turn's card away. */
+export const clearDraw = (state: GameState): GameState => ({ ...state, draw: null });
+
+/**
  * Hand the turn to the next living player, rolling the turn counter over when the
  * party comes back round to the start.
  */
@@ -118,5 +153,6 @@ export function endTurn(state: GameState): GameState {
     i === index ? { ...p, movedThisTurn: false, actedThisTurn: false } : p,
   );
   const started = { ...next, players, activePlayerIndex: index, turn, phase: "playerMove" as const };
-  return turn === next.turn ? started : note(started, `— Turn ${turn} —`);
+  // A new turn for the whole party, not just the next player, is what draws a card.
+  return turn === next.turn ? started : beginTurn(note(started, `— Turn ${turn} —`));
 }

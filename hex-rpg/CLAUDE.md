@@ -62,19 +62,17 @@ npm test           # 56 tests
 npm run build      # type-check + production build
 ```
 
-## Current state: v0.4, gear and money
+## Current state: v0.5, events and features
 
-Shipped: hex coordinates with pathing, seeded board generation, the SVG renderer, the
-four-role party, click-to-move, turn order and limit, enemies and the fight, and the
-economy — one shared pile of gear, searching, city markets, equipment slots, food,
-and loot. **No events or hazards yet.**
+Shipped: the board, the party, movement, turn order and limit, enemies and the fight,
+the economy, and now the draws — a poker card a turn, ten events, boss features and
+the water escape. **Hazards are the only system left before polish.**
 
-**The core loop is all there now. Playtest before building v0.5.** Move, fight, find,
-spend: if that is not fun at a table, events and hazards will not save it.
+Build order from here: **v0.6** hazards (tornado, homeless, robber, pirates —
+movement, collisions, tile destruction) · **v0.7** autosave, undo, win/lose screens.
 
-Build order from here, one phase at a time — ship each working before starting the
-next: **v0.5** features and events · **v0.6** hazards · **v0.7** autosave, undo,
-win/lose screens.
+Note for v0.6: the spec is explicit that **hazards move before the event draw**. That
+means `beginTurn` in `turn.ts` gains a hazard step ahead of the card, not after it.
 
 - `turn.ts` — `legalMoves`, `movePlayer`, `endTurn`. One move per turn; moving onto
   an enemy starts a fight, and the turn cannot pass while one is running.
@@ -85,6 +83,9 @@ win/lose screens.
   game; food is the only unlimited thing.
 - `actions.ts` — `search`, `openShop`, `buy`, `eat`, `takeLoot`. One action a turn
   and a fight counts as it; `eat` deliberately ignores whose turn it is.
+- `cards.ts` — two poker decks, drawn down and reshuffled. Events and searches never
+  share a shuffle; the spec is explicit about that.
+- `events.ts` — the deck and every card's effect. Add new events here.
 
 Hazard and event phases slot in ahead of the move phase when they exist; the phase
 names are already in `Phase`.
@@ -135,5 +136,9 @@ are made, all cheap to reverse:
 - **A tile can be searched once per game** (`Tile.searched`), or standing still beats
   playing.
 - **Nothing can be sold back**, and swapped-out gear returns to the shared pile.
-- **Searching rolls the seeded generator**, not the second poker deck the spec asks
-  for. That deck belongs with v0.5's draws.
+- **A feature that matches the ground adds 1 to the monster's hit** (`combat.ts`).
+  The spec names five features and specifies only the water escape; the rest is a
+  guess, chosen because "the ogre is strong in the woods" explains itself at a table.
+- **Every event resolves the moment it is read.** No lingering effects, no markers to
+  remember — that is what keeps them playable by a child. The spec's *Foggy morning*
+  needs a modifier system that does not exist yet.

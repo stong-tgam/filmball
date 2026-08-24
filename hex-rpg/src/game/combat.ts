@@ -16,9 +16,9 @@
  */
 
 import { ENEMIES, healthLeft } from "./enemies";
-import { key } from "./hex";
+import { key, neighbours } from "./hex";
 import { makeRng } from "./rng";
-import type { Combat, Enemy, GameState, LogEntry, Player, Roll } from "./types";
+import type { Combat, Enemy, Feature, GameState, LogEntry, Player, Roll, Tile } from "./types";
 
 /** Each die reads 1, 1, 1, 2, 2, 3 - kind to young arithmetic, and rarely a zero. */
 export const DIE_FACES = [1, 1, 1, 2, 2, 3] as const;
@@ -31,6 +31,40 @@ export const ENEMY_DICE = 1;
 
 export const attackValue = (player: Player): number => player.weapon?.value ?? 0;
 export const armourValue = (player: Player): number => player.armor?.value ?? 0;
+
+/** How many features a boss draws the first time anybody meets it. */
+export const FEATURES_PER_BOSS = 2;
+
+export const ALL_FEATURES: Feature[] = ["water", "railway", "city", "forest", "field"];
+
+/**
+ * A feature is ground the monster is at home on. Draw them once, on first sight, and
+ * they stay drawn - the party learns what it is up against and can plan around it.
+ *
+ * PLACEHOLDER RULE. The spec names features and gives exactly one of their effects
+ * (water lets a monster slip away once); the rest is missing with the rulebook. What
+ * is implemented: a feature that matches the ground the fight is on makes the monster
+ * hit harder, and water additionally buys it one escape.
+ */
+export const bossFeatures = (kind: Enemy["kind"]): boolean =>
+  kind === "midboss" || kind === "finalboss";
+
+export function drawFeatures(rngState: number): { features: Feature[]; rngState: number } {
+  const rng = makeRng(rngState);
+  return { features: rng.shuffle(ALL_FEATURES).slice(0, FEATURES_PER_BOSS), rngState: rng.state() };
+}
+
+/** The drawn features that the tile underfoot actually matches. */
+export function activeFeatures(enemy: Enemy, tile: Tile | undefined): Feature[] {
+  if (!tile) return [];
+  return enemy.features.filter((feature) =>
+    feature === "railway" ? tile.rail : tile.sides.includes(feature),
+  );
+}
+
+/** Each matching feature adds a point to what the monster hits for. */
+export const featureBonus = (enemy: Enemy, tile: Tile | undefined): number =>
+  activeFeatures(enemy, tile).length;
 
 /** "a Bandit", but "an Ogre". Small thing; the log is read aloud at the table. */
 const an = (name: string): string => `${/^[aeiou]/i.test(name) ? "an" : "a"} ${name}`;
@@ -61,6 +95,23 @@ export const combatants = (
 /** Start a fight between the active player and the enemy on their tile. */
 export function startCombat(state: GameState, enemy: Enemy, from: string): GameState {
   const player = state.players[state.activePlayerIndex];
+
+  // Bosses show what they are made of the first time somebody meets them.
+  let next = state;
+  if (bossFeatures(enemy.kind) && !enemy.featuresRevealed) {
+    const drawn = drawFeatures(state.rngState);
+    next = note(
+      {
+        ...state,
+        rngState: drawn.rngState,
+        enemies: state.enemies.map((e) =>
+          e.id === enemy.id ? { ...e, features: drawn.features, featuresRevealed: true } : e,
+        ),
+      },
+      `The ${ENEMIES[enemy.kind].name} is at home on ${drawn.features.join(" and ")}.`,
+    );
+  }
+
   const combat: Combat = {
     enemyId: enemy.id,
     playerId: player.id,
@@ -71,7 +122,7 @@ export function startCombat(state: GameState, enemy: Enemy, from: string): GameS
     outcome: "ongoing",
   };
   return note(
-    { ...state, phase: "combat", combat },
+    { ...next, phase: "combat", combat },
     `${player.name} met ${an(ENEMIES[enemy.kind].name)} at ${key(enemy.hex)}.`,
   );
 }
@@ -89,8 +140,15 @@ export function attack(state: GameState): GameState {
   const playerRoll: Roll = { dice: swing.dice, damage: dealt };
 
   const hurt: Enemy = { ...enemy, damageTaken: enemy.damageTaken + dealt };
-  const killed = healthLeft(hurt) === 0;
+  const ground = state.tiles[key(enemy.hex)];
   const profile = ENEMIES[enemy.kind];
+
+  // A monster at home on water gets one slip away, and only one.
+  const slipsAway =
+    healthLeft(hurt) === 0 &&
+    !enemy.escapedOnce &&
+    activeFeatures(enemy, ground).includes("water");
+  const killed = healthLeft(hurt) === 0 && !slipsAway;
 
   let next: GameState = {
     ...state,
@@ -104,13 +162,15 @@ export function attack(state: GameState): GameState {
   };
   next = note(next, `${player.name} rolled ${swing.dice.join("+")} for ${dealt} damage.`);
 
+  if (slipsAway) return escapeDownriver(next, enemy);
+
   if (killed) {
     return note(spoils({ ...next, combat: { ...next.combat!, outcome: "enemyDefeated" } }), `${profile.name} is beaten!`);
   }
 
   // Still standing, so it hits back.
   const bite = rollDice(next.rngState, ENEMY_DICE);
-  const raw = total(bite.dice) + profile.attack;
+  const raw = total(bite.dice) + profile.attack + featureBonus(enemy, ground);
   const taken = Math.max(0, raw - armourValue(player));
   const enemyRoll: Roll = { dice: bite.dice, damage: taken };
   const health = Math.max(0, player.health - taken);
@@ -128,6 +188,37 @@ export function attack(state: GameState): GameState {
   );
 
   return down ? note(next, `${player.name} is down.`) : next;
+}
+
+/**
+ * Beaten, but at home in the water: it goes over the side with its wounds and
+ * surfaces on a neighbouring tile. Once per monster, ever.
+ */
+function escapeDownriver(state: GameState, enemy: Enemy): GameState {
+  const rng = makeRng(state.rngState);
+  const bolthole = rng.pick(neighbours(enemy.hex));
+  const profile = ENEMIES[enemy.kind];
+
+  return note(
+    {
+      ...state,
+      rngState: rng.state(),
+      enemies: state.enemies.map((e) =>
+        e.id === enemy.id
+          ? {
+              ...e,
+              // A hair from beaten, and it keeps every wound.
+              damageTaken: e.maxHealth - 1,
+              escapedOnce: true,
+              hex: bolthole,
+              defeated: false,
+            }
+          : e,
+      ),
+      combat: { ...state.combat!, outcome: "enemyEscaped" },
+    },
+    `The ${profile.name} went into the water and came up at ${key(bolthole)}. It will not get away twice.`,
+  );
 }
 
 /**

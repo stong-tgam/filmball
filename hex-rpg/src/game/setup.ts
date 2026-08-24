@@ -24,7 +24,10 @@ import {
 import { makeRng, type Rng } from "./rng";
 import { createPlayers } from "./players";
 import { placeEnemies } from "./enemies";
+import { beginTurn } from "./turn";
 import { createItemPile } from "./items";
+import { freshDeck } from "./cards";
+import { createEventDeck } from "./events";
 import { MAX_ELEMENTS, type Element, type GameState, type Tile } from "./types";
 
 export const CITY_COUNT = 5;
@@ -291,10 +294,14 @@ export function createInitialState(seed: number): GameState {
   const rng = makeRng(seed ^ 0x9e3779b9);
 
   const players = createPlayers(rng);
+  // Two poker decks, per the spec: events and searches never share a shuffle.
+  const poker = freshDeck(rng.state());
+  const searches = freshDeck(poker.rngState);
+  const events = createEventDeck(searches.rngState);
 
   return {
     seed,
-    rngState: rng.state(),
+    rngState: events.rngState,
     turn: 1,
     turnLimit: DEFAULT_TURN_LIMIT,
     phase: "playerMove",
@@ -305,14 +312,19 @@ export function createInitialState(seed: number): GameState {
     hazards: [],
     combat: null,
     itemPile: createItemPile(rng),
-    eventDeck: [],
-    pokerDeck: [],
+    eventDeck: events.deck,
+    pokerDeck: poker.deck,
+    searchDeck: searches.deck,
+    draw: null,
     log: [
       { turn: 1, text: `New game, seed ${seed}.` },
       { turn: 1, text: "— Turn 1 —" },
     ],
   };
 }
+
+/** A new game with its first card already turned over. */
+export const startGame = (seed: number): GameState => beginTurn(createInitialState(seed));
 
 /** Handy for tests and for the UI's board summary. */
 export function countTerrain(tiles: Record<string, Tile>) {

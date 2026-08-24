@@ -4,9 +4,9 @@
  */
 
 import { create } from "zustand";
-import { createInitialState } from "./setup";
+import { startGame } from "./setup";
 import { randomSeed } from "./rng";
-import { activePlayer, endTurn, legalMoves, movePlayer } from "./turn";
+import { activePlayer, clearDraw, endTurn, legalMoves, movePlayer } from "./turn";
 import { attack, combatants, endCombat, flee } from "./combat";
 import { buy, canSearch, canTrade, eat, openShop, returnUnclaimedLoot, search, takeLoot } from "./actions";
 import type { Enemy, GameState, Player, Tile } from "./types";
@@ -30,14 +30,16 @@ type Store = {
   buy: (itemId: string) => void;
   eat: (playerId: string, itemId: string) => void;
   takeLoot: (itemId: string) => void;
+  /** Put the turn's card away once the table has read it. */
+  clearDraw: () => void;
   /** Close the fight, and pass the turn on now that it is spent. */
   closeCombat: () => void;
 };
 
 export const useGame = create<Store>((set, get) => ({
-  game: createInitialState(randomSeed()),
+  game: startGame(randomSeed()),
   selected: null,
-  newGame: (seed) => set({ game: createInitialState(seed ?? randomSeed()), selected: null }),
+  newGame: (seed) => set({ game: startGame(seed ?? randomSeed()), selected: null, shopOpen: false }),
   select: (label) => set({ selected: label }),
   tile: (label) => get().game.tiles[label],
   moveTo: (label) => set({ game: movePlayer(get().game, label), selected: null }),
@@ -53,6 +55,7 @@ export const useGame = create<Store>((set, get) => ({
   buy: (itemId) => set({ game: buy(get().game, itemId) }),
   eat: (playerId, itemId) => set({ game: eat(get().game, playerId, itemId) }),
   takeLoot: (itemId) => set({ game: takeLoot(get().game, itemId) }),
+  clearDraw: () => set({ game: clearDraw(get().game) }),
 }));
 
 /** Selectors, so components subscribe to the narrowest slice they can. */
