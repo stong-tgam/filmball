@@ -17,8 +17,8 @@
 import { ENEMIES, healthLeft, nameWithArticle, verb } from "./enemies";
 import { key, neighbours } from "./hex";
 import { makeRng } from "./rng";
-import { canTake, equip } from "./items";
-import { maxHealthOf } from "./players";
+import { canTake, equip, makeFine } from "./items";
+import { maxHealthOf, moveRange } from "./players";
 import type { Combat, Enemy, Feature, GameState, Item, LogEntry, Player, Roll, Tile } from "./types";
 
 /** Rulebook §2: three faces of 1, two of 2, one of 3. Average 1.67 a die. */
@@ -287,7 +287,12 @@ function standoff(state: GameState, enemy: Enemy): GameState {
  */
 function beaten(state: GameState, enemy: Enemy): GameState {
   const profile = ENEMIES[enemy.kind];
-  const drops = state.itemPile.slice(0, profile.drops);
+  // Roll each drop for condition before it hits the ground. Mid bosses and the dragon
+  // are the only way to a +2 outside a river chest, so this roll is the progression.
+  const conditionRng = makeRng(state.rngState);
+  const drops = state.itemPile
+    .slice(0, profile.drops)
+    .map((item) => (conditionRng.next() < profile.fineChance ? makeFine(item) : item));
   const rest = state.itemPile.slice(profile.drops);
   // A thief drops what it stole on top of its own haul.
   const stolen = state.enemies.find((e) => e.id === enemy.id)?.loot ?? [];
@@ -295,6 +300,7 @@ function beaten(state: GameState, enemy: Enemy): GameState {
 
   let next: GameState = {
     ...state,
+    rngState: conditionRng.state(),
     itemPile: rest,
     enemies: state.enemies.map((e) =>
       e.id === enemy.id ? { ...e, defeated: true, loot: [] } : e,
@@ -395,26 +401,68 @@ export function discardSpoils(state: GameState): GameState {
 /* ------------------------------------------------------------------ leaving */
 
 /** Rulebook §7: escaping costs your turn, and the wounds you dealt stay dealt. */
+/**
+ * How likely you are to get away, and why movement decides it.
+ *
+ * Running is the one thing boots should obviously be for. A player on one tile a turn
+ * is slow and mostly has to see the fight through; a Scout in Roller Skates almost
+ * always gets out. It is capped short of certain so that running is a gamble rather
+ * than a free undo - `ESCAPE_CAP` is the number to move if fights start feeling
+ * inescapable at the table.
+ *
+ * An ambush is easier than a fight you picked: you have not closed with it yet, you
+ * are one step from where you came from, and walking into a hidden monster was not a
+ * decision you got to make.
+ */
+export const ESCAPE_BASE = 0.4;
+export const ESCAPE_PER_TILE = 0.2;
+export const ESCAPE_AMBUSH_BONUS = 0.25;
+export const ESCAPE_CAP = 0.9;
+
+export function escapeChance(player: Player, ambush: boolean): number {
+  const speed = moveRange(player);
+  const chance = ESCAPE_BASE + ESCAPE_PER_TILE * (speed - 1) + (ambush ? ESCAPE_AMBUSH_BONUS : 0);
+  return Math.min(ESCAPE_CAP, chance);
+}
+
 export function flee(state: GameState): GameState {
   const pair = combatants(state);
   if (!state.combat || state.combat.outcome !== "ongoing" || !pair) return state;
   const { player, enemy } = pair;
 
-  const back = state.combat.from;
+  const combat = state.combat;
+  const back = combat.from;
   const home = state.tiles[back]?.hex ?? player.hex;
   // Walking into a hidden monster is not a decision, so backing straight out of one
-  // is free: it costs the move you already spent and nothing more. Once you have
-  // swung at it you have chosen the fight, and leaving costs your action as usual.
-  const freeLook = state.combat.ambush && state.combat.round === 0;
+  // costs no action: only the move already spent. Once you have swung at it you have
+  // chosen the fight, and leaving costs your action as usual.
+  const freeLook = combat.ambush && combat.round === 0;
+
+  // Getting away is not automatic any more. Fail it and you are still in the fight -
+  // no health lost for trying, because a failed escape that also hurt would make
+  // running strictly worse than swinging and nobody would ever do it.
+  const rng = makeRng(state.rngState);
+  const odds = escapeChance(player, freeLook);
+  if (rng.next() >= odds) {
+    return note(
+      { ...state, rngState: rng.state() },
+      `${player.name} tried to slip away and could not. The ${ENEMIES[enemy.kind].name} ${verb(
+        enemy.kind,
+        "is between them and the way back",
+        "are between them and the way back",
+      )}.`,
+    );
+  }
+  const away: GameState = { ...state, rngState: rng.state() };
 
   if (freeLook) {
     return note(
       {
-        ...state,
-        players: state.players.map((p) =>
+        ...away,
+        players: away.players.map((p) =>
           p.id === player.id ? { ...p, hex: home, actedThisTurn: false } : p,
         ),
-        combat: { ...state.combat, outcome: "playerEscaped" },
+        combat: { ...combat, outcome: "playerEscaped" },
       },
       `${player.name} found ${nameWithArticle(enemy.kind)} and backed straight out again.`,
     );
@@ -422,11 +470,11 @@ export function flee(state: GameState): GameState {
 
   return note(
     {
-      ...state,
-      players: state.players.map((p) =>
+      ...away,
+      players: away.players.map((p) =>
         p.id === player.id ? { ...p, hex: home, actedThisTurn: true } : p,
       ),
-      combat: { ...state.combat, outcome: "playerEscaped" },
+      combat: { ...combat, outcome: "playerEscaped" },
     },
     `${player.name} backed off. The ${ENEMIES[enemy.kind].name} ${verb(
       enemy.kind,

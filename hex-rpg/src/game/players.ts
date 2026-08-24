@@ -17,6 +17,16 @@ import type { Player, Role } from "./types";
 export const BASE_HEALTH = 3;
 export const BASE_MONEY = 2;
 
+/** Rulebook §5: one tile, plus the scout's legs and whatever boots add. */
+export const BASE_MOVE = 1;
+
+/**
+ * How far a player moves in a turn - and, since `combat.ts` reads it, how likely they
+ * are to get out of a fight. Boots are the one piece of gear that does two jobs.
+ */
+export const moveRange = (player: Player): number =>
+  BASE_MOVE + ROLES[player.role].moveBonus + (player.boots?.value ?? 0);
+
 export type RoleProfile = {
   /** What the role is called at the table. */
   name: string;

@@ -88,6 +88,28 @@ Key rules, so nothing gets "improved" back to a guess:
   instead** (`searchKind`): face card = armour, red = two items, black = river water,
   joker = the lid on your fingers for 1 health. Better than the ground on average, and
   that is the point — the river should be worth a detour, not scenery.
+- **Gear grades**: ordinary gear is **+1**, fine gear is **+2**, and the name never
+  changes between them — a Frying Pan +2 is still a Frying Pan, which is what keeps the
+  artwork lookups working and keeps the names doing their job. Where +2 comes from *is*
+  the progression, so the ordering matters more than the numbers:
+  **mob 0%, mid boss 30%, dragon 50%, river chest 50%** (`ENEMIES[kind].fineChance`,
+  `FINE_CHEST_CHANCE`). A chest must stay at or above a mid boss or the river stops
+  being worth the walk. There is a test on the ordering.
+- **Escaping (§7)**: no longer free. `escapeChance` is `ESCAPE_BASE` plus
+  `ESCAPE_PER_TILE` per tile of movement over one, plus `ESCAPE_AMBUSH_BONUS` if you
+  walked into it blind, capped at `ESCAPE_CAP` — never certain, so running is a gamble
+  rather than an undo. **A failed attempt costs no health**: if running could hurt you
+  it would be strictly worse than swinging and nobody would ever do it. This is what
+  makes boots matter twice, and `ESCAPE_CAP` is the dial to move if fights start
+  feeling inescapable at the table.
+- **Searches can go wrong** (`MISHAPS`): a black **face** card is a mishap keyed to the
+  ground — a snake in the woods, wire across a city alley, a wasps' nest in a field.
+  Roughly one search in nine. They cost a health or a piece of gear, never a turn, and
+  **a player on one health loses gear instead of the health**: a search must never be
+  the thing that puts a child out of the game.
+- **Cities are searchable** now, which the rulebook's §4 does not say. The shop and a
+  rummage cost the same one action, so it is a choice rather than a free extra — and it
+  is where the wire lives.
 - **Loot (§10)**: items, **plus a small purse** — $1 mob, $2 mid boss, $5 dragon. This
   bends §10, which is items-only, on purpose. Keep the amounts under `GEAR_PRICE`:
   the moment a mob out-earns a sale, the shop stops mattering and so does the
@@ -196,7 +218,9 @@ notes are for.
 
 `npx vite-node tools/sim.ts 200` plays the game with a bot and prints how it ends.
 
-At v0.8: **23% wins, 56% out of time, 21% wipes** (was 35/45/20 before the fog).
+At v1.2: **23% wins, 61% out of time, 17% wipes** (v0.8 was 23/56/21; 35/45/20 before
+the fog). The escape roll and the +2 gear roughly cancel out — fewer wipes because the
+party is better equipped, more timeouts because a failed escape costs a turn.
 Raising the turn limit barely helps — about +1% win per two turns — because the limit
 is not what is binding. What binds is that one player at 3 health grinds a 20–30 health
 dragon down alone: **§7.4's boss maths assumes the four-player group fight in §8, and

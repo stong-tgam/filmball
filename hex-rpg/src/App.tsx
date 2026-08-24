@@ -108,7 +108,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v1.1 — the ground around you</span>
+          <span className="version">v1.2 — gear, nerve and snakes</span>
         </div>
         <button
           type="button"

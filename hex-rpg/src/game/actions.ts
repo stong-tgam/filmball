@@ -17,15 +17,17 @@ import {
   carriedGear,
   consume,
   equip,
+  makeFine,
   makeItem,
   randomFood,
   shopStock,
+  gearLabel,
   slotKey,
 } from "./items";
 import { ROLES, withMaxHealth } from "./players";
 import { makeRng } from "./rng";
 import { activePlayer } from "./turn";
-import type { Card, GameState, Item, LogEntry, Player, Tile } from "./types";
+import type { Card, GameState, Item, LogEntry, Player, Terrain, Tile } from "./types";
 
 /** "a Sword", but "an Axe". The log gets read aloud. */
 const an = (name: string): string => `${/^[aeiou]/i.test(name) ? "an" : "a"} ${name}`;
@@ -51,15 +53,21 @@ const busy = (state: GameState, player: Player): boolean =>
   player.dead;
 
 /**
- * Rulebook §4: searchable ground is forest or field, and only the once.
+ * Where you can have a poke about, and only the once per tile.
  *
- * Rivers are searchable too now, and they are a different thing - see `searchKind`.
+ * The rulebook's §4 says forest or field. Two additions on top of it:
+ *
+ * - **Rivers**, which give up a chest rather than turning over ground (`searchKind`).
+ * - **Cities**, so that rummaging round the streets is a thing you can do. A city tile
+ *   already offers the shop, and both cost the turn's one action, so this is a real
+ *   choice - buy what you can see, or take a chance on the alleys - rather than a free
+ *   extra. It is also where the wire strung across an alley lives; see `MISHAPS`.
  */
 export function canSearch(state: GameState, player: Player): boolean {
   if (busy(state, player)) return false;
   const tile = tileUnder(state, player);
   if (tile.searched) return false;
-  return tile.river || tile.base === "field" || tile.base === "forest";
+  return tile.river || tile.base === "field" || tile.base === "forest" || tile.base === "city";
 }
 
 /**
@@ -93,6 +101,14 @@ export const readSearchCard = (card: Card): SearchResult =>
  */
 export type ChestResult = "armour" | "haul" | "empty" | "trap";
 
+/**
+ * How often what comes out of a chest is fine (+2).
+ *
+ * Half. Better than a mid boss on purpose - a chest is the best odds in the game, and
+ * that is what makes a river worth walking to instead of past.
+ */
+export const FINE_CHEST_CHANCE = 0.5;
+
 export const readChestCard = (card: Card): ChestResult =>
   isJoker(card) ? "trap" : isFace(card) ? "armour" : isRed(card) ? "haul" : "empty";
 
@@ -104,6 +120,10 @@ function pullFromPile(pile: Item[], slot: "armor" | null): [Item | null, Item[]]
 }
 
 function openChest(state: GameState, player: Player, card: Card): GameState {
+  const condition = makeRng(state.rngState);
+  const graded = (item: Item): Item =>
+    condition.next() < FINE_CHEST_CHANCE ? makeFine(item) : item;
+
   const give = (from: GameState, holder: Player, item: Item): GameState => {
     const { player: carrying, returned } = equip(holder, item);
     return withPlayer(
@@ -116,9 +136,10 @@ function openChest(state: GameState, player: Player, card: Card): GameState {
     case "armour": {
       const [armour, rest] = pullFromPile(state.itemPile, "armor");
       if (!armour) return note(state, `The chest holds a suit of armour ${player.name} already owns.`);
+      const kit = graded(armour);
       return note(
-        give({ ...state, itemPile: rest }, player, armour),
-        `The chest was full of armour - ${player.name} took ${an(armour.name)}!`,
+        give({ ...state, itemPile: rest, rngState: condition.state() }, player, kit),
+        `The chest was full of armour - ${player.name} took ${gearLabel(kit)}!`,
       );
     }
     case "haul": {
@@ -128,9 +149,10 @@ function openChest(state: GameState, player: Player, card: Card): GameState {
       for (let i = 0; i < 2; i++) {
         const [item, rest] = pullFromPile(next.itemPile, null);
         if (!item) break;
-        next = give({ ...next, itemPile: rest }, holder, item);
+        const kit = graded(item);
+        next = give({ ...next, itemPile: rest, rngState: condition.state() }, holder, kit);
         holder = next.players.find((p) => p.id === holder.id) ?? holder;
-        taken.push(item.name);
+        taken.push(gearLabel(kit));
       }
       if (taken.length === 0) return note(next, "The chest is open and there is nothing left to put in it.");
       return note(next, `${player.name} hauled the chest out: ${taken.join(" and ")}!`);
@@ -145,6 +167,72 @@ function openChest(state: GameState, player: Player, card: Card): GameState {
     default:
       return note(state, `${player.name} dragged up a chest full of river water.`);
   }
+}
+
+
+/**
+ * The ground bites back.
+ *
+ * A black card used to mean "nothing", which made searching a free roll with no reason
+ * ever not to. A black **face** card now means something went wrong instead, and what
+ * goes wrong belongs to the ground you are standing on: snakes in the woods, wire in
+ * the streets, wasps in the fields. Roughly one search in nine.
+ *
+ * They cost a health or a piece of gear, never a turn and never a life on their own -
+ * a setback should be funny at the table and recoverable on the next turn, not the end
+ * of somebody's evening. A player already on their last health takes the gear version
+ * instead, so a search can never be what kills a child's character.
+ */
+export type Mishap = {
+  /** Read aloud. Say what happened, not what statistic changed. */
+  text: string;
+  /** Which is spent: a health, or the named slot's gear. */
+  cost: "health" | "weapon" | "armor" | "boots";
+};
+
+export const MISHAPS: Record<Terrain, Mishap[]> = {
+  forest: [
+    { text: "A snake in the leaf litter. It bit before anyone saw it", cost: "health" },
+    { text: "A branch came down and took the pack with it", cost: "armor" },
+  ],
+  city: [
+    { text: "Tripped over a wire strung across an alley, and left the boots behind", cost: "boots" },
+    { text: "Something heavy came off a windowsill", cost: "health" },
+  ],
+  field: [
+    { text: "Straight into a wasps' nest", cost: "health" },
+    { text: "The mud took hold and would not give the boots back", cost: "boots" },
+  ],
+};
+
+/** A black face card is a mishap. Everything else black is simply nothing. */
+export const isMishap = (card: Card): boolean => !isJoker(card) && !isRed(card) && isFace(card);
+
+function somethingWentWrong(state: GameState, player: Player, card: Card): GameState {
+  const ground = tileUnder(state, player).base;
+  const table = MISHAPS[ground] ?? MISHAPS.field;
+  const mishap = table[card.rank === "K" ? 0 : card.rank === "Q" ? 1 : 0];
+
+  // Never let a search be the thing that puts a child out of the game.
+  const lastLegs = player.health <= 1;
+  const cost = mishap.cost === "health" && lastLegs ? "boots" : mishap.cost;
+
+  if (cost === "health") {
+    return note(
+      withPlayer(state, { ...player, health: Math.max(0, player.health - 1) }),
+      `${mishap.text}. ${player.name} loses a health.`,
+    );
+  }
+
+  const lost = cost === "weapon" ? player.weapon : cost === "armor" ? player.armor : player.boots;
+  if (!lost) {
+    return note(state, `${mishap.text}. ${player.name} had nothing to lose but their dignity.`);
+  }
+  const stripped = withMaxHealth({ ...player, [cost]: null });
+  return note(
+    withPlayer({ ...state, itemPile: [...state.itemPile, lost] }, stripped),
+    `${mishap.text}. ${player.name} lost ${gearLabel(lost)}.`,
+  );
 }
 
 /**
@@ -180,7 +268,9 @@ export function search(state: GameState): GameState {
     case "thief":
       return robbedWhileSearching(next, acted);
     default:
-      return note(next, `${player.name} found nothing.`);
+      return isMishap(pull.card)
+        ? somethingWentWrong(next, acted, pull.card)
+        : note(next, `${player.name} found nothing.`);
   }
 }
 

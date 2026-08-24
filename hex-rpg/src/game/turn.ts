@@ -13,18 +13,16 @@ import { enemyAt } from "./enemies";
 import { applyEvent, createEventDeck } from "./events";
 import { isDestroyed, meet, moveHazards } from "./hazards";
 import { fromLabel, key, reachable } from "./hex";
-import { ROLES } from "./players";
+import { moveRange } from "./players";
 import { bearingBetween, compassName } from "./sense";
 import { cardName } from "./cards";
 import type { EventCard, GameState, LogEntry, Player } from "./types";
 
 export const activePlayer = (state: GameState): Player => state.players[state.activePlayerIndex];
 
-/** Rulebook §5: one tile, plus the scout's legs and whatever boots add. */
-export const BASE_MOVE = 1;
-
-export const moveRange = (player: Player): number =>
-  BASE_MOVE + ROLES[player.role].moveBonus + (player.boots?.value ?? 0);
+// Both live in players.ts so combat.ts can read a player's speed for the escape roll
+// without importing this file, which already imports combat.ts.
+export { BASE_MOVE, moveRange } from "./players";
 
 const note = (state: GameState, text: string): GameState => ({
   ...state,

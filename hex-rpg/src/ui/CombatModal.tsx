@@ -10,7 +10,8 @@ import DiceRoller from "./DiceRoller";
 import { ENEMIES, healthLeft } from "../game/enemies";
 import { activeFeatures, attackValue } from "../game/combat";
 import { ROLES } from "../game/players";
-import { equipped } from "../game/items";
+import { escapeChance } from "../game/combat";
+import { gearLabel, equipped } from "../game/items";
 import type { Combat, Enemy, Item, Player, Tile } from "../game/types";
 
 /** What this item would push out of its slot, if anything. */
@@ -151,7 +152,7 @@ export default function CombatModal({
                     return (
                       <li key={item.id}>
                         <button type="button" className="buy" onClick={() => onTakeLoot(item.id)}>
-                          <span className="buy-name">{item.name}</span>
+                          <span className="buy-name">{gearLabel(item)}</span>
                           <span className="buy-value">+{item.value}</span>
                           <span className="buy-cost">{swapping ? `swap ${swapping.name}` : "take"}</span>
                         </button>
@@ -169,11 +170,17 @@ export default function CombatModal({
           <footer className="fight-foot">
             <p className="muted">
               Round {combat.round + 1}. Hurting it counts even if you leave — and an
-              exact tie does nothing at all.
+              exact tie does nothing at all. Backing off is a gamble: fast feet get away
+              more often, and a failed attempt leaves you here.
             </p>
             <div className="fight-buttons">
-              <button type="button" className="ghost" onClick={onFlee}>
-                Back off
+              <button
+                type="button"
+                className="ghost"
+                onClick={onFlee}
+                title="Fast feet get away more often. Fail and you are still in the fight."
+              >
+                Back off ({Math.round(escapeChance(player, combat.ambush && combat.round === 0) * 100)}%)
               </button>
               <button type="button" onClick={onAttack}>
                 {combat.round === 0 ? "Roll the dice" : "Roll again"}

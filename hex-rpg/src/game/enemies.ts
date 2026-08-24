@@ -36,6 +36,15 @@ export type EnemyProfile = {
    * not permanently poorer than one who shops.
    */
   purse: number;
+  /**
+   * Chance that a piece this drops is fine (+2) rather than ordinary (+1).
+   *
+   * This is the progression, so the ordering matters more than the numbers: an
+   * ordinary monster never gives one, a mid boss sometimes does, and the dragon
+   * usually does. A river chest (`FINE_CHEST_CHANCE`) beats a mid boss, which is what
+   * makes going out of your way to the water worth a turn.
+   */
+  fineChance: number;
   /** Rulebook §9: how many feature cards it draws. */
   features: number;
   colour: string;
@@ -56,6 +65,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     drops: 2,
     picks: 1,
     purse: 1,
+    fineChance: 0,
     features: 1,
     colour: "#e8734a",
     scale: 0.78,
@@ -69,6 +79,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     drops: 4,
     picks: 2,
     purse: 2,
+    fineChance: 0.3,
     features: 1,
     colour: "#c9436b",
     scale: 1,
@@ -82,6 +93,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     drops: 6,
     picks: 3,
     purse: 5,
+    fineChance: 0.5,
     features: 2,
     colour: "#a03bd6",
     scale: 1.3,
@@ -97,6 +109,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     drops: 2,
     picks: 2,
     purse: 2,
+    fineChance: 0,
     // Rulebook §5.5: the thieves draw no feature card.
     features: 0,
     colour: "#b0894a",
@@ -111,6 +124,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     drops: 2,
     picks: 2,
     purse: 3,
+    fineChance: 0.3,
     features: 0,
     colour: "#4a90b0",
     scale: 0.95,

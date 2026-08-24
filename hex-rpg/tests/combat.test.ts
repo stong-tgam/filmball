@@ -5,6 +5,8 @@ import {
   FAILED_ROLL_COST,
   attack,
   endCombat,
+  ESCAPE_CAP,
+  escapeChance,
   flee,
   rollDice,
   startCombat,
@@ -15,6 +17,16 @@ import { legalMoves, movePlayer, endTurn, activePlayer } from "../src/game/turn"
 import { makeRng } from "../src/game/rng";
 import { distance, key, neighbours } from "../src/game/hex";
 import type { Enemy, GameState } from "../src/game/types";
+
+/**
+ * Run away, retrying until it works. Escape is a roll now, so a test that wants the
+ * *consequences* of getting away has to keep trying rather than assume one go does it.
+ */
+function fleeUntilAway(state: GameState, tries = 40): GameState {
+  let next = state;
+  for (let i = 0; i < tries && next.combat?.outcome === "ongoing"; i++) next = flee(next);
+  return next;
+}
 
 const SEEDS = [1, 7, 42, 4471, 90210];
 
@@ -218,7 +230,7 @@ describe("a round of fighting", () => {
     const from = key(state.players[0].hex);
     const bruised = attack(movePlayer(state, key(enemy.hex)));
     const dealt = bruised.enemies.find((e) => e.id === enemy.id)!.damageTaken;
-    const away = flee(bruised);
+    const away = fleeUntilAway(bruised);
 
     expect(dealt).toBeGreaterThan(0);
     expect(away.combat?.outcome).toBe("playerEscaped");
@@ -234,7 +246,7 @@ describe("a round of fighting", () => {
     // A feature may bite as the fight opens (§9), so compare against that, not full health.
     const met = movePlayer(state, key(enemy.hex));
     expect(met.combat?.ambush).toBe(true);
-    const away = flee(met);
+    const away = fleeUntilAway(met);
     expect(away.combat?.outcome).toBe("playerEscaped");
     expect(away.players[0].health).toBe(met.players[0].health);
     expect(away.players[0].actedThisTurn).toBe(false);
@@ -249,7 +261,7 @@ describe("a round of fighting", () => {
     };
     const met = movePlayer(known, key(enemy.hex));
     expect(met.combat?.ambush).toBe(false);
-    const away = flee(met);
+    const away = fleeUntilAway(met);
     expect(away.players[0].actedThisTurn).toBe(true);
   });
 
@@ -335,5 +347,54 @@ describe("fighting is reproducible and does not mutate", () => {
     const next = endTurn(endCombat(down));
     expect(activePlayer(next).dead).toBe(false);
     expect(activePlayer(next).id).not.toBe(down.players[0].id);
+  });
+});
+
+describe("getting away", () => {
+  it("is likelier the faster you are", () => {
+    const base = createInitialState(4471);
+    const slow = base.players.find((p) => p.role === "knight")!;
+    const quick = base.players.find((p) => p.role === "scout")!;
+    const booted = { ...quick, boots: { id: "b", name: "Roller Skates", slot: "boots" as const, cost: 2, value: 2 } };
+
+    expect(escapeChance(slow, false)).toBeGreaterThan(0);
+    expect(escapeChance(quick, false)).toBeGreaterThan(escapeChance(slow, false));
+    expect(escapeChance(booted, false)).toBeGreaterThan(escapeChance(quick, false));
+  });
+
+  it("never becomes a certainty, however fast you are", () => {
+    const base = createInitialState(4471);
+    const flier = {
+      ...base.players.find((p) => p.role === "scout")!,
+      boots: { id: "b", name: "Flippers", slot: "boots" as const, cost: 2, value: 9 },
+    };
+    expect(escapeChance(flier, true)).toBeLessThanOrEqual(ESCAPE_CAP);
+    expect(ESCAPE_CAP).toBeLessThan(1);
+  });
+
+  it("is easier out of an ambush than out of a fight you picked", () => {
+    const player = createInitialState(4471).players[0];
+    expect(escapeChance(player, true)).toBeGreaterThan(escapeChance(player, false));
+  });
+
+  it("leaves you in the fight when it fails, and costs no health for trying", () => {
+    const { state, enemy } = facing("finalboss");
+    const met = movePlayer(state, key(enemy.hex));
+    // Hunt for a state whose next roll fails. The generator is seeded, so this is
+    // deterministic; it just may take a few advances to land on a failing draw.
+    let attempt = met;
+    let failed: GameState | null = null;
+    for (let i = 0; i < 60; i++) {
+      const after = flee(attempt);
+      if (after.combat?.outcome === "ongoing") {
+        failed = after;
+        break;
+      }
+      attempt = { ...attempt, rngState: after.rngState + 1 };
+    }
+    expect(failed).not.toBeNull();
+    expect(failed!.combat?.outcome).toBe("ongoing");
+    expect(failed!.players[0].health).toBe(met.players[0].health);
+    expect(failed!.log.at(-1)?.text).toMatch(/could not/i);
   });
 });

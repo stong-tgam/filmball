@@ -5,9 +5,15 @@
  * up, and beaten enemies drop it. Food is the exception: a city has as much as anyone
  * can pay for.
  *
- * Gear is deliberately flat - every weapon is +1 attack, every coat +1 health, every
- * pair of boots +1 tile. What differs is the name, and the names are the point: a
- * seven-year-old would rather find Bunny Slippers than Boots.
+ * Gear comes in two grades. Ordinary gear is +1 - one attack, one health, one tile -
+ * and **fine** gear is +2. The name never changes between the two, only the number, so
+ * a Frying Pan +2 is still a Frying Pan: the names are the point, because a
+ * seven-year-old would rather find Bunny Slippers than Boots, and keeping the name
+ * stable is also what lets the artwork look itself up.
+ *
+ * Where +2 comes from is the whole progression: ordinary monsters never drop it, mid
+ * bosses sometimes do, and a chest in the river is the best odds in the game. See
+ * `ENEMIES[kind].fineChance` and `FINE_CHEST_CHANCE`.
  */
 
 import type { Rng } from "./rng";
@@ -59,6 +65,23 @@ export const SUPPLY_CAP = 4;
 
 /** How many items of the pile a city has on its shelves at once. */
 export const SHOP_WINDOW = 3;
+
+/** What a fine piece of gear is worth. Ordinary gear is 1. */
+export const FINE_VALUE = 2;
+
+export const isFine = (item: Item): boolean => item.slot !== "supply" && item.value >= FINE_VALUE;
+
+/**
+ * The same piece of gear, but a good one. Deliberately a transformation of an existing
+ * item rather than a separate pile: there are fifteen pieces of gear in the game and
+ * that is the whole stock, so a +2 has to be one of them found in better condition.
+ */
+export const makeFine = (item: Item): Item =>
+  item.slot === "supply" ? item : { ...item, value: FINE_VALUE };
+
+/** "Frying Pan +2". Numbers are never handwritten, so the UI reads this, not the name. */
+export const gearLabel = (item: Item): string =>
+  item.slot === "supply" ? item.name : `${item.name} +${item.value}`;
 
 let counter = 0;
 export const makeItem = (template: ItemTemplate, id?: string): Item => ({

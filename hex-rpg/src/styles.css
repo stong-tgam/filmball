@@ -1033,6 +1033,14 @@ button.ghost {
 .rose-step.is-legal:hover circle {
   fill: #fff;
 }
+/*
+  Blips are a readout, not a control. A one-move blip lands exactly on the neighbouring
+  tile it describes, so without this it swallows the click and you cannot walk onto the
+  very tile the game is pointing you at.
+*/
+.rose-blip {
+  pointer-events: none;
+}
 .rose-blip text {
   font-size: 11px;
   font-weight: 700;

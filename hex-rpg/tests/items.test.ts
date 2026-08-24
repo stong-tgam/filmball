@@ -201,14 +201,16 @@ describe("eating", () => {
 });
 
 describe("searching", () => {
-  it("is offered on open ground and in woods, but not in a city", () => {
+  it("is offered on open ground, in woods and round the streets", () => {
+    // Cities became searchable alongside the mishaps: the shop and a rummage cost the
+    // same one action, so on a city tile it is a choice rather than a free extra.
     const on = (base: Terrain) => {
       const state = standing(base);
       return canSearch(state, activePlayer(state));
     };
     expect(on("field")).toBe(true);
     expect(on("forest")).toBe(true);
-    expect(on("city")).toBe(false);
+    expect(on("city")).toBe(true);
   });
 
   it("reads the card the rulebook's way: red finds, black does not, joker is a thief", () => {

@@ -78,6 +78,24 @@ tests/           vitest, node environment, no rendering
 The hard rule from the spec holds: `src/game/` never imports React, and every rule is
 a pure function over serialisable state.
 
+## v1.2: better gear, riskier running, searches that bite
+
+- **Gear comes in two grades.** Ordinary is +1, fine is +2, and the name is the same
+  either way — a Frying Pan +2 is still a Frying Pan. Ordinary monsters never drop a
+  +2; a mid boss does about three times in ten; the dragon and a river chest, about
+  half the time. The river is the best odds in the game, which is what makes it worth
+  walking to.
+- **Running away is a gamble now.** Your chance comes from how fast you are, so boots
+  and the Scout's legs finally do two jobs. Fail the roll and you are still in the
+  fight — but it costs you no health to have tried, and walking back out of an ambush
+  you never chose is easier than leaving a fight you picked. It is never a certainty.
+- **A search can go wrong.** A black face card is a mishap belonging to the ground
+  you are on: a snake in the leaf litter, a wire strung across a city alley that takes
+  your boots, a wasps' nest in a field. About one search in nine. Nobody is ever
+  knocked out by one — on your last health it takes your gear instead.
+- **Cities can be searched** as well as shopped in. Both cost your one action, so it
+  is a choice.
+
 ## v1.1: the ground around you
 
 There is no board on screen and nothing shows where you are. What you see is the hex
