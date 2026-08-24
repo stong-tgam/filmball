@@ -3,12 +3,15 @@ import {
   CITY_COUNT,
   CITY_MIN_DISTANCE,
   MAX_SHARED_RIVER_RAIL,
+  MIN_BASE_SIDES,
+  elementsOf,
   TILE_COUNT,
   countTerrain,
   createInitialState,
   generateBoard,
 } from "../src/game/setup";
-import { allHexes, distance, hexLine, key, label, neighbours, type Hex } from "../src/game/hex";
+import { DIRS, add, allHexes, distance, hexLine, inBoard, key, label, neighbours, type Hex } from "../src/game/hex";
+import { MAX_ELEMENTS } from "../src/game/types";
 import { makeRng } from "../src/game/rng";
 
 const SEEDS = [1, 7, 42, 4471, 90210, 0xdecafbad];
@@ -141,6 +144,99 @@ describe("generateBoard", () => {
       for (const tile of Object.values(tiles)) {
         expect(tile.base === "city" && tile.river).toBe(false);
       }
+    }
+  });
+});
+
+describe("tile composition", () => {
+  it("gives every tile one element per side", () => {
+    for (const { tiles } of boards) {
+      for (const tile of Object.values(tiles)) {
+        expect(tile.sides).toHaveLength(6);
+        for (const side of tile.sides) {
+          expect(["field", "forest", "city", "water"]).toContain(side);
+        }
+      }
+    }
+  });
+
+  it("holds at most three elements per tile", () => {
+    for (const { seed, tiles } of boards) {
+      for (const [name, tile] of Object.entries(tiles)) {
+        expect(elementsOf(tile).length, `seed ${seed} at ${name}`).toBeLessThanOrEqual(
+          MAX_ELEMENTS,
+        );
+      }
+    }
+  });
+
+  it("gives every element it holds at least one side", () => {
+    for (const { tiles } of boards) {
+      for (const tile of Object.values(tiles)) {
+        for (const element of elementsOf(tile)) {
+          expect(tile.sides.filter((s) => s === element).length).toBeGreaterThanOrEqual(1);
+        }
+      }
+    }
+  });
+
+  it("keeps the tile's own terrain on the tile", () => {
+    for (const { seed, tiles } of boards) {
+      for (const [name, tile] of Object.entries(tiles)) {
+        const own = tile.sides.filter((s) => s === tile.base).length;
+        const water = tile.sides.filter((s) => s === "water").length;
+        // Water has first claim on a side; the base keeps what is left, up to the
+        // minimum. A tile drowned on five sides simply cannot hold two of its own.
+        expect(own, `seed ${seed} at ${name}`).toBeGreaterThanOrEqual(
+          Math.min(MIN_BASE_SIDES, 6 - water),
+        );
+      }
+    }
+  });
+
+  it("puts water exactly on the tiles the river runs through", () => {
+    for (const { seed, tiles } of boards) {
+      for (const [name, tile] of Object.entries(tiles)) {
+        const hasWater = tile.sides.includes("water");
+        expect(hasWater, `seed ${seed} at ${name}`).toBe(tile.river);
+      }
+    }
+  });
+
+  it("points every water side at a neighbour the river also runs through", () => {
+    for (const { seed, tiles } of boards) {
+      for (const [name, tile] of Object.entries(tiles)) {
+        tile.sides.forEach((side, i) => {
+          if (side !== "water") return;
+          const n = add(tile.hex, DIRS[i]);
+          // Off the board is allowed: that is the river leaving the map.
+          if (!inBoard(n)) return;
+          expect(tiles[key(n)].river, `seed ${seed} at ${name} side ${i}`).toBe(true);
+        });
+      }
+    }
+  });
+
+  it("borrows only from terrain that is actually next door", () => {
+    for (const { seed, tiles } of boards) {
+      for (const [name, tile] of Object.entries(tiles)) {
+        tile.sides.forEach((side, i) => {
+          if (side === "water" || side === tile.base) return;
+          const n = add(tile.hex, DIRS[i]);
+          expect(inBoard(n), `seed ${seed} at ${name} side ${i}`).toBe(true);
+          expect(tiles[key(n)].base, `seed ${seed} at ${name} side ${i}`).toBe(side);
+        });
+      }
+    }
+  });
+
+  it("makes most of the board mixed rather than flat single-terrain tiles", () => {
+    for (const { seed, tiles } of boards) {
+      const all = Object.values(tiles);
+      const mixed = all.filter((t) => elementsOf(t).length > 1);
+      expect(mixed.length / all.length, `seed ${seed}`).toBeGreaterThan(0.5);
+      // And some tiles reach the cap, or the third element would be dead code.
+      expect(all.some((t) => elementsOf(t).length === MAX_ELEMENTS), `seed ${seed}`).toBe(true);
     }
   });
 });

@@ -1,13 +1,20 @@
 import { useState } from "react";
 import Board from "./ui/Board";
 import { useGame } from "./game/store";
-import { countTerrain, TILE_COUNT } from "./game/setup";
+import { countTerrain, elementsOf, TILE_COUNT } from "./game/setup";
 import "./styles.css";
 
 const TERRAIN_BLURB: Record<string, string> = {
   field: "Open ground. Searchable.",
   forest: "Cover and foraging. Searchable.",
   city: "Trade here: food, and whatever gear is still in the pile.",
+};
+
+const ELEMENT_NAME: Record<string, string> = {
+  field: "Field",
+  forest: "Forest",
+  city: "City",
+  water: "Water",
 };
 
 export default function App() {
@@ -19,6 +26,15 @@ export default function App() {
   const [seedInput, setSeedInput] = useState("");
   const counts = countTerrain(game.tiles);
   const tile = selected ? game.tiles[selected] : null;
+  const mixed = Object.values(game.tiles).filter((t) => elementsOf(t).length > 1).length;
+
+  // What the selected tile is made of: each element it holds, and how many of its
+  // six sides that element owns.
+  const composition = tile
+    ? elementsOf(tile)
+        .map((element) => ({ element, sides: tile.sides.filter((s) => s === element).length }))
+        .sort((a, b) => b.sides - a.sides)
+    : [];
 
   const start = () => {
     const parsed = Number.parseInt(seedInput, 10);
@@ -63,6 +79,7 @@ export default function App() {
             <div><dt>Cities</dt><dd>{counts.city}</dd></div>
             <div><dt>River</dt><dd>{counts.river} tiles</dd></div>
             <div><dt>Railway</dt><dd>{counts.rail} tiles</dd></div>
+            <div><dt>Mixed tiles</dt><dd>{mixed}</dd></div>
           </dl>
         </section>
 
@@ -75,10 +92,19 @@ export default function App() {
               </p>
               <p className="muted">{TERRAIN_BLURB[tile.base]}</p>
               <ul className="tags">
-                {tile.river && <li className="tag tag-river">River</li>}
+                {composition.map(({ element, sides }) => (
+                  <li key={element} className={`tag tag-${element}`}>
+                    {ELEMENT_NAME[element]}
+                    <span className="tag-count">{sides}</span>
+                  </li>
+                ))}
                 {tile.rail && <li className="tag tag-rail">Railway</li>}
-                {!tile.river && !tile.rail && <li className="tag tag-plain">No features</li>}
               </ul>
+              <p className="muted small">
+                {composition.length === 1
+                  ? "One element, all six sides."
+                  : `${composition.length} elements, by the sides each one holds.`}
+              </p>
               <p className="muted mono small">
                 axial q={tile.hex.q}, r={tile.hex.r}
               </p>

@@ -21,16 +21,18 @@ type Props = {
 };
 
 /**
- * Which of the six directions a river or railway continues into.
+ * Which of the six directions the railway continues into.
  *
  * A line that ends on the rim of the board gets one extra spoke pointing off the
  * edge, so it looks like it carries on past the map rather than stopping dead.
+ * (The river needs no equivalent: water is part of a tile's own composition, and
+ * `Tile.sides` already says which sides it flows through.)
  */
-function connections(tiles: Record<string, TileData>, tile: TileData, of: "river" | "rail"): number[] {
+function railConnections(tiles: Record<string, TileData>, tile: TileData): number[] {
   const dirs: number[] = [];
   DIRS.forEach((d, i) => {
     const n = add(tile.hex, d);
-    if (inBoard(n) && tiles[key(n)]?.[of]) dirs.push(i);
+    if (inBoard(n) && tiles[key(n)]?.rail) dirs.push(i);
   });
   if (dirs.length === 1) {
     const outward = (dirs[0] + 3) % 6;
@@ -53,16 +55,10 @@ export default function Board({ tiles, selected, onSelect }: Props) {
     return `${minX} ${minY} ${width} ${height}`;
   }, [entries]);
 
-  const links = useMemo(
+  const rails = useMemo(
     () =>
       Object.fromEntries(
-        entries.map(([label, tile]) => [
-          label,
-          {
-            river: tile.river ? connections(tiles, tile, "river") : [],
-            rail: tile.rail ? connections(tiles, tile, "rail") : [],
-          },
-        ]),
+        entries.map(([label, tile]) => [label, tile.rail ? railConnections(tiles, tile) : []]),
       ),
     [entries, tiles],
   );
@@ -103,8 +99,7 @@ export default function Board({ tiles, selected, onSelect }: Props) {
           label={label}
           tile={tile}
           size={SIZE}
-          riverDirs={links[label].river}
-          railDirs={links[label].rail}
+          railDirs={rails[label]}
           selected={selected === label}
           onSelect={onSelect}
         />

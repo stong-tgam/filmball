@@ -128,9 +128,19 @@ button:active { transform: translateY(1px); }
 .board-base polygon { fill: #0d1114; }
 
 .tile { cursor: pointer; }
+
+/* The base terrain fills the hex; every other element the tile holds is a patch
+   over it, hugging the sides that element owns. */
 .tile-face { fill: var(--field); }
 .tile-forest .tile-face { fill: var(--forest); }
 .tile-city .tile-face { fill: var(--city); }
+
+.tile-shade { fill: #1d2a12; pointer-events: none; }
+
+.patch-field { fill: var(--field); }
+.patch-forest { fill: var(--forest); }
+.patch-city { fill: var(--city); }
+.patch-water { fill: var(--water); }
 
 .tile-outline {
   fill: none;
@@ -194,10 +204,23 @@ button:active { transform: translateY(1px); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 .tags { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0 0 8px; padding: 0; }
-.tag { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); }
-.tag-river { background: #1b3648; border-color: #2f6187; color: #9fd0f2; }
+.tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+
+.tag-count { font-variant-numeric: tabular-nums; opacity: 0.7; }
+
+.tag-water { background: #1b3648; border-color: #2f6187; color: #9fd0f2; }
+.tag-forest { background: #1e3524; border-color: #3c6b46; color: #a8d8b2; }
+.tag-field { background: #2f3320; border-color: #5c6438; color: #d3dc9a; }
+.tag-city { background: #302d28; border-color: #635c50; color: #ddd2c0; }
 .tag-rail { background: #322c25; border-color: #5f5648; color: #d8c8ae; }
-.tag-plain { color: var(--ink-muted); }
 
 /* ---------- narrow screens: sidebar drops below the board ----------
    Tablet portrait (820px) belongs on this side of the line: side by side, the

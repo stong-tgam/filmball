@@ -186,6 +186,36 @@ export function edgeHexes(): Hex[] {
   return allHexes().filter((h) => distance(h, { q: 0, r: 0 }) === RADIUS);
 }
 
+/** A point in SVG pixel space, relative to the centre of a tile. */
+export type Point = { x: number; y: number };
+
+/**
+ * Geometry of one side of a tile.
+ *
+ * Side `d` is the edge shared with the neighbour in direction `DIRS[d]`, and sits at
+ * angle -60d degrees from the centre. Tiles are composed side by side (see
+ * `Tile.sides`), so the renderer needs the two corners bounding each one.
+ */
+export const sideAngle = (d: number): number => (-60 * d * Math.PI) / 180;
+
+const atAngle = (angle: number, radius: number): Point => ({
+  x: radius * Math.cos(angle),
+  y: radius * Math.sin(angle),
+});
+
+/** The two corners bounding side `d`, ordered anticlockwise on screen. */
+export function sideCorners(d: number, size: number): [Point, Point] {
+  const a = sideAngle(d);
+  const thirty = Math.PI / 6;
+  return [atAngle(a + thirty, size), atAngle(a - thirty, size)];
+}
+
+/** Midpoint of side `d`, at `radius` out from the centre (defaults to the edge). */
+export function sidePoint(d: number, size: number, fraction = 1): Point {
+  // The edge midpoint sits closer in than a corner: cos(30) of the circumradius.
+  return atAngle(sideAngle(d), size * Math.cos(Math.PI / 6) * fraction);
+}
+
 /** Pixel centre of a hex, pointy-top, for an SVG of the given tile size. */
 export function hexToPixel(h: Hex, size: number): { x: number; y: number } {
   return {

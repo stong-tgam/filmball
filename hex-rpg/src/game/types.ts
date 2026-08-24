@@ -11,9 +11,28 @@ import type { Hex } from "./hex";
 
 export type Terrain = "field" | "forest" | "city";
 
+/**
+ * What can occupy part of a tile. Terrain plus water: a river is an element of the
+ * tiles it runs through, not a stripe painted over them.
+ */
+export type Element = Terrain | "water";
+
+/** How many distinct elements one tile may hold. */
+export const MAX_ELEMENTS = 3;
+
 export type Tile = {
   hex: Hex;
+  /**
+   * The tile's dominant land terrain - what the rules key off ("search on forest or
+   * field", "trade in a city"). The tile may hold other elements alongside it.
+   */
   base: Terrain;
+  /**
+   * One element per side, indexed by `DIRS`. A tile is a composition of up to
+   * MAX_ELEMENTS of them, and every element it holds owns at least one side, so a
+   * tile can be field with a wood along its north edge and a river cutting the west.
+   */
+  sides: Element[];
   river: boolean;
   rail: boolean;
   /** Turn number the tile recovers on; null when undamaged. Tornado damage. */
