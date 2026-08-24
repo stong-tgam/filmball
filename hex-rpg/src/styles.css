@@ -690,3 +690,93 @@ button.ghost {
 @media (max-width: 560px) {
   .stock-wide { grid-template-columns: 1fr; }
 }
+
+/* ---------- chits: the drawing on the front, the details on the back ----------
+   Named `chit`, not `token`: the board's SVG player tokens already own `.token`,
+   and that rule sets pointer-events:none. */
+
+.chit { perspective: 700px; }
+
+.chit-spin {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 420ms cubic-bezier(0.3, 0.9, 0.3, 1);
+}
+
+.chit.is-turned .chit-spin { transform: rotateY(180deg); }
+
+.chit-face {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  backface-visibility: hidden;
+  border-radius: 50%;
+  cursor: default;
+  font: inherit;
+  color: inherit;
+  min-height: 0;
+  min-width: 0;
+}
+
+.chit.is-live .chit-face { cursor: pointer; }
+
+.chit-back {
+  transform: rotateY(180deg);
+  background: #FBF7EE;
+  border: 2px solid #DED2BC;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  text-align: center;
+}
+
+.chit-back-inner {
+  display: block;
+  padding: 8%;
+  font-family: "Patrick Hand", "Comic Sans MS", cursive;
+  font-size: 0.78rem;
+  line-height: 1.28;
+  color: #23201C;
+}
+
+.chit-back-inner strong {
+  display: block;
+  font-family: Nunito, system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.chit.is-live .chit-front:hover { filter: brightness(1.03); }
+.chit-face:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chit-spin { transition: none; }
+}
+
+/* ---------- upload ---------- */
+
+.upload { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; }
+.upload-input { display: none; }
+
+.pencil-button {
+  min-height: 34px;
+  min-width: 0;
+  padding: 0 12px;
+  font-family: "Patrick Hand", "Comic Sans MS", cursive;
+  font-size: 0.9rem;
+  background: #FBF7EE;
+  color: #23201C;
+  border: 2px solid #23201C;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pencil-button.ghost { border-style: dashed; color: #5C5346; }
+.pencil-button:hover { background: #FFFDF7; }
+.upload-problem { flex-basis: 100%; margin: 0; font-size: 0.78rem; color: #C0272D; }

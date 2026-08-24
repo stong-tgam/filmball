@@ -103,13 +103,45 @@ Field tiles are **hatched in cocoa at two angles**, not filled — the change of
 what makes one field read as a different field. Grass is short green flicks. That
 directional stroke is what the current flat-vector tiles are missing.
 
-## Not yet decided — ask before building
+## Settled
 
-1. **Marker or pencil for tokens?** Assumed marker for chits, pencil for tiles, matching
-   the source. One medium throughout would be more consistent and less faithful.
-2. **Do the children's own drawings go in the game?** Scanned PNGs would beat anything
-   generated.
-3. **Whole-app theme, or board only?** The shell is currently dark slate and at odds
-   with this; re-skinning it is roughly a day on top of the tokens.
-4. **Names on tokens?** The photographed chits are all lettered, but at token size on a
-   tablet the label costs half the drawing.
+1. **Marker for tokens.** Chits are fibre-tip marker. Tiles keep the coloured-pencil
+   rules above, because that is what the tile sheet is.
+2. **The children's own drawings go in the game**, and they can add more at any time.
+   Any token's picture can be replaced by an upload — see "Their drawings" below.
+3. **Whole-app theme.** Cream paper, card panels, handwritten labels throughout. The
+   dark slate shell goes.
+4. **Every token carries its drawing and its name**, and turns over on a tap to show
+   what it does. The front stays a picture; the details live on the back.
+
+## Their drawings
+
+`src/ui/art/overrides.ts` keeps a picture per art slot in localStorage.
+
+- Slots are named `monster:mob:Goblin`, `monster:finalboss`, `feature:water`. One
+  upload covers every monster that shares that face.
+- Pictures are centre-cropped square and shrunk to 320px, saved as JPEG — the whole
+  store has to fit in a few megabytes.
+- Nothing leaves the device. Clearing site data clears the drawings; say so wherever
+  the upload control appears.
+- `UploadArt` is the control. `Token` falls back to the generated drawing whenever a
+  slot is empty, so a half-finished set never shows a hole.
+
+## Component map
+
+| File | What it holds |
+|---|---|
+| `src/ui/art/crayon.ts` | Palette, `darken`/`lighten`, the seed hash, `pickFor` |
+| `src/ui/art/CrayonDefs.tsx` | The six wobble filters and the grain filter. Mount once. |
+| `src/ui/art/monsters.tsx` | Five bandits, two ogres, the dragon, the two thieves |
+| `src/ui/art/features.tsx` | The five boss feature cards, and what each does |
+| `src/ui/Token.tsx` | The chit: drawing on the front, details on the back |
+| `src/ui/art/UploadArt.tsx` | "Use my drawing" |
+
+CSS classes for the chit are `chit`, `chit-front`, `chit-back` — **not** `token`. The
+board's SVG player pieces already own `.token`, and that rule sets
+`pointer-events: none`, which silently kills every tap on a flip card.
+
+There are more monsters on the board than there are drawings: fifteen bandits share
+five faces, four ogres share two. `pickFor(enemy.id, MOBS)` decides which, so a monster
+keeps its face for the whole game.

@@ -109,6 +109,24 @@ assumes four.
 Hazard and event phases slot in ahead of the move phase when they exist; the phase
 names are already in `Phase`.
 
+## Artwork
+
+The game is drawn to look like the children made it — marker on card. The whole of it
+is in `docs/art-direction.md`: palette, the three typefaces, how a token is built, and
+the SVG wobble filter. Read it before drawing anything.
+
+Three things not to rediscover the hard way:
+
+- **Numbers are never handwritten.** Names in Patrick Hand, quantities in Nunito with
+  tabular figures.
+- **The flip card's classes are `chit-*`, not `token-*`.** `.token` belongs to the
+  board's SVG player pieces and sets `pointer-events: none`.
+- **Any token's picture can be replaced by an upload** (`art/overrides.ts`). The
+  generated drawing is the fallback, never the only option.
+
+The app shell is still dark slate; the paper theme currently only reaches the monster
+sheet at `gallery.html`. Moving the game onto it is the next art job.
+
 ## Conventions worth keeping
 
 - **Tiles are compositions.** A tile carries one element per side (`Tile.sides`,

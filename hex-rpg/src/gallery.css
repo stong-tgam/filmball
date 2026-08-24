@@ -1,0 +1,63 @@
+/* The paper theme, first outing. The game's own shell moves onto this next. */
+
+.sheet-page {
+  min-height: 100%;
+  background: #F0E7D6;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 12% 0%, #FFFDF7 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 92% 100%, #E3D6BC 0%, transparent 55%);
+  color: #23201C;
+  font-family: Nunito, system-ui, sans-serif;
+  padding: clamp(24px, 5vw, 56px) clamp(16px, 4vw, 40px) 80px;
+}
+
+.sheet-page section { max-width: 1000px; margin: 0 auto 52px; }
+.sheet-head { max-width: 1000px; margin: 0 auto 44px; }
+
+.sheet-head h1 {
+  font-family: "Gloria Hallelujah", "Comic Sans MS", cursive;
+  font-size: clamp(1.9rem, 5vw, 2.7rem);
+  margin: 0 0 8px;
+  font-weight: 400;
+}
+
+.sheet-head p, .note { color: #5C5346; max-width: 64ch; margin: 0 0 18px; line-height: 1.6; }
+
+.sheet-page h2 {
+  font-family: "Gloria Hallelujah", "Comic Sans MS", cursive;
+  font-weight: 400;
+  font-size: clamp(1.2rem, 3.4vw, 1.6rem);
+  margin: 0 0 4px;
+  display: inline-block;
+  position: relative;
+}
+
+.sheet-page h2::after {
+  content: "";
+  position: absolute;
+  left: -2px; right: -6px; bottom: -4px;
+  height: 5px;
+  background: var(--pencil, #1F3A6E);
+  opacity: 0.45;
+  border-radius: 3px;
+  transform: rotate(-0.6deg);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(14px, 3vw, 30px);
+  align-items: flex-start;
+}
+
+.cell { margin: 0; display: grid; justify-items: center; gap: 8px; }
+.cell figcaption { min-height: 34px; }
+
+.sheet-foot {
+  max-width: 1000px;
+  margin: 0 auto;
+  border-top: 2px solid #DED2BC;
+  padding-top: 16px;
+  color: #5C5346;
+  font-size: 0.88rem;
+}
