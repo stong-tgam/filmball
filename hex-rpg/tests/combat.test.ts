@@ -227,14 +227,37 @@ describe("a round of fighting", () => {
     expect(away.enemies.find((e) => e.id === enemy.id)!.defeated).toBe(false);
   });
 
-  it("lets you run before rolling at all", () => {
+  it("lets you walk straight back out of an ambush for free", () => {
+    // Monsters are hidden, so this fight was not chosen - backing out costs the move
+    // that was already spent and nothing else.
     const { state, enemy } = facing("finalboss");
     // A feature may bite as the fight opens (§9), so compare against that, not full health.
     const met = movePlayer(state, key(enemy.hex));
+    expect(met.combat?.ambush).toBe(true);
     const away = flee(met);
     expect(away.combat?.outcome).toBe("playerEscaped");
     expect(away.players[0].health).toBe(met.players[0].health);
+    expect(away.players[0].actedThisTurn).toBe(false);
+  });
+
+  it("charges the action for running from a fight you picked", () => {
+    const { state, enemy } = facing("finalboss");
+    // Somebody has already found this one, so walking onto it is a decision.
+    const known: GameState = {
+      ...state,
+      enemies: state.enemies.map((e) => (e.id === enemy.id ? { ...e, found: true } : e)),
+    };
+    const met = movePlayer(known, key(enemy.hex));
+    expect(met.combat?.ambush).toBe(false);
+    const away = flee(met);
     expect(away.players[0].actedThisTurn).toBe(true);
+  });
+
+  it("leaves a monster on the board once it has been walked into", () => {
+    const { state, enemy } = facing("finalboss");
+    const met = movePlayer(state, key(enemy.hex));
+    expect(met.enemies.find((e) => e.id === enemy.id)?.found).toBe(true);
+    expect(flee(met).enemies.find((e) => e.id === enemy.id)?.found).toBe(true);
   });
 
   it("puts a player down when the last of their health goes, and marks where they fell", () => {

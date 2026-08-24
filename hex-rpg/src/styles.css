@@ -780,3 +780,86 @@ button.ghost {
 .pencil-button.ghost { border-style: dashed; color: #5C5346; }
 .pencil-button:hover { background: #FFFDF7; }
 .upload-problem { flex-basis: 100%; margin: 0; font-size: 0.78rem; color: #C0272D; }
+
+/* ---------------------------------------------------------------- the fog */
+/*
+  A tile nobody can see. Paper, not black: the board keeps its shape so a child can
+  judge distance, but nothing on the tile is drawn and it carries no label. The board
+  goes back to blank behind a player who walks away - nothing is remembered, on purpose.
+*/
+.tile-fog-face {
+  fill: #2a2f3a;
+  stroke: #384050;
+  stroke-width: 1.5;
+}
+.tile-fog.is-legal {
+  cursor: pointer;
+}
+.tile-fog.is-legal .tile-fog-face {
+  fill: #333a48;
+}
+.tile-fog-legal {
+  fill: none;
+  stroke: var(--who);
+  stroke-width: 3;
+  stroke-dasharray: 6 7;
+  opacity: 0.75;
+}
+.tile-fog.is-selected .tile-fog-face {
+  stroke: var(--who);
+  stroke-width: 3;
+}
+
+/* ----------------------------------------------------------- the notebook */
+.notebook-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
+}
+.notebook-tab {
+  border: 1px solid #3a4252;
+  background: #232936;
+  color: #c8cede;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.notebook-tab.is-open {
+  border-color: var(--who);
+  color: #fff;
+  background: color-mix(in srgb, var(--who) 22%, #232936);
+}
+.notebook-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--who);
+}
+.notebook-page {
+  width: 100%;
+  min-height: 7.5rem;
+  resize: vertical;
+  background: #1b202a;
+  color: #e6e9f0;
+  border: 1px solid #3a4252;
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.notebook-page:focus {
+  outline: 2px solid var(--who, #7aa2f7);
+  outline-offset: 1px;
+}
+.notebook-hint {
+  font-size: 0.76rem;
+  margin: 0.4rem 0 0;
+}

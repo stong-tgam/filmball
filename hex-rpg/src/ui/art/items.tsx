@@ -11,7 +11,7 @@
  */
 
 import { MARKER, darken, lighten, wobbleFor } from "./crayon";
-import { Pen, Pencil, Shine } from "./pencil";
+import { Pen, Pencil } from "./pencil";
 
 type Art = (p: { seedName: string }) => JSX.Element;
 

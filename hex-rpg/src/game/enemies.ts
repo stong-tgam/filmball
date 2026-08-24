@@ -26,6 +26,16 @@ export type EnemyProfile = {
   /** Rulebook §10: items dropped, and how many of them the winner keeps. */
   drops: number;
   picks: number;
+  /**
+   * Coins on the body.
+   *
+   * Rulebook §10 says loot is items only and money comes from selling, and that rule
+   * exists to make "keep it or sell it?" a real decision. These amounts are small
+   * enough to leave that decision intact - a piece of gear is still worth more sold
+   * than a mob is worth killing - and large enough that a child who fights a lot is
+   * not permanently poorer than one who shops.
+   */
+  purse: number;
   /** Rulebook §9: how many feature cards it draws. */
   features: number;
   colour: string;
@@ -45,6 +55,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     count: 15,
     drops: 2,
     picks: 1,
+    purse: 1,
     features: 1,
     colour: "#e8734a",
     scale: 0.78,
@@ -57,6 +68,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     count: 4,
     drops: 4,
     picks: 2,
+    purse: 2,
     features: 1,
     colour: "#c9436b",
     scale: 1,
@@ -69,6 +81,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     count: 1,
     drops: 6,
     picks: 3,
+    purse: 5,
     features: 2,
     colour: "#a03bd6",
     scale: 1.3,
@@ -83,6 +96,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     count: 0,
     drops: 2,
     picks: 2,
+    purse: 2,
     // Rulebook §5.5: the thieves draw no feature card.
     features: 0,
     colour: "#b0894a",
@@ -96,6 +110,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     count: 0,
     drops: 2,
     picks: 2,
+    purse: 3,
     features: 0,
     colour: "#4a90b0",
     scale: 0.95,
@@ -123,6 +138,8 @@ const spawn = (kind: EnemyKind, hex: Hex, n: number, health: number): Enemy => (
   featuresRevealed: false,
   escapedOnce: false,
   loot: [],
+  // Thieves are hazards too, and hazards are never hidden.
+  found: kind === "robber" || kind === "pirates",
   defeated: false,
 });
 
@@ -154,33 +171,40 @@ export const enemyAt = (enemies: Enemy[], label: string): Enemy | undefined =>
  * allows - with fifteen bandits on sixty-one tiles it often will not, so the spacing
  * relaxes rather than dropping a monster.
  */
+/**
+ * Scatter the monsters at random.
+ *
+ * They used to be spread out on purpose, which made sense when you could see them
+ * coming: an even sprinkle is a fair board. Now that they are hidden, an even sprinkle
+ * is the wrong shape - it makes every tile equally likely to hold something, so
+ * exploring tells you nothing and there is no such thing as a lucky corner or a bad
+ * one. Pure random placement gives the board clumps and empty runs, and finding the
+ * empty runs is what the party's notes are for.
+ *
+ * The only rule kept is `SAFE_RADIUS` around the starting corners, so nobody walks
+ * into a mid boss on turn one before they own anything.
+ */
 export function placeEnemies(rng: Rng, players: Player[]): Enemy[] {
   const centre = { q: 0, r: 0 };
   const placed: Enemy[] = [
     spawn("finalboss", centre, 1, rng.int(...ENEMIES.finalboss.health)),
   ];
 
-  const free = (h: Hex, gap: number) =>
-    players.every((p) => distance(p.hex, h) > SAFE_RADIUS) &&
-    placed.every((e) => distance(e.hex, h) >= gap);
+  const taken = (h: Hex) => placed.some((e) => e.hex.q === h.q && e.hex.r === h.r);
+  const free = (h: Hex) =>
+    !taken(h) && players.every((p) => distance(p.hex, h) > SAFE_RADIUS);
+
+  const open = rng.shuffle(allHexes()).filter(free);
+  let next = 0;
 
   for (const kind of ["midboss", "mob"] as const) {
-    const wanted = ENEMIES[kind].count;
-    const preferred = kind === "midboss" ? 3 : 2;
-    let placedOfKind = 0;
-
-    // Spread them out if the board allows it, but never place fewer than asked:
-    // relax the spacing rather than quietly dropping a monster.
-    for (let gap = preferred; gap >= 1 && placedOfKind < wanted; gap--) {
-      for (const hex of rng.shuffle(allHexes())) {
-        if (placedOfKind === wanted) break;
-        if (!free(hex, gap)) continue;
-        placed.push(spawn(kind, hex, ++placedOfKind, rng.int(...ENEMIES[kind].health)));
-      }
+    for (let n = 0; n < ENEMIES[kind].count && next < open.length; n++) {
+      placed.push(spawn(kind, open[next++], n + 1, rng.int(...ENEMIES[kind].health)));
     }
   }
   return placed;
 }
+
 
 /** Fightable records for the robber and the pirates, standing where their hazards do. */
 export function spawnThieves(rng: Rng, hazards: { kind: string; hex: Hex }[]): Enemy[] {

@@ -10,7 +10,16 @@ import { ROLES } from "../game/players";
 import { moveRange } from "../game/turn";
 import type { Player } from "../game/types";
 
-export function ActivePlayerBanner({ player, moves }: { player: Player; moves: number }) {
+export function ActivePlayerBanner({
+  player,
+  moves,
+  smoke,
+}: {
+  player: Player;
+  moves: number;
+  /** The dragon is within smelling distance. The one hint the fog ever gives. */
+  smoke?: boolean;
+}) {
   const role = ROLES[player.role];
   return (
     <div className="banner" style={{ ["--who" as string]: role.colour }}>
@@ -18,7 +27,9 @@ export function ActivePlayerBanner({ player, moves }: { player: Player; moves: n
         <span className="banner-dot" aria-hidden="true" />
         <div>
           <h2>{player.name}&rsquo;s turn</h2>
-          <p className="banner-blurb">{role.blurb}</p>
+          <p className="banner-blurb">
+            {smoke ? "Smoke on the wind. The dragon is close." : role.blurb}
+          </p>
         </div>
       </div>
       <dl className="banner-stats">

@@ -473,6 +473,7 @@ describe("loot", () => {
         toll: 0,
         spoils: [],
         picksLeft: 0,
+      ambush: false,
         outcome: "ongoing",
       },
     };
@@ -488,10 +489,13 @@ describe("loot", () => {
     }
   });
 
-  it("does not pay out money - selling is the income", () => {
+  it("pays a small purse on top of the items", () => {
+    // §10 is items-only, and this bends it deliberately: the amounts are small enough
+    // that selling is still where the money is. Keep them that way.
     const before = game().players[0].money;
-    const { state } = beat("midboss");
-    expect(state.players[0].money).toBe(before);
+    expect(beat("mob").state.players[0].money).toBe(before + ENEMIES.mob.purse);
+    expect(beat("midboss").state.players[0].money).toBe(before + ENEMIES.midboss.purse);
+    expect(ENEMIES.mob.purse).toBeLessThan(GEAR_PRICE);
   });
 
   it("hands over an item when the winner keeps it, and counts the pick", () => {

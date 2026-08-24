@@ -38,7 +38,15 @@ export const FOREST_CLUSTERS = 7;
 /** Woods are seeded this far apart, so they spread over the board instead of massing
  *  in one corner and leaving whole rows as empty grass. */
 export const FOREST_MIN_DISTANCE = 3;
-export const DEFAULT_TURN_LIMIT = 25;
+/**
+ * Turns in a game.
+ *
+ * Was 25 when the whole board was visible and a party could walk straight at what it
+ * wanted. Blind, a good chunk of every game goes on finding things at all, so the
+ * limit has to pay for the exploring or the ending is "we never found the dragon",
+ * which is not a defeat, just a shrug. Re-tuned against the bot sim - see the README.
+ */
+export const DEFAULT_TURN_LIMIT = 32;
 
 type Draft = Map<string, Tile>;
 

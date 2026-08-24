@@ -7,7 +7,7 @@
  * player it applies to and ignores whose turn it is.
  */
 
-import { cardName, draw as drawCard, isJoker, isRed } from "./cards";
+import { cardName, draw as drawCard, isFace, isJoker, isRed } from "./cards";
 import { distance, key } from "./hex";
 import {
   BONE,
@@ -50,12 +50,27 @@ const busy = (state: GameState, player: Player): boolean =>
   player.actedThisTurn ||
   player.dead;
 
-/** Rulebook §4: searchable ground is forest or field, and only the once. */
+/**
+ * Rulebook §4: searchable ground is forest or field, and only the once.
+ *
+ * Rivers are searchable too now, and they are a different thing - see `searchKind`.
+ */
 export function canSearch(state: GameState, player: Player): boolean {
   if (busy(state, player)) return false;
   const tile = tileUnder(state, player);
-  return !tile.searched && (tile.base === "field" || tile.base === "forest");
+  if (tile.searched) return false;
+  return tile.river || tile.base === "field" || tile.base === "forest";
 }
+
+/**
+ * Turning over a field is not the same as fishing something out of the water.
+ *
+ * A river tile gives up a **chest**, which is better than the ground on average and
+ * occasionally bites: it is the one place worth going out of your way for, which is
+ * the point - a river you can see from two tiles away should be a decision, not
+ * scenery. Ground search is unchanged from the rulebook.
+ */
+export const searchKind = (tile: Tile): "chest" | "ground" => (tile.river ? "chest" : "ground");
 
 export function canTrade(state: GameState, player: Player): boolean {
   return !busy(state, player) && tileUnder(state, player).base === "city";
@@ -66,6 +81,71 @@ export type SearchResult = "found" | "nothing" | "thief";
 
 export const readSearchCard = (card: Card): SearchResult =>
   isJoker(card) ? "thief" : isRed(card) ? "found" : "nothing";
+
+
+/**
+ * What is in the chest, by the card drawn.
+ *
+ * Weighted so the river beats the ground clearly but not for free: a face card is
+ * armour, red is a good haul of two, black is a soaked and empty box, and the joker
+ * is the lid coming down on your fingers. Roughly: half the time something good,
+ * a third of the time nothing, and a small chance of a hit.
+ */
+export type ChestResult = "armour" | "haul" | "empty" | "trap";
+
+export const readChestCard = (card: Card): ChestResult =>
+  isJoker(card) ? "trap" : isFace(card) ? "armour" : isRed(card) ? "haul" : "empty";
+
+/** Pull the first item matching a slot out of the pile, or the first of anything. */
+function pullFromPile(pile: Item[], slot: "armor" | null): [Item | null, Item[]] {
+  const at = slot ? pile.findIndex((i) => i.slot !== "supply" && slotKey(i.slot) === slot) : 0;
+  if (at < 0 || pile.length === 0) return [null, pile];
+  return [pile[at], [...pile.slice(0, at), ...pile.slice(at + 1)]];
+}
+
+function openChest(state: GameState, player: Player, card: Card): GameState {
+  const give = (from: GameState, holder: Player, item: Item): GameState => {
+    const { player: carrying, returned } = equip(holder, item);
+    return withPlayer(
+      { ...from, itemPile: returned ? [...from.itemPile, returned] : from.itemPile },
+      withMaxHealth(carrying),
+    );
+  };
+
+  switch (readChestCard(card)) {
+    case "armour": {
+      const [armour, rest] = pullFromPile(state.itemPile, "armor");
+      if (!armour) return note(state, `The chest holds a suit of armour ${player.name} already owns.`);
+      return note(
+        give({ ...state, itemPile: rest }, player, armour),
+        `The chest was full of armour - ${player.name} took ${an(armour.name)}!`,
+      );
+    }
+    case "haul": {
+      let next = state;
+      let holder = player;
+      const taken: string[] = [];
+      for (let i = 0; i < 2; i++) {
+        const [item, rest] = pullFromPile(next.itemPile, null);
+        if (!item) break;
+        next = give({ ...next, itemPile: rest }, holder, item);
+        holder = next.players.find((p) => p.id === holder.id) ?? holder;
+        taken.push(item.name);
+      }
+      if (taken.length === 0) return note(next, "The chest is open and there is nothing left to put in it.");
+      return note(next, `${player.name} hauled the chest out: ${taken.join(" and ")}!`);
+    }
+    case "trap": {
+      const hurt = { ...player, health: Math.max(0, player.health - 1) };
+      return note(
+        withPlayer(state, hurt),
+        `The lid came down on ${player.name}'s fingers. One health.`,
+      );
+    }
+    default:
+      return note(state, `${player.name} dragged up a chest full of river water.`);
+  }
+}
 
 /**
  * Turn over the ground you are standing on and draw a card.
@@ -90,7 +170,9 @@ export function search(state: GameState): GameState {
   };
   const acted = { ...player, actedThisTurn: true };
   next = withPlayer(next, acted);
-  next = note(next, `${player.name} searched ${key(player.hex)} and drew ${cardName(pull.card)}.`);
+  next = note(next, `${player.name} ${searchKind(tile) === "chest" ? "fished a chest out of" : "searched"} ${key(player.hex)} and drew ${cardName(pull.card)}.`);
+
+  if (searchKind(tile) === "chest") return openChest(next, acted, pull.card);
 
   switch (readSearchCard(pull.card)) {
     case "found":
@@ -306,4 +388,21 @@ export function eat(state: GameState, playerId: string, itemId: string): GameSta
       ? `${player.name} ate the ${used.name} and got ${gained} health back.`
       : `${player.name} ate the ${used.name} on a full stomach.`,
   );
+}
+
+/**
+ * Write in a player's notebook.
+ *
+ * The board remembers nothing (`vision.ts`), so this is where the map lives. It is
+ * free, it is not an action, and it works on anybody's turn - a player who has spotted
+ * something on somebody else's turn should be able to write it down while they still
+ * remember, and reading each other's notes out loud is most of the game.
+ *
+ * Notes are per player rather than one shared pad: four people typing into one box
+ * overwrite each other, and half the fun is that your map and mine disagree.
+ */
+export function writeNotes(state: GameState, playerId: string, notes: string): GameState {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return state;
+  return withPlayer(state, { ...player, notes });
 }

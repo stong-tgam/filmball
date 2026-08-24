@@ -83,6 +83,15 @@ export type Player = {
   /** Homeless-person donation: extra dice on the next fight only. */
   bonusDiceNextFight: number;
   joinedFightThisRound: boolean;
+  /**
+   * The player's own map notes, typed at the table.
+   *
+   * Deliberately the only memory in the game. Nothing is remembered for the party -
+   * see `vision.ts` - so what a player writes here, and what they say out loud, is
+   * the whole of the map. Kept on the player rather than in one shared pad because
+   * four people scribbling in one box would just overwrite each other.
+   */
+  notes: string;
 };
 
 export type EnemyKind = "mob" | "midboss" | "finalboss" | "robber" | "pirates";
@@ -103,6 +112,12 @@ export type Enemy = {
   escapedOnce: boolean;
   /** Robbers and pirates carry what they have stolen. */
   loot: Item[];
+  /**
+   * Whether anybody has walked into it yet. Monsters are hidden until somebody steps
+   * on their tile, so an unfound monster is drawn to nobody. Hazards are the
+   * opposite and are always on the board.
+   */
+  found: boolean;
   defeated: boolean;
 };
 
@@ -185,6 +200,12 @@ export type Combat = {
   /** Items on the ground, and how many of them the winner may keep. */
   spoils: Item[];
   picksLeft: number;
+  /**
+   * True when the player walked into a hidden monster rather than choosing the
+   * fight. An ambush is always free to back out of on the first round - you may
+   * not know what you have found until you have found it.
+   */
+  ambush: boolean;
   outcome: CombatOutcome;
 };
 

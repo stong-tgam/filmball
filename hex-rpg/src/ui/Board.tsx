@@ -11,8 +11,10 @@ import Tile from "./Tile";
 import TokenLayer from "./TokenLayer";
 import EnemyLayer from "./EnemyLayer";
 import HazardLayer from "./HazardLayer";
+import FogTile from "./FogTile";
 import { DIRS, add, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
 import { isDestroyed } from "../game/hazards";
+import { canSee, enemyVisible, playerVisible } from "../game/vision";
 import type { Enemy, Hazard, Player, Tile as TileData } from "../game/types";
 
 const SIZE = 40;
@@ -29,6 +31,12 @@ type Props = {
   /** The turn number, which decides which wrecked tiles have recovered. */
   turn: number;
   activeId: string;
+  /**
+   * Whose eyes the board is drawn through. There is no bird's-eye view: everything
+   * outside this player's sight is blank paper, and it goes blank again the moment
+   * they walk away. See `game/vision.ts` for why nothing is remembered.
+   */
+  viewer: Player;
   /** The active player's colour: legal moves are drawn in it. */
   activeColour: string;
   onSelect: (label: string | null) => void;
@@ -64,6 +72,7 @@ export default function Board({
   hazards,
   turn,
   activeId,
+  viewer,
   activeColour,
   onSelect,
 }: Props) {
@@ -119,27 +128,45 @@ export default function Board({
         })}
       </g>
 
-      {entries.map(([label, tile]) => (
-        <Tile
-          key={label}
-          label={label}
-          tile={tile}
-          size={SIZE}
-          railDirs={rails[label]}
-          selected={selected === label}
-          legal={legalMoves.has(label)}
-          wrecked={isDestroyed(tile, turn)}
-          onSelect={onSelect}
-        />
-      ))}
+      {entries.map(([label, tile]) =>
+        canSee(viewer, tile.hex) ? (
+          <Tile
+            key={label}
+            label={label}
+            tile={tile}
+            size={SIZE}
+            railDirs={rails[label]}
+            selected={selected === label}
+            legal={legalMoves.has(label)}
+            wrecked={isDestroyed(tile, turn)}
+            onSelect={onSelect}
+          />
+        ) : (
+          <FogTile
+            key={label}
+            label={label}
+            tile={tile}
+            size={SIZE}
+            selected={selected === label}
+            legal={legalMoves.has(label)}
+            onSelect={onSelect}
+          />
+        ),
+      )}
 
+      {/* Monsters hide; hazards never do. A tornado you cannot see coming is not a
+          funny setback, and the players who are not moving need something to watch. */}
       <EnemyLayer
-        enemies={enemies}
+        enemies={enemies.filter((e) => enemyVisible(e, viewer))}
         size={SIZE}
         purses={Object.fromEntries(hazards.map((h) => [h.kind, h.carrying]))}
       />
       <HazardLayer hazards={hazards} size={SIZE} />
-      <TokenLayer players={players} activeId={activeId} size={SIZE} />
+      <TokenLayer
+        players={players.filter((p) => playerVisible(p, viewer))}
+        activeId={activeId}
+        size={SIZE}
+      />
     </svg>
   );
 }

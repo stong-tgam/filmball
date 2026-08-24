@@ -99,7 +99,13 @@ const roleAttack = (player: Player): number =>
  * Two of them bite the moment the fight opens: railway costs a health, and city costs
  * a dollar on a city tile or a health anywhere else.
  */
-export function startCombat(state: GameState, enemy: Enemy, from: string): GameState {
+export function startCombat(
+  state: GameState,
+  enemy: Enemy,
+  from: string,
+  /** True when the player walked onto a hidden monster rather than picking the fight. */
+  ambush = false,
+): GameState {
   const player = state.players[state.activePlayerIndex];
   const profile = ENEMIES[enemy.kind];
   let next = state;
@@ -125,7 +131,14 @@ export function startCombat(state: GameState, enemy: Enemy, from: string): GameS
     toll: 0,
     spoils: [],
     picksLeft: 0,
+    ambush,
     outcome: "ongoing",
+  };
+  // Found is permanent. Back away from an ambush and the monster stays on the board
+  // for everyone who can see that tile - the party paid a turn for that information.
+  next = {
+    ...next,
+    enemies: next.enemies.map((e) => (e.id === enemy.id ? { ...e, found: true } : e)),
   };
   next = note(
     { ...next, phase: "combat", combat },
@@ -293,6 +306,18 @@ function beaten(state: GameState, enemy: Enemy): GameState {
       picksLeft: Math.min(profile.picks, spoils.length),
     },
   };
+  if (profile.purse > 0) {
+    const winner = next.players.find((p) => p.id === next.combat!.playerId);
+    if (winner) {
+      next = {
+        ...next,
+        players: next.players.map((p) =>
+          p.id === winner.id ? { ...p, money: p.money + profile.purse } : p,
+        ),
+      };
+      next = note(next, `${winner.name} took $${profile.purse} off the body.`);
+    }
+  }
   next = note(next, `${profile.name} ${verb(enemy.kind, "is", "are")} beaten!`);
 
   // Rulebook §14: the dragon is the game.
@@ -377,6 +402,23 @@ export function flee(state: GameState): GameState {
 
   const back = state.combat.from;
   const home = state.tiles[back]?.hex ?? player.hex;
+  // Walking into a hidden monster is not a decision, so backing straight out of one
+  // is free: it costs the move you already spent and nothing more. Once you have
+  // swung at it you have chosen the fight, and leaving costs your action as usual.
+  const freeLook = state.combat.ambush && state.combat.round === 0;
+
+  if (freeLook) {
+    return note(
+      {
+        ...state,
+        players: state.players.map((p) =>
+          p.id === player.id ? { ...p, hex: home, actedThisTurn: false } : p,
+        ),
+        combat: { ...state.combat, outcome: "playerEscaped" },
+      },
+      `${player.name} found ${nameWithArticle(enemy.kind)} at ${key(enemy.hex)} and backed straight out to ${back}.`,
+    );
+  }
 
   return note(
     {

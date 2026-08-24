@@ -90,11 +90,16 @@ export function movePlayer(state: GameState, destination: string): GameState {
   // turn's action - you do not get to brawl and then go shopping.
   const enemy = enemyAt(arrived.enemies, destination);
   if (!enemy) return arrived;
+  // An unfound monster was not on the board when the move was chosen, so this is an
+  // ambush and `flee` lets the player straight back out of it. Marking the action
+  // spent still happens - the turn is gone either way - but `flee` un-spends it for
+  // a first-round walk-out.
+  const ambush = !enemy.found;
   const fighting = {
     ...arrived,
     players: arrived.players.map((p) => (p.id === player.id ? { ...p, actedThisTurn: true } : p)),
   };
-  return startCombat(fighting, enemy, key(player.hex));
+  return startCombat(fighting, enemy, key(player.hex), ambush);
 }
 
 /**

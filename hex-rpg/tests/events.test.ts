@@ -386,6 +386,7 @@ describe("boss features", () => {
           toll: 0,
           spoils: [],
           picksLeft: 0,
+      ambush: false,
           outcome: "ongoing",
         },
       };
@@ -429,6 +430,7 @@ describe("the water escape", () => {
         toll: 0,
         spoils: [],
         picksLeft: 0,
+      ambush: false,
         outcome: "ongoing",
       },
     };

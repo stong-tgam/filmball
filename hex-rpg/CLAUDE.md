@@ -59,11 +59,11 @@ reference/    the spec; the rulebook and card/tile/token HTML are missing
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 56 tests
+npm test           # 248 tests
 npm run build      # type-check + production build
 ```
 
-## Current state: v0.7, aligned to the rulebook
+## Current state: v0.8, nobody can see the map
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, one tile a turn, and
@@ -72,8 +72,10 @@ the whole game is legible to a child because it runs on single digits.
 
 Key rules, so nothing gets "improved" back to a guess:
 
-- **Roles (§3)**: knight +1 health, **rogue +1 attack**, **scout +1 movement**, doctor
-  heals and revives. Everyone starts on 3 health and $2.
+- **Roles (§3)**: knight +1 health, **rogue +1 attack**, **scout +1 movement and +1
+  sight**, doctor heals and revives. Everyone starts on 3 health and $2. The scout's
+  sight is the bonus that matters most now the board is hidden — one extra ring is
+  roughly triple what a turn tells you.
 - **Combat (§7)**: roll 3 dice + attack against the enemy's *remaining* health. Over
   it, beaten. Under it, the damage sticks and you lose **1 health, flat**. Exactly
   equal, **nothing happens and you go back where you started**.
@@ -81,9 +83,15 @@ Key rules, so nothing gets "improved" back to a guess:
   Water = escape once on a river; railway = a health at the start; forest = −1 attack
   for everyone; field = +1 to the toll per player; city = $1 on a city tile, else a
   health.
-- **Search (§6)**: red finds gear, black finds nothing, the joker is a thief who takes
-  the bone if you have one.
-- **Loot (§10)**: items only, never money. Money comes from **selling**.
+- **Search (§6)**: on field or forest, red finds gear, black finds nothing, the joker
+  is a thief who takes the bone if you have one. **On a river you pull up a chest
+  instead** (`searchKind`): face card = armour, red = two items, black = river water,
+  joker = the lid on your fingers for 1 health. Better than the ground on average, and
+  that is the point — the river should be worth a detour, not scenery.
+- **Loot (§10)**: items, **plus a small purse** — $1 mob, $2 mid boss, $5 dragon. This
+  bends §10, which is items-only, on purpose. Keep the amounts under `GEAR_PRICE`:
+  the moment a mob out-earns a sale, the shop stops mattering and so does the
+  keep-it-or-sell-it decision the rule exists to protect. There is a test for it.
 - **Winning (§14)**: kill the dragon before the turn limit. `GameState.ending`.
 
 What is left is listed under "Still open" in the README. The largest is **group fights
@@ -108,6 +116,57 @@ assumes four.
 
 Hazard and event phases slot in ahead of the move phase when they exist; the phase
 names are already in `Phase`.
+
+## The board is hidden (v0.8)
+
+**There is no bird's-eye view and the game remembers nothing about the map.** A player
+sees the tile they stand on and the ring around it; everything else is blank paper, and
+it goes blank again the moment they walk away. The map lives in the players' notes and
+in what they say to each other across the table. That is the feature, not a limitation
+to be smoothed over.
+
+Read `src/game/vision.ts` before touching any of it. The rules:
+
+- **Never add a remembered-tiles cache.** An "explored" overlay, a fog that stays
+  lifted, a minimap — any of them deletes the note-taking and the talking that the
+  whole design is for. This is the one change most likely to look like an improvement
+  and be the opposite.
+- **You always know your own tile's label.** Otherwise "where are you?" cannot be
+  answered and the party can pool nothing.
+- **The sidebar must never say more than the board shows.** `App.tsx` gates the Tile
+  panel on `canSee`, or tapping round the fog reads the whole map without walking it.
+- **Hazards are always visible to everyone**; monsters never are. A tornado you cannot
+  see coming is not a funny setback, and the three players who are not moving need
+  something to watch.
+- **Monsters are hidden until somebody walks into one** (`Enemy.found`), which makes
+  that an ambush, so `flee` lets you straight back out of a first-round ambush for
+  free. Once found, a monster stays on the board — the party paid a turn for that.
+- **The dragon smokes** (`SMOKE_RADIUS`, 2 tiles) and sits at the centre. Both are
+  deliberate: one monster on one tile in sixty-one, blind, is never found inside the
+  turn limit, and "we never found it" is not a defeat, it is a shrug.
+- **Notes are per player** (`Player.notes`, `writeNotes`), free, and writable on
+  anybody's turn. Never auto-fill them. The moment the app writes the note, the table
+  stops talking.
+
+Monsters are also **scattered at random** now rather than spaced out. Even spacing was
+right when you could see them coming; hidden, it makes every tile equally likely to
+hold something, so exploring tells you nothing. Clumps and empty runs are what the
+notes are for.
+
+## Balance, and how to check it
+
+`npx vite-node tools/sim.ts 200` plays the game with a bot and prints how it ends.
+
+At v0.8: **23% wins, 56% out of time, 21% wipes** (was 35/45/20 before the fog).
+Raising the turn limit barely helps — about +1% win per two turns — because the limit
+is not what is binding. What binds is that one player at 3 health grinds a 20–30 health
+dragon down alone: **§7.4's boss maths assumes the four-player group fight in §8, and
+§8 is not built.** That is the real fix for the timeout share, and it is the top item
+under "Open questions".
+
+The bot is deliberately worse than a family — it never eats, never buys gear and never
+coordinates — so treat these as a floor, not a forecast. Run it after any change to the
+turn limit, sight, monster placement or the economy.
 
 ## Artwork
 
@@ -192,7 +251,7 @@ made:
 - **Pass-through**: you may move *through* another player, not stop on them
   (`legalMoves` in `turn.ts`). Enemies are the opposite: onto, never past.
 - **Rivers do not cost movement.** No terrain does, yet.
-- **Movement is one tile a turn, two for the rogue.** That one is a rule, not a
+- **Movement is one tile a turn, two for the scout.** That one is a rule, not a
   placeholder: a turn should be a single decision.
 - **Entry side is not a rule.** Sides are stored per direction, so "which element you
   are standing in depends on the side you entered from" remains available; nothing

@@ -78,6 +78,33 @@ tests/           vitest, node environment, no rendering
 The hard rule from the spec holds: `src/game/` never imports React, and every rule is
 a pure function over serialisable state.
 
+## v0.8: nobody can see the map
+
+The board is hidden. On your turn you see the tile you are standing on and the ring
+around it, and nothing else — and it goes blank again as soon as you walk away, because
+**the game keeps no map at all**. Working out where everybody is, and what is where, is
+something the four of you do out loud, with the notebook in the sidebar.
+
+- **Take your own notes.** Every player has their own pad, always open, writable on
+  anybody's turn. Nothing is filled in for you. Your map and your sister's map will
+  disagree, and sorting that out at the table is the game.
+- **Monsters hide.** They are scattered at random and drawn to nobody until somebody
+  walks into one. That is an ambush, so you can always back straight out of a fight you
+  did not choose, for free — you only committed once you have swung.
+- **Hazards never hide.** The tornado, the robber, the pirates and the family are on
+  the board for everyone, all the time. Half of them are the funny part, and the three
+  players who are not moving need something to watch.
+- **The dragon smokes.** You can smell it two tiles out. It is in the middle.
+- **The scout finally earns its keep** — two tiles of movement *and* two rings of sight.
+- **Rivers hide chests**: armour, a double haul, river water, or the lid on your
+  fingers. Better than turning over a field, which is why the river is worth a detour.
+- **Monsters carry a little money** — $1, $2, $5 — on top of what they drop. Selling is
+  still where the real money is.
+- The turn limit is **32**, up from 25, because a hidden board takes longer to cross.
+
+`npx vite-node tools/sim.ts 200` plays a couple of hundred bot games and reports how
+they end. Right now: 23% wins, 56% out of time, 21% wipes.
+
 ## Still open
 
 - **Group fights (§8)** — inviting nearby players into a boss fight. Every fight is
@@ -93,6 +120,9 @@ a pure function over serialisable state.
 - **Must mid bosses die first? (§15)** — nothing stops a party running at the dragon
   on turn one. The dice make that a bad idea, but no rule forbids it.
 - Autosave, undo and a seed you can share are still unbuilt.
+- **Too many games run out of time** (56% in the bot sim). More turns barely helps; the
+  binding constraint is one player grinding down a 20–30 health dragon alone. Group
+  fights are the fix.
 
 ## Notes on this build
 

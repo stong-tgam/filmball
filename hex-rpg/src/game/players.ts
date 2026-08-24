@@ -28,6 +28,12 @@ export type RoleProfile = {
   attackBonus: number;
   /** Added to the one tile a turn everybody gets. */
   moveBonus: number;
+  /**
+   * Added to the one ring of tiles everybody can see. Only the Scout has this, and
+   * it is the bonus that matters most now the board is hidden: seeing two rings
+   * rather than one roughly triples what a turn tells you.
+   */
+  sightBonus: number;
   /** Doctors, and only doctors, can heal and revive. */
   canHeal: boolean;
   /**
@@ -44,6 +50,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     healthBonus: 1,
     attackBonus: 0,
     moveBonus: 0,
+    sightBonus: 0,
     canHeal: false,
     colour: "#d64545",
   },
@@ -53,15 +60,17 @@ export const ROLES: Record<Role, RoleProfile> = {
     healthBonus: 0,
     attackBonus: 1,
     moveBonus: 0,
+    sightBonus: 0,
     canHeal: false,
     colour: "#9b5de5",
   },
   scout: {
     name: "Scout",
-    blurb: "Covers ground. Two tiles a turn instead of one.",
+    blurb: "Covers ground and sees further. Two tiles a turn, and sees two rings out.",
     healthBonus: 0,
     attackBonus: 0,
     moveBonus: 1,
+    sightBonus: 1,
     canHeal: false,
     colour: "#17b3c9",
   },
@@ -71,6 +80,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     healthBonus: 0,
     attackBonus: 0,
     moveBonus: 0,
+    sightBonus: 0,
     canHeal: true,
     colour: "#f0ece0",
   },
@@ -114,6 +124,7 @@ const spawn = (role: Role, hex: Hex): Player => {
     stunned: false,
     joinedFightThisRound: false,
     bonusDiceNextFight: 0,
+    notes: "",
   };
 };
 

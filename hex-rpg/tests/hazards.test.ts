@@ -328,6 +328,7 @@ describe("catching a thief", () => {
         toll: 0,
         spoils: [],
         picksLeft: 0,
+      ambush: false,
         outcome: "ongoing" as const,
       },
     };

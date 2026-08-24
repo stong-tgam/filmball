@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Board from "./ui/Board";
+import Notebook from "./ui/Notebook";
 import ActionBar from "./ui/ActionBar";
 import Log from "./ui/Log";
 import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
@@ -23,6 +24,7 @@ import { sellable, stockFor } from "./game/actions";
 import { key } from "./game/hex";
 import { elementsOf } from "./game/setup";
 import { ROLES } from "./game/players";
+import { canSee, smellsSmoke } from "./game/vision";
 import "./styles.css";
 
 const TERRAIN_BLURB: Record<string, string> = {
@@ -54,6 +56,7 @@ export default function App() {
   const takeLoot = useGame((s) => s.takeLoot);
   const search = useGame((s) => s.search);
   const eat = useGame((s) => s.eat);
+  const writeNotes = useGame((s) => s.writeNotes);
   const shopOpen = useGame((s) => s.shopOpen);
   const openShop = useGame((s) => s.openShop);
   const closeShop = useGame((s) => s.closeShop);
@@ -72,6 +75,9 @@ export default function App() {
 
   const [seedInput, setSeedInput] = useState("");
   const tile = selected ? game.tiles[selected] : null;
+  // The sidebar must never say more than the board shows, or tapping around the fog
+  // becomes a way to read the whole map without walking it.
+  const seesSelected = tile ? canSee(player, tile.hex) : false;
   const over = game.phase === "gameOver" || game.ending !== null;
 
   const composition = tile
@@ -96,7 +102,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.7 — by the rulebook</span>
+          <span className="version">v0.8 — nobody can see the map</span>
         </div>
         <p className="turn-counter">
           Turn <strong>{game.turn}</strong>
@@ -124,7 +130,11 @@ export default function App() {
           <p className="banner-blurb">Start a new game to play again.</p>
         </div>
       ) : (
-        <ActivePlayerBanner player={player} moves={legalMoves.size} />
+        <ActivePlayerBanner
+          player={player}
+          moves={legalMoves.size}
+          smoke={smellsSmoke(game, player)}
+        />
       )}
 
       <main className="stage">
@@ -137,6 +147,7 @@ export default function App() {
           hazards={game.hazards}
           turn={game.turn}
           activeId={player.id}
+          viewer={player}
           activeColour={ROLES[player.role].colour}
           onSelect={tapTile}
         />
@@ -168,7 +179,11 @@ export default function App() {
 
         <section className="panel">
           <h2>Tile</h2>
-          {tile ? (
+          {tile && !seesSelected ? (
+            <p className="muted">
+              You cannot see that far. Walk over and look, or ask whoever is closer.
+            </p>
+          ) : tile ? (
             <>
               <p className="tile-name">
                 <span className="mono">{selected}</span> — {tile.base}
@@ -187,6 +202,11 @@ export default function App() {
           ) : (
             <p className="muted">Tap a quiet tile to look at it.</p>
           )}
+        </section>
+
+        <section className="panel">
+          <h2>Notes</h2>
+          <Notebook players={game.players} activeId={player.id} onWrite={writeNotes} />
         </section>
 
         <section className="panel panel-log">
