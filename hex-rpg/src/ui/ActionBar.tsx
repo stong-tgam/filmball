@@ -14,6 +14,12 @@ type Props = {
   moved: boolean;
   acted: boolean;
   canSearch: boolean;
+  /**
+   * Whether searching here means turning over ground or pulling a chest out of the
+   * water. A river is the best odds in the game and has to say so on the button, or
+   * the whole reason to walk to one is invisible.
+   */
+  searchKind: "chest" | "ground";
   canTrade: boolean;
   canDonate: boolean;
   canHeal: boolean;
@@ -32,6 +38,7 @@ export default function ActionBar({
   moved,
   acted,
   canSearch,
+  searchKind,
   canTrade,
   canDonate,
   canHeal,
@@ -81,7 +88,9 @@ export default function ActionBar({
     : canDonate
     ? "Someone here could use a hand."
     : canSearch
-    ? "Search the ground here, or move on."
+    ? searchKind === "chest"
+      ? "Something is caught in the water here."
+      : "Search the ground here, or move on."
     : canTrade
       ? "There is a market here."
       : acted
@@ -114,7 +123,7 @@ export default function ActionBar({
           )}
           {canSearch && (
             <button type="button" className="ghost" onClick={onSearch}>
-              Search here
+              {searchKind === "chest" ? "Open the chest" : "Search here"}
             </button>
           )}
           {canTrade && (

@@ -1,14 +1,21 @@
 /**
- * Enemy tokens.
+ * Enemy tokens: the drawn monster on a paper chit.
  *
- * Angular, where players are round, so the two never read as the same kind of thing
- * at a glance. Size grows with how nasty it is, and a bar under the token shows how
- * much of it is left - damage sticks between fights, so that bar is the record of
- * what the party has already done to it.
+ * Was a coloured diamond with a letter in it, which is fine on a spreadsheet and no
+ * fun on a table. Every monster now shows the drawing made for it in
+ * `art/monsters.tsx`, on the cream chit the whole set is built around. Fifteen bandits
+ * share five faces, picked from the monster's id, so the same one always looks the
+ * same - two children drawing fifteen goblins would not draw fifteen different
+ * goblins either.
+ *
+ * Size still grows with how nasty it is, and the bar under the chit is still the
+ * record of what the party has already done to it: damage sticks between fights.
  */
 
 import { hexToPixel } from "../game/hex";
 import { ENEMIES, healthLeft } from "../game/enemies";
+import { CHIP, INK } from "./art/crayon";
+import MonsterArt from "./art/monsters";
 import type { Enemy } from "../game/types";
 
 export default function EnemyLayer({
@@ -39,21 +46,12 @@ export default function EnemyLayer({
               className="enemy"
               transform={`translate(${x.toFixed(2)} ${(y - size * 0.12).toFixed(2)})`}
             >
-              <path
-                d={`M0 ${-r} L${r} 0 L0 ${r} L${-r} 0 Z`}
-                fill={beast.colour}
-                stroke="#141a1f"
-                strokeWidth={size * 0.06}
-              />
-              <text
-                className="enemy-initial"
-                y={r * 0.34}
-                textAnchor="middle"
-                fontSize={r * 0.95}
-                fill="#191013"
-              >
-                {beast.glyph}
-              </text>
+              <circle r={r * 1.12} fill={CHIP} stroke={INK} strokeWidth={size * 0.045} />
+              <circle r={r * 1.12} fill="none" stroke={beast.colour} strokeWidth={size * 0.03} />
+              {/* The drawing is on a 100x100 canvas; bring it down to the chit. */}
+              <g transform={`scale(${(r * 2) / 100}) translate(-50 -50)`}>
+                <MonsterArt kind={enemy.kind} seedName={enemy.id} />
+              </g>
 
               {purse > 0 && (
                 <text className="enemy-purse" y={-r * 1.3} textAnchor="middle" fontSize={r * 0.8}>

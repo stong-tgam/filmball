@@ -479,20 +479,3 @@ export function eat(state: GameState, playerId: string, itemId: string): GameSta
       : `${player.name} ate the ${used.name} on a full stomach.`,
   );
 }
-
-/**
- * Write in a player's notebook.
- *
- * The board remembers nothing (`vision.ts`), so this is where the map lives. It is
- * free, it is not an action, and it works on anybody's turn - a player who has spotted
- * something on somebody else's turn should be able to write it down while they still
- * remember, and reading each other's notes out loud is most of the game.
- *
- * Notes are per player rather than one shared pad: four people typing into one box
- * overwrite each other, and half the fun is that your map and mine disagree.
- */
-export function writeNotes(state: GameState, playerId: string, notes: string): GameState {
-  const player = state.players.find((p) => p.id === playerId);
-  if (!player) return state;
-  return withPlayer(state, { ...player, notes });
-}

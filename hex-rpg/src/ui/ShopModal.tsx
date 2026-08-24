@@ -9,6 +9,7 @@
  * genuinely gone once somebody buys it.
  */
 
+import ItemArt from "./art/items";
 import { gearLabel, SUPPLY_CAP } from "../game/items";
 import type { Item, Player } from "../game/types";
 
@@ -61,6 +62,7 @@ function Shelf({
                   disabled={tooDear || packFull}
                   onClick={() => onBuy(item.id)}
                 >
+                  <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art"><ItemArt name={item.name} seedName={item.id} /></svg>
                   <span className="buy-name">{gearLabel(item)}</span>
                   <span className="buy-value">
                     +{item.value} {SLOT_NOTE[item.slot]}
@@ -122,7 +124,8 @@ export default function ShopModal({
               {sellable.map((item) => (
                 <li key={item.id}>
                   <button type="button" className="buy sell" onClick={() => onSell(item.id)}>
-                    <span className="buy-name">{gearLabel(item)}</span>
+                    <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art"><ItemArt name={item.name} seedName={item.id} /></svg>
+                  <span className="buy-name">{gearLabel(item)}</span>
                     <span className="buy-value">{SLOT_NOTE[item.slot]}</span>
                     <span className="buy-cost">+${item.cost}</span>
                   </button>

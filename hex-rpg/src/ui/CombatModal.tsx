@@ -11,6 +11,10 @@ import { ENEMIES, healthLeft } from "../game/enemies";
 import { activeFeatures, attackValue } from "../game/combat";
 import { ROLES } from "../game/players";
 import { escapeChance } from "../game/combat";
+import { CHIP, INK } from "./art/crayon";
+import MonsterArt from "./art/monsters";
+import FeatureArt from "./art/features";
+import ItemArt from "./art/items";
 import { gearLabel, equipped } from "../game/items";
 import type { Combat, Enemy, Item, Player, Tile } from "../game/types";
 
@@ -82,7 +86,12 @@ export default function CombatModal({
           </span>
 
           <div className="fighter fighter-enemy">
-            <span className="fighter-dot" style={{ background: beast.colour }} />
+            {/* The boss reveal is one of the moments worth protecting, so the monster
+                gets its drawing at size rather than a coloured dot. */}
+            <svg className="fighter-portrait" viewBox="0 0 100 100" aria-hidden="true">
+              <circle cx="50" cy="50" r="49" fill={CHIP} stroke={INK} strokeWidth="2" />
+              <MonsterArt kind={enemy.kind} seedName={enemy.id} />
+            </svg>
             <div>
               <h2>{beast.name}</h2>
               <Bar value={healthLeft(enemy)} max={enemy.maxHealth} colour={beast.colour} />
@@ -95,8 +104,13 @@ export default function CombatModal({
                     const biting = activeFeatures(enemy, ground).includes(feature);
                     return (
                       <li key={feature} className={`feature${biting ? " is-active" : ""}`}>
-                        {feature}
-                        {biting && " +1"}
+                        <svg viewBox="0 0 100 100" aria-hidden="true" className="feature-art">
+                          <FeatureArt feature={feature} seedName={`${enemy.id}-${feature}`} />
+                        </svg>
+                        <span>
+                          {feature}
+                          {biting && " +1"}
+                        </span>
                       </li>
                     );
                   })}
@@ -152,6 +166,9 @@ export default function CombatModal({
                     return (
                       <li key={item.id}>
                         <button type="button" className="buy" onClick={() => onTakeLoot(item.id)}>
+                          <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art">
+                            <ItemArt name={item.name} seedName={item.id} />
+                          </svg>
                           <span className="buy-name">{gearLabel(item)}</span>
                           <span className="buy-value">+{item.value}</span>
                           <span className="buy-cost">{swapping ? `swap ${swapping.name}` : "take"}</span>

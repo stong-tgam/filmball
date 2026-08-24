@@ -1100,3 +1100,42 @@ button.ghost {
 .compass .tile.is-legal {
   cursor: pointer;
 }
+
+/* ------------------------------------------------- the drawings, in the game */
+/*
+  The token artwork (src/ui/art/) is drawn on a 100x100 canvas. These are just the
+  frames it sits in. The chit's own cream ground comes from the art, not from here.
+*/
+.fighter-portrait {
+  width: 72px;
+  height: 72px;
+  flex: none;
+}
+.feature {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.feature-art {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  background: #fbf7ee;
+}
+.buy-art {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 6px;
+  background: #fbf7ee;
+}
+.kit-art {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  vertical-align: -5px;
+  border-radius: 4px;
+  background: #fbf7ee;
+  margin-right: 0.3rem;
+}

@@ -205,9 +205,9 @@ Read `src/game/vision.ts` before touching any of it. The rules:
 - **The dragon smokes** (`SMOKE_RADIUS`, 2 tiles) and sits at the centre. Both are
   deliberate: one monster on one tile in sixty-one, blind, is never found inside the
   turn limit, and "we never found it" is not a defeat, it is a shrug.
-- **Notes are per player** (`Player.notes`, `writeNotes`), free, and writable on
-  anybody's turn. Never auto-fill them. The moment the app writes the note, the table
-  stops talking.
+- **There is no in-app notepad.** There was one; it was removed because players keep
+  notes on paper or a phone, and a text box in the sidebar was a worse version of that.
+  The point stands regardless: the app remembers nothing, so the map lives outside it.
 
 Monsters are also **scattered at random** now rather than spaced out. Even spacing was
 right when you could see them coming; hidden, it makes every tile equally likely to
@@ -247,8 +247,16 @@ Three things not to rediscover the hard way:
 - **Any token's picture can be replaced by an upload** (`art/overrides.ts`). The
   generated drawing is the fallback, never the only option.
 
-The app shell is still dark slate; the paper theme currently only reaches the monster
-sheet at `gallery.html`. Moving the game onto it is the next art job.
+**The drawings are in the game now** (v1.4). Monsters are chits on the board and a
+portrait in the fight; boss features, shop stock, loot and the party's kit all show
+their drawing. `CrayonDefs` is mounted once at the top of `App.tsx` — every drawing
+points into its filters, so nothing renders without it.
+
+What is still not done: the app shell is dark slate and the artwork is cream paper, so
+the drawings sit on their own little chits rather than the whole thing being one paper
+theme. And the hex tiles still use the original `Tile.tsx` SVG rather than the crayon
+`art/terrain.tsx`; both look fine, they are just two different hands. Moving the shell
+onto paper is the remaining art job.
 
 ## Conventions worth keeping
 

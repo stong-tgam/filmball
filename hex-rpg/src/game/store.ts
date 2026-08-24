@@ -19,7 +19,6 @@ import {
   openShop,
   search,
   sell,
-  writeNotes,
 } from "./actions";
 import { canDonate, canPayOff, donate, payOff } from "./hazards";
 import type { Enemy, GameState, Player, Tile } from "./types";
@@ -46,8 +45,6 @@ type Store = {
   heal: (playerId: string) => void;
   payOff: () => void;
   eat: (playerId: string, itemId: string) => void;
-  /** Free, and not an action: anybody may write on anybody's turn. */
-  writeNotes: (playerId: string, notes: string) => void;
   takeLoot: (itemId: string) => void;
   /** Put the turn's card away once the table has read it. */
   clearDraw: () => void;
@@ -76,7 +73,6 @@ export const useGame = create<Store>((set, get) => ({
   heal: (playerId) => set({ game: heal(get().game, playerId), selected: null }),
   payOff: () => set({ game: payOff(get().game) }),
   eat: (playerId, itemId) => set({ game: eat(get().game, playerId, itemId) }),
-  writeNotes: (playerId, notes) => set({ game: writeNotes(get().game, playerId, notes) }),
   takeLoot: (itemId) => set({ game: takeSpoil(get().game, itemId) }),
   clearDraw: () => set({ game: clearDraw(get().game) }),
 }));

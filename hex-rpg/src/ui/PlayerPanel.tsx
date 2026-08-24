@@ -7,6 +7,7 @@
  */
 
 import { ROLES } from "../game/players";
+import ItemArt from "./art/items";
 import { moveRange, stepsLeft } from "../game/turn";
 import type { Player } from "../game/types";
 
@@ -107,6 +108,9 @@ export function PartyList({
                   .filter((i): i is NonNullable<typeof i> => i !== null)
                   .map((item) => (
                     <span key={item.id} className={`kit kit-${item.slot}`} title={item.name}>
+                      <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">
+                        <ItemArt name={item.name} seedName={item.id} />
+                      </svg>
                       {item.name} +{item.value}
                     </span>
                   ))}
@@ -128,6 +132,9 @@ export function PartyList({
                         : `Eat the ${item.name} for ${item.value} health`
                     }
                   >
+                    <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">
+                      <ItemArt name={item.name} seedName={item.id} />
+                    </svg>
                     {item.name} +{item.value}
                   </button>
                 ))}

@@ -3,7 +3,6 @@ import { BASE_SIGHT, SMOKE_RADIUS, canSee, enemyVisible, playerVisible, sightOf,
 import { createInitialState } from "../src/game/setup";
 import { distance, key } from "../src/game/hex";
 import { movePlayer } from "../src/game/turn";
-import { writeNotes } from "../src/game/actions";
 import type { GameState } from "../src/game/types";
 
 const at = (state: GameState, i: number) => state.players[i];
@@ -87,23 +86,5 @@ describe("who is on the board", () => {
     const [a, b] = state.players;
     expect(playerVisible(a, a)).toBe(true);
     if (distance(a.hex, b.hex) > sightOf(a)) expect(playerVisible(b, a)).toBe(false);
-  });
-});
-
-describe("notes", () => {
-  it("keeps a note per player, and lets anybody write on anybody's turn", () => {
-    const state = createInitialState(4471);
-    const written = writeNotes(state, "scout", "river runs E4 to G6, nothing at C3");
-    expect(written.players.find((p) => p.id === "scout")!.notes).toContain("river runs");
-    // Untouched players keep their own pad.
-    expect(written.players.find((p) => p.id === "knight")!.notes).toBe("");
-    // Not the active player, and not an action: nothing else moved.
-    expect(written.activePlayerIndex).toBe(state.activePlayerIndex);
-    expect(written.players.every((p) => !p.actedThisTurn)).toBe(true);
-  });
-
-  it("survives a round trip through JSON, like the rest of the state", () => {
-    const written = writeNotes(createInitialState(7), "doctor", "tornado heading north");
-    expect(JSON.parse(JSON.stringify(written))).toEqual(written);
   });
 });

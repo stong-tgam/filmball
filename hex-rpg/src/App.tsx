@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Board from "./ui/Board";
 import Compass from "./ui/Compass";
-import Notebook from "./ui/Notebook";
+import CrayonDefs from "./ui/art/CrayonDefs";
 import ActionBar from "./ui/ActionBar";
 import Log from "./ui/Log";
 import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
@@ -27,6 +27,7 @@ import { elementsOf } from "./game/setup";
 import { ROLES, hasMoved } from "./game/players";
 import { canSee, smellsSmoke } from "./game/vision";
 import { sense } from "./game/sense";
+import { searchKind } from "./game/actions";
 import "./styles.css";
 
 const TERRAIN_BLURB: Record<string, string> = {
@@ -58,7 +59,6 @@ export default function App() {
   const takeLoot = useGame((s) => s.takeLoot);
   const search = useGame((s) => s.search);
   const eat = useGame((s) => s.eat);
-  const writeNotes = useGame((s) => s.writeNotes);
   // The overhead board is a grown-up's debug peek, off by default. The game is the
   // first-person view; being able to flip between them is only here so the map idea
   // can be judged against the thing it replaced.
@@ -105,10 +105,12 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* The wobble filters and hatch patterns every drawing points into. Mounted once. */}
+      <CrayonDefs />
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v1.3 — a step at a time</span>
+          <span className="version">v1.4 — drawn by the children</span>
         </div>
         <button
           type="button"
@@ -185,6 +187,7 @@ export default function App() {
           moved={hasMoved(player)}
           acted={player.actedThisTurn}
           canSearch={canSearch}
+          searchKind={searchKind(game.tiles[key(player.hex)])}
           canTrade={canTrade}
           canDonate={canDonate}
           canHeal={canHeal}
@@ -231,11 +234,6 @@ export default function App() {
           )}
         </section>
         )}
-
-        <section className="panel">
-          <h2>Notes</h2>
-          <Notebook players={game.players} activeId={player.id} onWrite={writeNotes} />
-        </section>
 
         <section className="panel panel-log">
           <h2>Log</h2>

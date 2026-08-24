@@ -91,15 +91,6 @@ export type Player = {
   /** Homeless-person donation: extra dice on the next fight only. */
   bonusDiceNextFight: number;
   joinedFightThisRound: boolean;
-  /**
-   * The player's own map notes, typed at the table.
-   *
-   * Deliberately the only memory in the game. Nothing is remembered for the party -
-   * see `vision.ts` - so what a player writes here, and what they say out loud, is
-   * the whole of the map. Kept on the player rather than in one shared pad because
-   * four people scribbling in one box would just overwrite each other.
-   */
-  notes: string;
 };
 
 export type EnemyKind = "mob" | "midboss" | "finalboss" | "robber" | "pirates";

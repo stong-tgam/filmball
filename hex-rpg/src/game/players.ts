@@ -141,7 +141,6 @@ const spawn = (role: Role, hex: Hex): Player => {
     stunned: false,
     joinedFightThisRound: false,
     bonusDiceNextFight: 0,
-    notes: "",
   };
 };
 

@@ -78,6 +78,17 @@ tests/           vitest, node environment, no rendering
 The hard rule from the spec holds: `src/game/` never imports React, and every rule is
 a pure function over serialisable state.
 
+## v1.4: the drawings are in the game
+
+The monsters, gear, food and boss features drawn for this game now appear in it —
+monsters as chits on the ground and a portrait when a fight opens, gear and food in the
+shop, in the loot, and beside each player's kit.
+
+Two smaller things: the in-app notepad is gone (keep notes on paper — the app still
+remembers nothing about the map, which is the whole point), and standing on a river the
+button now reads **"Open the chest"** instead of "Search here", because a river is the
+best odds in the game and nothing was saying so.
+
 ## v1.3: movement is a step at a time
 
 A Scout has two tiles of movement, and now spends them **one at a time**. Take a step,
