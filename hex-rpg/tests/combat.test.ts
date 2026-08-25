@@ -242,7 +242,16 @@ describe("a round of fighting", () => {
     // Not on the water: §9's river feature lets a beaten monster slip away once,
     // which is a different outcome and not the one under test here.
     const { state, enemy } = facing("mob", 4471, (t) => !t.river);
-    let fighting = movePlayer(state, key(enemy.hex));
+    // Wounded to its last point first, so three dice cannot possibly tie with it.
+    // Left to chance the fight sometimes ends in a standoff (§7: an exact tie does
+    // nothing at all), which is a real outcome and simply not this test's one.
+    const nearlyDone: GameState = {
+      ...state,
+      enemies: state.enemies.map((e) =>
+        e.id === enemy.id ? { ...e, damageTaken: e.maxHealth - 1 } : e,
+      ),
+    };
+    let fighting = movePlayer(nearlyDone, key(enemy.hex));
     for (let i = 0; i < 6 && fighting.combat?.outcome === "ongoing"; i++) {
       fighting = attack(fighting);
     }

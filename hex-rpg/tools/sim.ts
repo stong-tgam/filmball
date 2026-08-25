@@ -14,11 +14,12 @@
 
 import { startGame } from "../src/game/setup";
 import { activePlayer, endTurn, legalMoves, movePlayer } from "../src/game/turn";
-import { attack, endCombat, flee, inviteTargets, invite, takeSpoil } from "../src/game/combat";
-import { canFish, canSearch, fish, search } from "../src/game/actions";
+import { attack, endCombat, flee, invitable, inviteTargets, invite, takeSpoil } from "../src/game/combat";
+import { canFish, canSearch, eat, fish, search, tileMates } from "../src/game/actions";
 import { clearDraw } from "../src/game/turn";
 import { distance, fromLabel } from "../src/game/hex";
 import { makeRng } from "../src/game/rng";
+import { MAX_PARTY, MIN_PARTY, TURN_ORDER } from "../src/game/players";
 import type { GameState } from "../src/game/types";
 
 /**
@@ -31,16 +32,84 @@ import type { GameState } from "../src/game/types";
  */
 function shoutForHelp(state: GameState): GameState {
   let next = state;
+  const before = next.combat?.allies.length ?? 0;
   for (const who of inviteTargets(next)) {
     if (who.health <= 2) continue;
     next = invite(next, who.id);
   }
+  stats.alliesJoined += (next.combat?.allies.length ?? 0) - before;
   return next;
 }
+
+/**
+ * Eat when hurt, for everybody, not just whoever is up.
+ *
+ * The bot went twenty-two versions without ever using a supply item, which quietly
+ * made the **wipe** figure the least trustworthy of the three numbers it reports: not
+ * eating is precisely what kills a party. Eating is free and works on anybody's turn
+ * (`eat` deliberately ignores whose turn it is), so a family does this constantly and
+ * the bot never did.
+ *
+ * Deliberately dim: eat only when a whole food's worth of health is missing, so
+ * nothing is wasted topping up from 3 to 4, and take whatever is at the front of the
+ * pack rather than choosing.
+ */
+function eatIfHurt(state: GameState): GameState {
+  let next = state;
+  for (const player of next.players) {
+    if (player.dead) continue;
+    let guard = 0;
+    while (guard++ < 4) {
+      const who = next.players.find((p) => p.id === player.id)!;
+      const bite = who.supply.find((i) => i.value > 0 && who.health + i.value <= who.maxHealth);
+      if (!bite) break;
+      const after = eat(next, who.id, bite.id);
+      if (after === next) break;
+      next = after;
+      stats.mealsEaten++;
+    }
+  }
+  return next;
+}
+
+/**
+ * What the party actually did together, as opposed to what it scored.
+ *
+ * The win rate cannot tell you whether the co-operative machinery is reachable - a
+ * party that never once fights together and one that fights together every time can
+ * post the same number. These count the thing itself.
+ */
+const stats = {
+  groupFights: 0,
+  soloFights: 0,
+  alliesJoined: 0,
+  mealsEaten: 0,
+  handOvers: 0,
+};
+
+export const resetStats = (): void => {
+  stats.groupFights = 0;
+  stats.soloFights = 0;
+  stats.alliesJoined = 0;
+  stats.mealsEaten = 0;
+  stats.handOvers = 0;
+};
 
 /** One turn of a bot that walks about, pokes at things, and runs when hurt. */
 function botTurn(state: GameState, roll: () => number): GameState {
   let next = state.draw ? clearDraw(state) : state;
+  next = eatIfHurt(next);
+  // Which fight, if any, was already running when this turn began. A fight usually
+  // *starts* partway through a turn - you walk into it - so counting at the top of
+  // the turn misses every one of them, which is how the first version of this counter
+  // reported zero group fights in the same run as five friends joining them.
+  const fightAtStart = state.combat?.enemyId ?? null;
+  const countFight = (s: GameState) => {
+    if (!s.combat || s.combat.enemyId === fightAtStart) return;
+    const enemy = s.enemies.find((e) => e.id === s.combat!.enemyId);
+    if (enemy && invitable(enemy)) stats.groupFights++;
+    else stats.soloFights++;
+  };
 
   // Fight, or get out if it is going badly.
   let guard = 0;
@@ -78,6 +147,8 @@ function botTurn(state: GameState, roll: () => number): GameState {
     }
   }
 
+  countFight(next);
+
   guard = 0;
   while (next.combat && next.combat.outcome === "ongoing" && guard++ < 12) {
     next = shoutForHelp(next);
@@ -87,9 +158,9 @@ function botTurn(state: GameState, roll: () => number): GameState {
   if (next.ending) return next;
 
   const after = activePlayer(next);
-  // Fish if you can, search otherwise. The bot still never eats what it catches, so
-  // the fisherman's food is worth nothing to it - this measures the role's effect on
-  // the board and the economy, not on survival.
+  // Fish if you can, search otherwise. The bot eats what it catches now (see
+  // `eatIfHurt`), so the fisherman's food counts towards survival as well as towards
+  // the board and the economy.
   if (!next.combat && canFish(next, after)) next = fish(next);
   else if (!next.combat && canSearch(next, after)) next = search(next);
 
@@ -104,12 +175,13 @@ function botTurn(state: GameState, roll: () => number): GameState {
   }
 
   if (next.combat && next.combat.outcome !== "ongoing") next = endCombat(next);
+  next = eatIfHurt(next);
   return next.combat ? next : endTurn(next);
 }
 
-function play(seed: number): { ending: GameState["ending"]; purse: number } {
+function play(seed: number, party: number): { ending: GameState["ending"]; purse: number } {
   const rng = makeRng(seed * 7919 + 13);
-  let state = startGame(seed);
+  let state = startGame(seed, TURN_ORDER.slice(0, party));
   for (let i = 0; i < 4000 && !state.ending; i++) state = botTurn(state, () => rng.next());
   return {
     ending: state.ending ?? "outOfTime",
@@ -144,18 +216,29 @@ if (process.env.DIAG) {
   process.exit(0);
 }
 
+// `npx vite-node tools/sim.ts 800 [party size]`. The size matters: the board scales
+// to the party (`monsterCount`, `bossHealth`), and the README carries a per-size table
+// that has to be re-measured whenever any of that moves.
 const games = Number(process.argv[2] ?? 200);
+const party = Math.min(Math.max(Number(process.argv[3] ?? TURN_ORDER.length), MIN_PARTY), MAX_PARTY);
 const tally: Record<string, number> = {};
 let purse = 0;
 for (let seed = 1; seed <= games; seed++) {
-  const result = play(seed);
+  const result = play(seed, party);
   const ending = result.ending ?? "outOfTime";
   tally[ending] = (tally[ending] ?? 0) + 1;
   purse += result.purse;
 }
 
-console.log(`${games} games:`);
+console.log(`${games} games, ${party} players:`);
 for (const [ending, n] of Object.entries(tally).sort((a, b) => b[1] - a[1])) {
   console.log(`  ${ending.padEnd(12)} ${String(n).padStart(4)}  ${((n / games) * 100).toFixed(0)}%`);
 }
 console.log(`  ${"purse".padEnd(12)} ${`$${(purse / games).toFixed(1)}`.padStart(4)}  per player at the end`);
+
+// What the party did together. The endings above cannot tell you whether the
+// co-operative rules were reachable at all - a party that never fights together and
+// one that always does can post identical win rates.
+const per = (n: number) => (n / games).toFixed(1);
+console.log(`  ${"together".padEnd(12)} ${per(stats.groupFights)} boss fights + ${per(stats.soloFights)} mobs a game, ${per(stats.alliesJoined)} friends joining`);
+console.log(`  ${"meals".padEnd(12)} ${per(stats.mealsEaten)} eaten a game`);

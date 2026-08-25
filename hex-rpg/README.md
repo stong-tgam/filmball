@@ -4,7 +4,7 @@ Hotseat (one device, passed around) digital version of the Hex RPG tabletop game
 Built to `reference/hex-rpg-rulebook.md`, with `reference/webapp-spec.md` as the build
 plan.
 
-**This build is v0.21.** Every system the spec asks for is in, every placeholder from
+**This build is v0.23.** Every system the spec asks for is in, every placeholder from
 the early builds has been replaced with what the rulebook actually says, and the two
 rules the rulebook leans on hardest — the hidden board and the group fight — are both
 built. **The goal: kill the dragon before turn 32.**
@@ -408,6 +408,49 @@ so the board was never boring; it was simply too far across.
 Everything stops under `prefers-reduced-motion`, and none of it is longer than a beat —
 these fire dozens of times an evening.
 
+## v0.23: nobody starts alone, and the bot learns to eat
+
+Two changes, and the second one rewrites every balance number in this README.
+
+**The party starts in pairs.** One to a corner read well — everyone the same distance
+from the middle, nobody with a head start — but it also meant **nobody was ever next to
+anybody**, and half the rules written since need exactly that: the doctor can only patch
+somebody adjacent, the Fisher's hook reaches one tile, handing something over needs a
+shared tile, and §8's invitations reach only as far as the starter's own legs. That
+spread is how a bug that made self-healing do nothing survived twenty versions.
+
+Now each pair takes a corner, one player on it and one beside it, and an odd party makes
+a **trio** at the last corner rather than stranding somebody on a corner of their own.
+Partners take the *rim* neighbours, so the whole party still starts three tiles from the
+dragon and nobody opens inside the smoke. Two or three separate corners still means the
+hidden map is worth talking about — putting everybody on one tile would have deleted the
+exploring, which is the actual game.
+
+It does what it was for: **friends joining a boss fight went from 0.39 per fight to
+0.65**, and boss fights got bigger rather than more numerous (12.3 fights a game down to
+8.3, with more people in each).
+
+**The sim bot eats now.** It never had, for twenty-two versions, and not eating is
+precisely what kills you — so every wipe figure this README has ever printed was badly
+pessimistic. Teaching it to eat when hurt, on its own, took five players from **40% wins
+and 26% wipes to 74% and 5%**. The game did not get easier; the measurement got honest.
+`tools/sim.ts` also takes a party size now (`npx vite-node tools/sim.ts 800 3`), and
+counts group fights, allies and meals alongside the endings — a party that never fights
+together and one that always does post identical win rates otherwise.
+
+| Players | Win | Out of time | Wiped |
+|---|---|---|---|
+| 2 | 58% | 17% | 25% |
+| 3 | 71% | 17% | 12% |
+| 4 | 75% | 19% | 6% |
+| 5 | 87% | 11% | 2% |
+
+**That is well outside the brief** — CLAUDE.md asks for roughly a third wins, a third
+out of time, a third wiped — and the sizes no longer land in one band. It is a decision
+for the owner rather than a knob to turn quietly mid-playtest, and it is now the top
+item under "Still open". Worth holding on to while deciding: the bot is still worse than
+a family, so these remain a floor.
+
 ## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.
 - **Four event cards** that need effects lasting beyond the moment they are read:
@@ -429,15 +472,15 @@ these fire dozens of times an evening.
 - **The bot never spends its money**, so the sim's purse line is gross earnings, not
   savings. It says money is reaching the party; it says nothing about whether the
   shop is worth walking to.
-- **Two-player games are the hardest by some way** — 44% wipes against 28% at five,
-  after the party-size scaling in v0.21 brought them down from 62%. A pair *should*
-  struggle, so this may be right rather than wrong; it is the number to watch if the
-  kids play in twos.
-- **The starting spread may be working against the newer systems.** Everyone starts on
-  a corner, four tiles apart. That is what hid the doctor bug for so long, what makes
-  the Fisher's hook hard to use, and what makes a group fight hard to assemble — you
-  need people near each other *before* a fight starts. Cheap to change, and it would
-  make the last few versions land harder at the table.
+- **Two-player games are the hardest by some way** — 25% wipes against 2% at five. A
+  pair *should* struggle, so this may be right rather than wrong; it is the number to
+  watch if the kids play in twos. Note that the gap widened once the bot started
+  eating: a big party finds more food, so the fix helped five players more than two.
+- **The game is too easy, and the sizes no longer share a band.** 85% wins at five
+  players against a design brief of roughly a third each way, and a 29-point spread
+  from two players to five. Most of that is not the game changing — see v0.23 — but it
+  is now the number most in need of a decision. The dials are `bossHealth`, the turn
+  limit, and `monsterCount`.
 - **The group-fight UI is verified by construction, not by eye.** The rules underneath
   it have 20-odd tests and the owner has played it, but the invite and loot-handout
   buttons have never been driven in an automated browser run: the random-walking bot

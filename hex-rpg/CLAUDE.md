@@ -94,10 +94,10 @@ npm run dev        # http://localhost:5173
 npm test           # 362 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html, plus the artifact fragment
-npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
+npx vite-node tools/sim.ts 800 5 # bot playtest: how do 800 five-player games end?
 ```
 
-## Current state: v0.22
+## Current state: v0.23
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -111,7 +111,7 @@ Key rules, so nothing gets "improved" back to a guess:
   3 health and $2. The scout's sight is the bonus that matters most now the board is
   hidden — one extra ring is roughly triple what a turn tells you. Four are rulebook
   §3; the fisherman is this build's own. The party is **whichever two to five of them
-  the table picked**, one to a corner — see the roster bullet below.
+  the table picked**, starting in pairs on the corners — see the roster bullet below.
 - **The fisherman** is the odd role out on purpose: every other bonus is a number added
   to a roll, theirs is a **thing they hold**. The rod is in the weapon slot at **+0**,
   cannot be swapped away (`equip` refuses — a ground search equips what it finds
@@ -410,13 +410,20 @@ notes are for.
 
 ## Balance, and how to check it
 
-`npx vite-node tools/sim.ts 800` plays the game with a bot and prints how it ends.
+`npx vite-node tools/sim.ts 800 5` plays 800 five-player games with a bot and prints
+how they end; the second argument is the party size, and every size wants its own run.
 **Use 800, not 200** — at 200 the standard error is about 3 points, which is wide
 enough to invent an improvement that is not there. That happened: v0.17 read 20% on 200
 games and 25% on 800.
 
-At v0.21, five players: **40% wins, 34% out of time, 26% wipes.** Every party size from
-two to five lands in a 40-51% win band; the per-size table is in the README.
+At v0.23, five players: **85% wins, 12% out of time, 3% wipes** — and two players win
+58%. Both of those are **outside the band this file asks for**, and the sizes no longer
+share one; see "Still open" in the README. Almost none of that is the game getting
+easier. The bot had never eaten, in twenty-two versions, and not eating is exactly what
+kills you: teaching it to eat moved five players from 40/34/26 to 74/21/5 on its own,
+with nothing about the rules changed. Treat every wipe number printed before v0.23 as
+fiction. The dials, when somebody decides to turn them, are `bossHealth`, the turn limit
+and `monsterCount` — and each one wants a fresh 800-game run per party size.
 
 How it got here, because the shape of the story is the useful part:
 
@@ -426,13 +433,16 @@ How it got here, because the shape of the story is the useful part:
 | v0.18 | 32% | 49% | 20% | food from searches, rogue's extra pick, **and the bot finally taking loot** |
 | v0.19 | 38% | 45% | 17% | **group fights** |
 | v0.20 | 40% | 34% | 26% | more events late on |
+| v0.22 | 40% | 34% | 26% | half the board, half the turns - length changed, difficulty did not |
+| v0.23 | 74% | 21% | 5% | **the bot learned to eat** - a sim fix, not a game change |
+| v0.23 | 85% | 12% | 3% | the party starting in pairs |
 
 Two things worth keeping in mind before you trust a number here:
 
-- **The bot is deliberately worse than a family.** It never eats, never buys gear, and
-  coordinates only as far as shouting for help in a fight. Treat every figure as a
-  floor. The **wipe** share is the most distorted of the three, because not eating is
-  precisely what kills you.
+- **The bot is deliberately worse than a family.** It never buys gear, never sells
+  anything, and coordinates only as far as shouting for help in a fight. Treat every
+  figure as a floor. It **does** eat as of v0.23; it went twenty-two versions without,
+  which made every wipe figure before that badly pessimistic.
 - **Fixing the bot moves the numbers without the game changing.** It went a dozen
   versions never picking up loot, which made every change to what monsters drop
   invisible to the sim; fixing that alone was worth three points. When a jump follows a
@@ -535,9 +545,13 @@ Choices the rulebook leaves open (its §15), all marked in the code where they a
 - **A beaten thief is gone for good.**
 - **Two poker decks**, one for events and one for searches.
 - **A city never runs out of food**, and sells gear only from the undrawn pile.
-- **Hazards are placed before the party**, as §5.5 says; the party starts on the six
-  corners, which is this build's choice, not the rulebook's (its sample setup clusters
-  them at the top edge).
+- **Hazards are placed before the party**, as §5.5 says; the party starts **in pairs on
+  the corners** (`startingSpots`), which is this build's choice, not the rulebook's (its
+  sample setup clusters them at the top edge). One to a corner was the older choice and
+  it meant nobody was ever beside anybody, which quietly disabled the doctor, the hook,
+  handing things over and half of §8's invitations. Partners take the *rim* neighbours,
+  so everybody still starts three tiles from the dragon; an odd party makes a trio
+  rather than leaving its last member on a corner alone.
 - **The tornado picks which piece of gear it takes and where it drops you.** The
   rulebook makes both the player's choice; automating them keeps a turn moving, and it
   takes the least useful piece.

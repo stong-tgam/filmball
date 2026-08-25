@@ -34,22 +34,31 @@ describe("the party", () => {
     expect(TURN_ORDER.length).toBeLessThanOrEqual(boardCorners().length);
   });
 
-  it("starts everyone on a corner, a board's width apart and equidistant from the middle", () => {
-    // Written against `RADIUS` rather than a number: the board shrank from 61 tiles to
-    // 37 in v0.22 and this is exactly the sort of test that quietly stops meaning
-    // anything when it keeps passing against a constant nobody re-read.
+  it("starts the party in pairs on the corners, with everybody in reach of somebody", () => {
+    // One to a corner meant nobody was ever next to anybody, which quietly disabled
+    // the doctor, the hook, handing things over and half of §8's invitations. Pairs
+    // keep two or three separate corners - so the map is still worth talking about -
+    // while giving every player somebody within a tile from turn one.
     for (const seed of SEEDS) {
       const players = createInitialState(seed).players;
-      const corners = boardCorners().map(key);
+      const corners = boardCorners();
+
       for (const p of players) {
-        expect(corners).toContain(key(p.hex));
-        expect(distance(p.hex, { q: 0, r: 0 })).toBe(RADIUS);
+        const onOrBesideACorner = corners.some((c) => distance(c, p.hex) <= 1);
+        expect(onOrBesideACorner, `seed ${seed}`).toBe(true);
+        // Still out on the rim - partners take the corner's *rim* neighbours, so the
+        // whole party opens the same distance from the dragon that one-to-a-corner
+        // gave them, and nobody starts inside the smoke.
+        expect(distance(p.hex, { q: 0, r: 0 }), `seed ${seed}, ${p.id}`).toBe(RADIUS);
       }
-      for (const a of players) {
-        for (const b of players) {
-          if (a.id === b.id) continue;
-          expect(distance(a.hex, b.hex)).toBeGreaterThanOrEqual(RADIUS);
-        }
+
+      // Nobody stacked at the start, and everybody has a neighbour.
+      expect(new Set(players.map((p) => key(p.hex))).size).toBe(players.length);
+      for (const p of players) {
+        const nearest = Math.min(
+          ...players.filter((o) => o.id !== p.id).map((o) => distance(p.hex, o.hex)),
+        );
+        expect(nearest, `seed ${seed}, ${p.id}`).toBeLessThanOrEqual(1);
       }
     }
   });
@@ -200,14 +209,21 @@ describe("moving", () => {
     );
   });
 
-  it("refuses a tile out of range, an occupied tile, and nonsense", () => {
+  it("refuses a tile out of range, and nonsense", () => {
     const state = game();
     const player = activePlayer(state);
     const far = label({ q: -player.hex.q, r: -player.hex.r });
-    const occupied = label(state.players[1].hex);
 
-    for (const bad of [far, occupied, "Z9", ""]) {
+    for (const bad of [far, "Z9", ""]) {
       expect(movePlayer(state, bad)).toBe(state);
+    }
+
+    // A tile somebody is standing on is *not* refused - players have stacked since
+    // v0.17. This assertion used to sit in the list above and passed only because the
+    // party started four tiles apart and never got the chance to try.
+    const friend = state.players.find((p) => p.id !== player.id)!;
+    if (legalMoves(state, player).has(label(friend.hex))) {
+      expect(movePlayer(state, label(friend.hex))).not.toBe(state);
     }
   });
 

@@ -16,7 +16,7 @@
  * failed roll matters and a single piece of food is worth carrying.
  */
 
-import { boardCorners, type Hex } from "./hex";
+import { boardCorners, distance, neighbours, type Hex } from "./hex";
 import { PALETTE } from "../palette";
 import { ROD_TEMPLATE, makeItem } from "./items";
 import type { Rng } from "./rng";
@@ -218,19 +218,74 @@ const spawn = (role: Role, hex: Hex): Player => {
 };
 
 /**
- * The party, one to a corner of the board.
+ * Where the party starts: **in pairs, on corners**.
  *
- * Corners are always four tiles apart, so nobody starts next to anybody and everyone
- * is the same distance from the middle - which matters at a kitchen table, where
- * "you started closer" is an argument waiting to happen. Which of the six corners get
- * used comes from the seed; with five roles there is one corner spare.
+ * One to a corner was the old rule, and it read well - everyone equidistant from the
+ * middle, nobody with a head start, no "you started closer" argument at the table.
+ * What it also meant was that **nobody was ever next to anybody**, and half the rules
+ * written since need exactly that:
+ *
+ * - the doctor can only patch somebody adjacent (which is how a bug that made
+ *   self-healing do nothing survived twenty versions unnoticed);
+ * - the fisherman's hook reaches one tile;
+ * - handing something over needs a shared tile;
+ * - and §8's invitations reach only as far as the starter's own legs.
+ *
+ * Pairs are the compromise. Each pair takes a corner, one on it and one beside it, so
+ * every player has somebody in reach from turn one - while the party still opens on
+ * two or three separate corners, which is what keeps the hidden map worth talking
+ * about. Starting everybody on one tile would have made the co-operation trivial and
+ * deleted the exploring, which is the actual game.
+ *
+ * An odd party makes a **trio** at the last corner rather than opening a third one for
+ * a single player: the leftover is exactly the child who would otherwise spend the
+ * first four turns walking towards somebody.
  */
+export function startingSpots(rng: Rng, count: number): Hex[] {
+  // Two to a corner, and an odd party makes one trio rather than leaving somebody on a
+  // corner of their own - stranding the fifth player is the exact thing this is for.
+  const sizes: number[] = [];
+  for (let left = count; left > 0; left -= 2) sizes.push(2);
+  if (count % 2 === 1) {
+    sizes.pop();
+    if (sizes.length === 0) sizes.push(1);
+    else sizes[sizes.length - 1] = 3;
+  }
+
+  const MIDDLE: Hex = { q: 0, r: 0 };
+  const corners = rng.shuffle(boardCorners());
+  const spots: Hex[] = [];
+  const taken = (h: Hex) => spots.some((s) => s.q === h.q && s.r === h.r);
+
+  sizes.forEach((size, i) => {
+    const corner = corners[i % corners.length];
+    spots.push(corner);
+    // Everybody in a group hangs off the corner itself, so a trio is a huddle rather
+    // than a line and nobody is two tiles from where their group started. Corners sit
+    // on the rim, so `neighbours` only ever offers tiles that are on the board - three
+    // of them, which is one more than the biggest group needs.
+    //
+    // Furthest from the middle first, which picks the two *rim* neighbours over the one
+    // that steps inwards. That keeps the whole party the same distance from the dragon
+    // as one-to-a-corner did: a partner on the inner tile would start two tiles from
+    // the middle, inside the smoke, and both open the game a move ahead of everybody
+    // else and be handed the one thing the hidden board is meant to make them look for.
+    const beside = rng
+      .shuffle(neighbours(corner))
+      .filter((h) => !taken(h))
+      .sort((a, b) => distance(b, MIDDLE) - distance(a, MIDDLE));
+    spots.push(...beside.slice(0, size - 1));
+  });
+
+  return spots.slice(0, count);
+}
+
 export function createPlayers(rng: Rng, roster: Role[] = TURN_ORDER): Player[] {
   // Duplicates would collide on `Player.id`, which is the role name; an empty roster
   // would be a game with nobody in it. Both are the caller's mistake, and both are
   // better caught here than three turns later.
   const party = roster.filter((role, i) => roster.indexOf(role) === i);
   const chosen = party.length > 0 ? party.slice(0, MAX_PARTY) : TURN_ORDER;
-  const corners = rng.shuffle(boardCorners()).slice(0, chosen.length);
-  return chosen.map((role, i) => spawn(role, corners[i]));
+  const spots = startingSpots(rng, chosen.length);
+  return chosen.map((role, i) => spawn(role, spots[i]));
 }

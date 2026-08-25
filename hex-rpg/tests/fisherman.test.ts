@@ -43,7 +43,7 @@ import {
   equip,
   makeItem,
 } from "../src/game/items";
-import { distance, key } from "../src/game/hex";
+import { DIRS, allHexes, distance, key } from "../src/game/hex";
 import { JOKER } from "../src/game/cards";
 import type { Card, GameState, Player, Tile } from "../src/game/types";
 
@@ -221,17 +221,33 @@ describe("fishing", () => {
 
 describe("the hook", () => {
   /** The fisherman and the knight standing next to each other. */
+  /**
+   * The fisherman with the knight next to them and nobody else in reach.
+   *
+   * The party now starts in pairs (see `startingSpots`), so somebody is beside the
+   * fisherman from turn one - which is the point of that change and no use at all to a
+   * test about how far a rope reaches. Everybody who is not the knight is walked out of
+   * range first, so what these tests measure is the hook and not the setup.
+   */
   function paired(seed = 4471): GameState {
     const base = createInitialState(seed);
     const rod = base.players[fisherIndex];
-    const spot = [...Array(6).keys()]
-      .map((i) => [{ q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }, { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }][i])
-      .map((d) => ({ q: rod.hex.q + d.q, r: rod.hex.r + d.r }))
-      .find((h) => base.tiles[key(h)] && !base.enemies.some((e) => key(e.hex) === key(h)))!;
+    const usable = (h: { q: number; r: number }) =>
+      base.tiles[key(h)] && !base.enemies.some((e) => key(e.hex) === key(h));
+
+    const spot = DIRS.map((d) => ({ q: rod.hex.q + d.q, r: rod.hex.r + d.r })).find(usable)!;
+    const away = allHexes().filter(
+      (h) => usable(h) && distance(h, rod.hex) > 1 && key(h) !== key(spot),
+    );
+
+    let next = 0;
     return {
       ...base,
       activePlayerIndex: fisherIndex,
-      players: base.players.map((p, i) => (i === 0 ? { ...p, hex: spot } : p)),
+      players: base.players.map((p, i) => {
+        if (i === fisherIndex) return p;
+        return { ...p, hex: i === 0 ? spot : away[next++] };
+      }),
     };
   }
 
