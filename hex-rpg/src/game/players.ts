@@ -162,8 +162,19 @@ export const ROLES: Record<Role, RoleProfile> = {
   },
 };
 
-/** Turn order, and the order roles are handed out. */
+/**
+ * Every role, in the order they are offered and the order they take their turns.
+ *
+ * A party is now **whichever of these the table picked**, in the order they picked
+ * them — so this is the menu and the default, not the roster. `createPlayers` takes
+ * the roster; `TURN_ORDER` is what it falls back to when nobody has chosen, which is
+ * every test written before the picker existed and the sim.
+ */
 export const TURN_ORDER: Role[] = ["knight", "rogue", "scout", "doctor", "fisherman"];
+
+/** Fewest and most people who can sit down to this. */
+export const MIN_PARTY = 2;
+export const MAX_PARTY = TURN_ORDER.length;
 
 /**
  * Full health for this player: the base, the role's bonus, and their armour, which
@@ -214,7 +225,12 @@ const spawn = (role: Role, hex: Hex): Player => {
  * "you started closer" is an argument waiting to happen. Which of the six corners get
  * used comes from the seed; with five roles there is one corner spare.
  */
-export function createPlayers(rng: Rng): Player[] {
-  const corners = rng.shuffle(boardCorners()).slice(0, TURN_ORDER.length);
-  return TURN_ORDER.map((role, i) => spawn(role, corners[i]));
+export function createPlayers(rng: Rng, roster: Role[] = TURN_ORDER): Player[] {
+  // Duplicates would collide on `Player.id`, which is the role name; an empty roster
+  // would be a game with nobody in it. Both are the caller's mistake, and both are
+  // better caught here than three turns later.
+  const party = roster.filter((role, i) => roster.indexOf(role) === i);
+  const chosen = party.length > 0 ? party.slice(0, MAX_PARTY) : TURN_ORDER;
+  const corners = rng.shuffle(boardCorners()).slice(0, chosen.length);
+  return chosen.map((role, i) => spawn(role, corners[i]));
 }

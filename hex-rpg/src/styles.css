@@ -698,6 +698,97 @@ button.ghost {
   color: var(--accent);
 }
 
+/* ---------- the title screen ----------
+
+   The first thing anybody sees, and the audience is a table of children arguing over
+   who gets to be the knight. So the roles *are* the screen: colour first, then the one
+   line that says what they do. The number in the pip is turn order, which is real
+   information - going first matters on a board where the good ground is found rather
+   than seen.                                                                          */
+
+.title {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.title-card {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 16px;
+}
+
+.title-name {
+  margin: 0;
+  font-size: 40px;
+  line-height: 1;
+  font-family: "Patrick Hand", "Comic Sans MS", cursive;
+  color: var(--accent);
+}
+
+.title-blurb { margin: 0; color: var(--ink-muted); max-width: 48ch; }
+
+.title-resume {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: #f0a02c14;
+}
+.title-resume p { margin: 0; }
+.title-warn { font-size: 13px; }
+
+.title-ask { margin: 6px 0 0; font-size: 18px; }
+
+.title-roles { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+
+/* A whole row is the target, not a checkbox on it: this is played on a tablet by
+   people with small fingers. */
+.title-role {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg-panel);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.title-role.is-picked {
+  border-color: var(--who);
+  box-shadow: inset 0 0 0 1px var(--who);
+  background: #ffffff0d;
+}
+
+.title-role:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.title-pip {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border: 2px solid #141a1f;
+}
+
+.title-role-text { display: grid; gap: 2px; }
+.title-role-text em { font-style: normal; font-size: 13px; color: var(--ink-muted); }
+
+.title-count { margin: 0; color: var(--ink-muted); font-size: 14px; }
+.title-go { min-height: 52px; font-size: 17px; }
+
 /* ---------- casting the line at a friend ---------- */
 
 .hook { align-items: stretch; }

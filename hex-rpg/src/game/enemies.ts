@@ -228,14 +228,63 @@ export const enemyAt = (enemies: Enemy[], label: string): Enemy | undefined =>
  * The only rule kept is `SAFE_RADIUS` around the starting corners, so nobody walks
  * into a mid boss on turn one before they own anything.
  */
+/**
+ * How many of each monster a party of this size faces.
+ *
+ * The counts in `ENEMIES` are written for a full table of five. Handing the same
+ * nineteen monsters to two children is not a harder game, it is a different one: the
+ * sim wiped two-player parties **62%** of the time against 28% at five, because a pair
+ * cannot out-damage what they walk into and every failed roll in a group fight costs
+ * both of them a health.
+ *
+ * So the board scales with the party, rounded up and floored at two of each so a small
+ * game still has something to find. The dragon is never scaled - it is the whole point
+ * of the evening, and a smaller dragon would be a smaller ending.
+ */
+export function monsterCount(kind: "mob" | "midboss", party: number): number {
+  const full = ENEMIES[kind].count;
+  const scaled = Math.ceil((full * party) / 5);
+  return Math.max(2, Math.min(full, scaled));
+}
+
+/**
+ * A boss's health, scaled to the party that has to bring it down.
+ *
+ * §7.4 is explicit that the health bands were worked out against a party rolling
+ * together — "the boss maths assumes the four-player group fight in §8". Handing a
+ * 20-30 health dragon to two children is not that game: their damage scales with the
+ * party and so does their total health, so a fixed band means a pair grind twice as
+ * long while bleeding at the same rate. The sim wiped them **62%** of the time.
+ *
+ * **Half the slope, not the full one.** Scaling health straight down with party size
+ * was measured and overshot badly - two players went from 62% wipes to 69% *wins*,
+ * because a party's damage is not purely linear in its size (each of them brings a
+ * weapon bonus of their own, and the group only has to beat the remaining health once
+ * however many are swinging). Meeting the difference halfway is what lands every party
+ * size in the same band. The numbers are in the README; re-measure if you touch this.
+ *
+ * Mobs are left alone: they are meant to be a bump, they already scale in *number*
+ * (`monsterCount`), and a 2-health bandit is not a fight.
+ */
+export function bossHealth(kind: EnemyKind, party: number, rng: Rng): number {
+  const rolled = rng.int(...ENEMIES[kind].health);
+  if (kind !== "midboss" && kind !== "finalboss") return rolled;
+  const full = 5;
+  const share = Math.min(party, full) / full;
+  return Math.max(4, Math.round(rolled * (0.5 + 0.5 * share)));
+}
+
 export function placeEnemies(rng: Rng, players: Player[]): Enemy[] {
   const centre = { q: 0, r: 0 };
   const placed: Enemy[] = [
-    spawn("finalboss", centre, 1, rng.int(...ENEMIES.finalboss.health)),
+    spawn("finalboss", centre, 1, bossHealth("finalboss", players.length, rng)),
   ];
 
-  const monsters = ENEMIES.midboss.count + ENEMIES.mob.count;
-  const radius = safeRadiusFor(players, monsters);
+  const wanted = {
+    midboss: monsterCount("midboss", players.length),
+    mob: monsterCount("mob", players.length),
+  };
+  const radius = safeRadiusFor(players, wanted.midboss + wanted.mob);
 
   const taken = (h: Hex) => placed.some((e) => e.hex.q === h.q && e.hex.r === h.r);
   const free = (h: Hex) => !taken(h) && players.every((p) => distance(p.hex, h) > radius);
@@ -244,8 +293,8 @@ export function placeEnemies(rng: Rng, players: Player[]): Enemy[] {
   let next = 0;
 
   for (const kind of ["midboss", "mob"] as const) {
-    for (let n = 0; n < ENEMIES[kind].count && next < open.length; n++) {
-      placed.push(spawn(kind, open[next++], n + 1, rng.int(...ENEMIES[kind].health)));
+    for (let n = 0; n < wanted[kind] && next < open.length; n++) {
+      placed.push(spawn(kind, open[next++], n + 1, bossHealth(kind, players.length, rng)));
     }
   }
   return placed;

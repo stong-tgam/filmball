@@ -324,6 +324,7 @@ describe("catching a thief", () => {
         enemyId: thief.id,
         playerId: player.id,
         allies: [],
+        support: [],
         from: key(player.hex),
         round: 0,
         playerRoll: null,

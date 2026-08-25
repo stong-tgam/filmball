@@ -13,7 +13,7 @@ rulebook actually says. **The goal is now a real goal: beat the dragon before tu
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 345 tests
+npm test           # 362 tests
 npm run build      # type-check + production build into dist/
 npm run build:play # one self-contained .html you can hand to somebody
 
@@ -340,6 +340,34 @@ eats and a real family does.
 
 *(Hazards landing on a player already fired their event immediately — checked over 400
 hazard moves, 42 of 43 landings resolved on the spot. No change needed there.)*
+
+## v0.21: save the game, and pick who you are
+
+- **The game saves itself.** Every change is written to the browser, and the title
+  screen offers to carry on. A thirty-two-turn game across five players is more than
+  one sitting, and on a tablet the tab closes itself. A save from an older build is
+  refused rather than half-loaded — that costs one game instead of an evening.
+- **The table picks the party.** Two to five players, chosen by tapping roles on the
+  opening screen, and **turn order is the order you tap** — going first matters on a
+  board where the good ground is found rather than seen, so the picker numbers them.
+- **The board now scales to the party.** This turned out to matter more than expected:
+  two children facing five players' worth of monsters wiped **62%** of the time. Monster
+  counts scale with the party, and boss health scales at half that slope.
+- **In a group fight, the Doctor can patch somebody up instead of rolling** — their
+  dice are the price. This is the hook the weapon skills and gems will hang on later;
+  healing is just the first one.
+
+**Balance across party sizes** (400 games each):
+
+| Players | Win | Out of time | Wiped |
+|---|---|---|---|
+| 2 | 41% | 16% | 44% |
+| 3 | 51% | 16% | 34% |
+| 4 | 43% | 25% | 32% |
+| 5 | 40% | 32% | 28% |
+
+Two is still the hardest, which is right — a pair *should* struggle. Five is unchanged
+from v0.20, so the existing balance is preserved rather than re-tuned underneath it.
 
 ## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.

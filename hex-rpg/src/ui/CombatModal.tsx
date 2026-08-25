@@ -36,6 +36,13 @@ type Props = {
   inviteTargets: Player[];
   onInvite: (playerId: string) => void;
   /**
+   * Fighters who can do something other than swing this round, and who they can do it
+   * to. Only the doctor has one so far; this is where weapon skills will hang.
+   */
+  supportChoices: { who: Player; targets: Player[] }[];
+  onSupport: (byId: string, toId: string) => void;
+  onUnsupport: (byId: string) => void;
+  /**
    * Eating is not the turn's action and never was - the spec is explicit that supply
    * may be used at any time, "including in the middle of a fight". It could not be:
    * the party list lives in the sidebar and this modal covers it, so the one moment a
@@ -74,6 +81,9 @@ export default function CombatModal({
   party,
   inviteTargets,
   onInvite,
+  supportChoices,
+  onSupport,
+  onUnsupport,
   onEat,
   onClose,
   ground,
@@ -281,6 +291,43 @@ export default function CombatModal({
                 </div>
               </div>
             )}
+            {combat.support.length > 0 && (
+              <div className="fight-supply">
+                <p className="fight-supply-title">Holding back to help:</p>
+                <div className="hook-ways">
+                  {combat.support.map((pledge) => {
+                    const by = party.find((p) => p.id === pledge.by);
+                    const to = party.find((p) => p.id === pledge.to);
+                    return (
+                      <button key={pledge.by} type="button" className="ghost" onClick={() => onUnsupport(pledge.by)}>
+                        {by?.name} patches {to?.name} — tap to swing instead
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {supportChoices.map((choice) => (
+              <div className="fight-supply" key={choice.who.id}>
+                <p className="fight-supply-title">
+                  {choice.who.name} can patch somebody up instead of rolling — their
+                  dice are the price.
+                </p>
+                <div className="hook-ways">
+                  {choice.targets.map((target) => (
+                    <button
+                      key={target.id}
+                      type="button"
+                      className="ghost"
+                      onClick={() => onSupport(choice.who.id, target.id)}
+                    >
+                      {target.id === choice.who.id ? "Themselves" : target.name} (
+                      {target.health}/{target.maxHealth})
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
             {party.length > 1 && (
               <p className="fight-party">
                 Fighting together: {party.map((p) => p.name).join(", ")}. All the dice

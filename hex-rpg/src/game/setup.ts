@@ -29,7 +29,7 @@ import { beginTurn } from "./turn";
 import { createItemPile } from "./items";
 import { freshDeck } from "./cards";
 import { createEventDeck } from "./events";
-import { MAX_ELEMENTS, type Element, type GameState, type Tile } from "./types";
+import { MAX_ELEMENTS, type Element, type GameState, type Role, type Tile } from "./types";
 
 export const CITY_COUNT = 5;
 /** Cities must be this far apart, so no two are a single step from each other. */
@@ -317,12 +317,12 @@ export function generateBoard(seed: number): Record<string, Tile> {
  * it. Hazards, items and events arrive in later phases, and the phases they belong
  * to are already named in `Phase`.
  */
-export function createInitialState(seed: number): GameState {
+export function createInitialState(seed: number, roster?: Role[]): GameState {
   // A second generator, so adding a draw here can never shift the board a seed
   // produces. Board and party stay independently reproducible.
   const rng = makeRng(seed ^ 0x9e3779b9);
 
-  const players = createPlayers(rng);
+  const players = createPlayers(rng, roster);
   const tiles = generateBoard(seed);
   // Monsters first, then hazards around them: two things on one tile is a fight
   // nobody chose, and the thieves are both at once.
@@ -361,7 +361,8 @@ export function createInitialState(seed: number): GameState {
 }
 
 /** A new game with its first card already turned over. */
-export const startGame = (seed: number): GameState => beginTurn(createInitialState(seed));
+export const startGame = (seed: number, roster?: Role[]): GameState =>
+  beginTurn(createInitialState(seed, roster));
 
 /** Handy for tests and for the UI's board summary. */
 export function countTerrain(tiles: Record<string, Tile>) {

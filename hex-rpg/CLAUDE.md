@@ -89,13 +89,13 @@ you have not published.
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 345 tests
+npm test           # 362 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html, plus the artifact fragment
 npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
 ```
 
-## Current state: v0.20
+## Current state: v0.21
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -170,6 +170,31 @@ Key rules, so nothing gets "improved" back to a guess:
   half of a game is where a quiet turn is just a turn spent walking. Three bands: jack
   and up, then ten and up, then nine and up (31% / 38% / 46%). The ace counts
   throughout, which §4 quietly excluded.
+- **Games are saved after every change** (`src/game/save.ts`, and a `useGame.subscribe`
+  in the store rather than a call in each of twenty setters — the twenty-first would be
+  the one somebody forgot, and a save that is right most of the time loses an evening
+  and looks like a different bug). **Bump `SAVE_VERSION` whenever `GameState` changes
+  shape.** A save written before a field existed loads without it and crashes three
+  turns later reading `undefined.length`, with nothing on screen to say why; refusing an
+  old save costs one game, loading one costs an evening.
+- **The table picks the party** (`TitleScreen`, `createPlayers(rng, roster)`). Two to
+  five, and **turn order is the order they were tapped** — going first is a real
+  advantage on a board where the good ground is found rather than seen, so the picker
+  numbers them. `TURN_ORDER` is now the menu and the fallback, not the roster.
+- **The board scales to the party** (`monsterCount`, `bossHealth`). Handing five
+  players' worth of board to two children is a different game, not a harder one: the
+  sim wiped two-player parties **62%** of the time. Monster *counts* scale linearly;
+  boss *health* scales at **half** the slope, because scaling it fully overshot and
+  flipped two-player games to 69% wins — a party's damage is not purely linear in its
+  size, since each brings their own weapon bonus and the group only has to beat the
+  remaining health once. Every size now lands in a 40-51% win band. Re-measure if you
+  touch either.
+- **A fighter may do something other than swing** (`Combat.support`, `supportOptions`,
+  `pledgeSupport`). Only the doctor has one — patch somebody up instead of rolling, at
+  the cost of their dice that round, which is exactly the trade worth making when a
+  failed roll costs everybody a health. The shape is `{ by, kind, to }` rather than a
+  doctor-shaped field **because this is where weapon skills and gems will hang**;
+  `"heal"` is simply the only kind built.
 - **Group fights (§8) are in.** The starter of a fight may shout for anybody inside
   **their own** movement range (`inviteTargets`) — so a scout who picks the fight pulls
   from further away, which is a second reason to send them first. Invited players move

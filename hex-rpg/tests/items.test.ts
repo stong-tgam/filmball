@@ -523,6 +523,7 @@ describe("loot", () => {
         enemyId: enemy.id,
         playerId: base.players[at].id,
         allies: [],
+        support: [],
         from: key(enemy.hex),
         round: 0,
         playerRoll: null,

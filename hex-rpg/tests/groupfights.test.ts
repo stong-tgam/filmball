@@ -16,7 +16,10 @@ import {
   invitable,
   invite,
   inviteTargets,
+  pledgeSupport,
+  supportOptions,
   takeSpoil,
+  withdrawSupport,
 } from "../src/game/combat";
 import { createInitialState } from "../src/game/setup";
 import { bringsEvent, endTurn, eventThreshold } from "../src/game/turn";
@@ -46,6 +49,7 @@ function brawl(kind: Enemy["kind"], seed = 4471): GameState {
     enemyId: enemy.id,
     playerId: "knight",
     allies: [],
+    support: [],
     from: key(beside[0]),
     round: 0,
     playerRoll: null,
@@ -347,5 +351,72 @@ describe("one crew of pirates, not two", () => {
     for (const kind of ["mob", "midboss", "finalboss", "robber", "pirates"] as const) {
       expect(ENEMIES[kind].colour).toBe(PALETTE[kind]);
     }
+  });
+});
+
+describe("choosing what to do in a group fight", () => {
+  const withDoctor = (): GameState => invite(brawl("finalboss"), "doctor");
+
+  it("offers the doctor a patch-up, and offers nobody else anything yet", () => {
+    const state = withDoctor();
+    const hurt: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.id === "knight" ? { ...p, health: 4 } : p)),
+    };
+    const doctor = fighters(hurt).find((p) => p.id === "doctor")!;
+    const knight = fighters(hurt).find((p) => p.id === "knight")!;
+
+    expect(supportOptions(hurt, doctor).map((p) => p.id)).toContain("knight");
+    // Everybody else swings. This is the hook the weapon skills will hang on.
+    expect(supportOptions(hurt, knight)).toEqual([]);
+  });
+
+  it("only offers somebody who is actually hurt", () => {
+    const state = withDoctor();
+    const doctor = fighters(state).find((p) => p.id === "doctor")!;
+    // The brawl fixture starts everybody at full health.
+    expect(supportOptions(state, doctor)).toEqual([]);
+  });
+
+  it("heals for a health and costs the healer their dice", () => {
+    const state = withDoctor();
+    const hurt: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.id === "knight" ? { ...p, health: 4 } : p)),
+    };
+    const pledged = pledgeSupport(hurt, "doctor", "knight");
+    expect(pledged.combat?.support).toEqual([{ by: "doctor", kind: "heal", to: "knight" }]);
+
+    const after = attack(pledged);
+    // Two in the fight, but only one set of dice: heal or hit, never both.
+    expect(after.combat?.playerRoll?.dice).toHaveLength(BASE_DICE);
+    // Patched for one, then the failed roll takes one off everybody - so the knight
+    // is back where they started and the doctor is a health down.
+    expect(after.players.find((p) => p.id === "knight")!.health).toBe(4);
+    expect(after.players.find((p) => p.id === "doctor")!.health).toBe(8);
+    // The pledge is spent: next round everybody swings again unless they say otherwise.
+    expect(after.combat?.support).toEqual([]);
+  });
+
+  it("can be taken back before the dice go", () => {
+    const state = withDoctor();
+    const hurt: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.id === "knight" ? { ...p, health: 4 } : p)),
+    };
+    const pledged = pledgeSupport(hurt, "doctor", "knight");
+    const changed = withdrawSupport(pledged, "doctor");
+    expect(changed.combat?.support).toEqual([]);
+    expect(attack(changed).combat?.playerRoll?.dice).toHaveLength(BASE_DICE * 2);
+  });
+
+  it("refuses a pledge from somebody who is not in the fight", () => {
+    const state = withDoctor();
+    const hurt: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.id === "knight" ? { ...p, health: 4 } : p)),
+    };
+    // The rogue is standing next to the fight and never joined it.
+    expect(pledgeSupport(hurt, "rogue", "knight")).toBe(hurt);
   });
 });

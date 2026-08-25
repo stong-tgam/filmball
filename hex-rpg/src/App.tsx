@@ -12,6 +12,9 @@ import EventCardModal from "./ui/EventCard";
 import FindCard from "./ui/FindCard";
 import HookModal from "./ui/HookModal";
 import GiveModal from "./ui/GiveModal";
+import TitleScreen from "./ui/TitleScreen";
+import { readSave } from "./game/save";
+import type { Role } from "./game/types";
 import {
   useActivePlayer,
   useCanDonate,
@@ -21,6 +24,7 @@ import {
   useCanGive,
   useFighters,
   useInviteTargets,
+  useSupportChoices,
   useCanHook,
   useCanSearch,
   useGiveTargets,
@@ -58,6 +62,11 @@ export default function App() {
   const selected = useGame((s) => s.selected);
   const select = useGame((s) => s.select);
   const newGame = useGame((s) => s.newGame);
+  const resume = useGame((s) => s.resume);
+  // Read the shelf once, on mount: `readSave` touches localStorage, and re-reading it
+  // on every render would also make the "20 minutes ago" line jitter as you look at it.
+  const [shelved] = useState(() => readSave());
+  const [seated, setSeated] = useState(false);
   const moveTo = useGame((s) => s.moveTo);
   const endTurn = useGame((s) => s.endTurn);
   const player = useActivePlayer();
@@ -90,6 +99,9 @@ export default function App() {
   const fightParty = useFighters();
   const inviteTargets = useInviteTargets();
   const callForHelp = useGame((s) => s.invite);
+  const supportChoices = useSupportChoices();
+  const pledgeSupport = useGame((s) => s.pledgeSupport);
+  const withdrawSupport = useGame((s) => s.withdrawSupport);
   const giveTargets = useGiveTargets();
   const handOver = useGame((s) => s.give);
   const [giving, setGiving] = useState(false);
@@ -127,6 +139,25 @@ export default function App() {
     else select(label);
   };
 
+  // The title screen owns the first moment: who is playing, or carry on from the game
+  // on the shelf. Held in the view rather than in `GameState` because it is a question
+  // about *this device* and not about the game — a resumed save must not put the party
+  // back through the picker.
+  if (!seated) {
+    return (
+      <TitleScreen
+        saved={shelved?.at ?? null}
+        onResume={() => {
+          if (resume()) setSeated(true);
+        }}
+        onStart={(roster: Role[]) => {
+          newGame(undefined, roster);
+          setSeated(true);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="app">
       {/* The wobble filters and hatch patterns every drawing points into. Mounted once. */}
@@ -134,7 +165,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.20 — drawn by the children</span>
+          <span className="version">v0.21 — drawn by the children</span>
         </div>
         <button
           type="button"
@@ -283,6 +314,9 @@ export default function App() {
           party={fightParty}
           inviteTargets={inviteTargets}
           onInvite={callForHelp}
+          supportChoices={supportChoices}
+          onSupport={pledgeSupport}
+          onUnsupport={withdrawSupport}
           onEat={eat}
           onClose={closeCombat}
           ground={game.tiles[key(fight.enemy.hex)]}

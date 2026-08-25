@@ -7,7 +7,20 @@ import { create } from "zustand";
 import { startGame } from "./setup";
 import { randomSeed } from "./rng";
 import { activePlayer, clearDraw, endTurn, legalMoves, movePlayer } from "./turn";
-import { attack, canInvite, combatants, endCombat, fighters, flee, invite, inviteTargets, takeSpoil } from "./combat";
+import {
+  attack,
+  canInvite,
+  combatants,
+  endCombat,
+  fighters,
+  flee,
+  invite,
+  inviteTargets,
+  pledgeSupport,
+  supportOptions,
+  takeSpoil,
+  withdrawSupport,
+} from "./combat";
 import {
   buy,
   canHeal,
@@ -30,13 +43,17 @@ import {
   sell,
 } from "./actions";
 import { canDonate, canPayOff, donate, payOff } from "./hazards";
-import type { Enemy, GameState, Item, Player, Tile } from "./types";
+import { clearSave, readSave, saveGame } from "./save";
+import type { Enemy, GameState, Item, Player, Role, Tile } from "./types";
 
 type Store = {
   game: GameState;
   /** Tile the player last tapped, for the inspector panel. Pure UI state. */
   selected: string | null;
-  newGame: (seed?: number) => void;
+  /** Who is playing. Undefined keeps `TURN_ORDER`, which is what the tests and sim use. */
+  newGame: (seed?: number, roster?: Role[]) => void;
+  /** Put the shelved game back on the table. False when there was nothing readable. */
+  resume: () => boolean;
   select: (label: string | null) => void;
   tile: (label: string) => Tile | undefined;
   moveTo: (label: string) => void;
@@ -60,6 +77,9 @@ type Store = {
   takeLoot: (itemId: string, toId?: string) => void;
   /** Rulebook §8: shout somebody into the fight. It does not cost them their turn. */
   invite: (playerId: string) => void;
+  /** Patch somebody up this round instead of rolling. */
+  pledgeSupport: (byId: string, toId: string) => void;
+  withdrawSupport: (byId: string) => void;
   /** Put the turn's card away once the table has read it. */
   clearDraw: () => void;
   /** Put away what the last search turned up. */
@@ -71,7 +91,14 @@ type Store = {
 export const useGame = create<Store>((set, get) => ({
   game: startGame(randomSeed()),
   selected: null,
-  newGame: (seed) => set({ game: startGame(seed ?? randomSeed()), selected: null, shopOpen: false }),
+  newGame: (seed, roster) =>
+    set({ game: startGame(seed ?? randomSeed(), roster), selected: null, shopOpen: false }),
+  resume: () => {
+    const shelved = readSave();
+    if (!shelved) return false;
+    set({ game: shelved.game, selected: null, shopOpen: false });
+    return true;
+  },
   select: (label) => set({ selected: label }),
   tile: (label) => get().game.tiles[label],
   moveTo: (label) => set({ game: movePlayer(get().game, label), selected: null }),
@@ -94,9 +121,26 @@ export const useGame = create<Store>((set, get) => ({
   eat: (playerId, itemId) => set({ game: eat(get().game, playerId, itemId) }),
   takeLoot: (itemId, toId) => set({ game: takeSpoil(get().game, itemId, toId) }),
   invite: (playerId) => set({ game: invite(get().game, playerId) }),
+  pledgeSupport: (byId, toId) => set({ game: pledgeSupport(get().game, byId, toId) }),
+  withdrawSupport: (byId) => set({ game: withdrawSupport(get().game, byId) }),
   clearDraw: () => set({ game: clearDraw(get().game) }),
   clearFind: () => set({ game: clearFind(get().game) }),
 }));
+
+/**
+ * Write the game down after every change.
+ *
+ * A subscription rather than a call in each setter: there are twenty of them and the
+ * twenty-first would be the one somebody forgot, and a save that is right most of the
+ * time is worse than none - it loses an evening and looks like a different bug.
+ *
+ * A finished game clears the shelf instead of saving, so the title screen does not
+ * offer to resume something that is over.
+ */
+useGame.subscribe((state) => {
+  if (state.game.ending) clearSave();
+  else saveGame(state.game);
+});
 
 /** Selectors, so components subscribe to the narrowest slice they can. */
 export const useActivePlayer = (): Player => useGame((s) => activePlayer(s.game));
@@ -131,6 +175,13 @@ export const useFighters = (): Player[] => useGame((s) => fighters(s.game));
 /** Who the starter could still shout to, per §8. */
 export const useInviteTargets = (): Player[] => useGame((s) => inviteTargets(s.game));
 export const useCanInvite = (): boolean => useGame((s) => canInvite(s.game));
+/** For each fighter who could do something other than swing, who they could do it to. */
+export const useSupportChoices = (): { who: Player; targets: Player[] }[] =>
+  useGame((s) =>
+    fighters(s.game)
+      .map((who) => ({ who, targets: supportOptions(s.game, who) }))
+      .filter((o) => o.targets.length > 0),
+  );
 
 /** The two sides of the fight on screen, or null when nobody is fighting. */
 export const useCombatants = (): { player: Player; enemy: Enemy } | null =>

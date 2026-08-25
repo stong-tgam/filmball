@@ -253,6 +253,18 @@ export type Combat = {
    * roll, and it does not cost them their turn.
    */
   allies: string[];
+  /**
+   * What each fighter is doing *instead of* swinging this round.
+   *
+   * Empty means everybody rolls, which is the common case and the whole of a solo
+   * fight. A doctor may patch somebody up rather than roll: they contribute no dice
+   * that round and the target gets a health back. Cleared when the round resolves.
+   *
+   * A list of `{ by, kind, to }` rather than a doctor-shaped field, because this is
+   * where weapon skills and gems will hang when they arrive — the shape is the point,
+   * `"heal"` is just the only one built.
+   */
+  support: { by: string; kind: "heal"; to: string }[];
   /** Tile the player came from, so running away puts them back where they were. */
   from: string;
   round: number;

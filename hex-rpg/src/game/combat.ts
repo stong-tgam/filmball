@@ -148,6 +148,7 @@ export function startCombat(
     enemyId: enemy.id,
     playerId: player.id,
     allies: [],
+    support: [],
     from,
     round: 0,
     playerRoll: null,
@@ -326,6 +327,50 @@ export function invite(state: GameState, playerId: string): GameState {
   return note(next, `${joining.name} ran in to help. Their turn is still their own.`);
 }
 
+/**
+ * A fighter choosing to do something other than swing.
+ *
+ * Only the doctor has one so far, and it is the obvious one: with everybody in the
+ * fight losing a health per failed roll, a group fight is exactly where a doctor is
+ * worth more than three dice. It costs them their dice for the round, which is the
+ * trade — heal or hit, not both.
+ */
+export function supportOptions(state: GameState, who: Player): Player[] {
+  const combat = state.combat;
+  if (!combat || combat.outcome !== "ongoing") return [];
+  if (!ROLES[who.role].canHeal) return [];
+  if (combat.support.some((s) => s.by === who.id)) return [];
+  return fighters(state).filter((f) => f.health < f.maxHealth);
+}
+
+/** Commit to patching somebody up this round instead of rolling. */
+export function pledgeSupport(state: GameState, byId: string, toId: string): GameState {
+  const combat = state.combat;
+  if (!combat) return state;
+  const healer = fighters(state).find((p) => p.id === byId);
+  if (!healer || supportOptions(state, healer).every((p) => p.id !== toId)) return state;
+  const target = state.players.find((p) => p.id === toId)!;
+
+  return note(
+    { ...state, combat: { ...combat, support: [...combat.support, { by: byId, kind: "heal", to: toId }] } },
+    `${healer.name} is patching ${target.name} up instead of swinging.`,
+  );
+}
+
+/** Undo it before the dice go, in case the table changes its mind. */
+export function withdrawSupport(state: GameState, byId: string): GameState {
+  const combat = state.combat;
+  if (!combat) return state;
+  return {
+    ...combat.support.some((s) => s.by === byId)
+      ? note(
+          { ...state, combat: { ...combat, support: combat.support.filter((s) => s.by !== byId) } },
+          `${state.players.find((p) => p.id === byId)?.name ?? "Somebody"} picked their weapon back up.`,
+        )
+      : state,
+  };
+}
+
 /* ---------------------------------------------------------------- one round */
 
 /** One roll of the dice, and what it does. */
@@ -337,6 +382,28 @@ export function attack(state: GameState): GameState {
   const ground = state.tiles[key(enemy.hex)];
   const party = fighters(state);
 
+  // Anybody patching somebody up does it now, and takes no part in the roll. Their
+  // dice are the price - heal or hit, never both.
+  const combat = state.combat;
+  let state2 = state;
+  const medics = new Set(combat.support.map((s) => s.by));
+  for (const pledge of combat.support) {
+    const healer = state2.players.find((p) => p.id === pledge.by);
+    const target = state2.players.find((p) => p.id === pledge.to);
+    if (!healer || !target || target.health >= target.maxHealth) continue;
+    state2 = note(
+      {
+        ...state2,
+        players: state2.players.map((p) =>
+          p.id === target.id ? { ...p, health: Math.min(p.maxHealth, p.health + 1) } : p,
+        ),
+      },
+      `${healer.name} patched ${target.name} up mid-fight.`,
+    );
+  }
+  state = state2;
+  const swinging = party.filter((p) => !medics.has(p.id));
+
   // Rulebook §8: every participant rolls and the whole lot is totalled together. One
   // number against the monster's remaining health, not a turn each - which is what
   // makes five people meaningfully better than one against thirty health.
@@ -344,7 +411,7 @@ export function attack(state: GameState): GameState {
   const dice: number[] = [];
   let dealt = 0;
   const said: string[] = [];
-  for (const who of party) {
+  for (const who of swinging) {
     const swing = rollDice(rngState, BASE_DICE + who.bonusDiceNextFight);
     rngState = swing.rngState;
     const mine = total(swing.dice) + attackValue(who, enemy, ground);
@@ -364,11 +431,11 @@ export function attack(state: GameState): GameState {
     players: state.players.map((p) =>
       inFight.has(p.id) ? { ...p, bonusDiceNextFight: 0 } : p,
     ),
-    combat: { ...state.combat, round: state.combat.round + 1, playerRoll, toll: 0 },
+    combat: { ...combat, round: combat.round + 1, playerRoll, toll: 0, support: [] },
   };
   next = note(
     next,
-    party.length === 1
+    swinging.length === 1
       ? `${player.name} rolled ${dice.join("+")} for ${dealt}.`
       : `${said.join(", ")} — ${dealt} between them.`,
   );
