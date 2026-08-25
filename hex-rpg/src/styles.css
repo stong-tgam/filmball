@@ -663,6 +663,17 @@ button.ghost {
 
 .find { align-items: center; }
 
+/* The pack, reachable from inside a fight. Above the fight buttons rather than
+   beside them: eating is free and swinging is not, so they must not look alike. */
+.fight-supply {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.fight-supply-title { margin: 0; font-size: 13px; color: var(--ink-muted); }
+
 /* ---------- casting the line at a friend ---------- */
 
 .hook { align-items: stretch; }

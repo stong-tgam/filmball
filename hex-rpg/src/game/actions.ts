@@ -848,7 +848,13 @@ export function heal(state: GameState, targetId: string): GameState {
   };
 
   let next = withPlayer(state, patched);
-  next = withPlayer(next, { ...healer, actedThisTurn: true });
+  // Spend the action on the healer as they are *now*, not on the snapshot taken
+  // before the patch-up. When the doctor heals themselves the two are the same
+  // player, and writing the stale copy back undid the heal - which, since the party
+  // starts four tiles apart and the doctor is almost never next to anybody, meant
+  // "the doctor cannot heal" at the table.
+  const after = next.players.find((p) => p.id === healer.id) ?? healer;
+  next = withPlayer(next, { ...after, actedThisTurn: true });
   return note(
     next,
     revived
@@ -865,14 +871,20 @@ export function eat(state: GameState, playerId: string, itemId: string): GameSta
   const player = state.players.find((p) => p.id === playerId);
   if (!player || state.phase === "gameOver") return state;
 
+  // Refuse anything that would heal nothing rather than swallowing it in silence.
+  // The bone is the case that matters (§12 makes it worthless on purpose), and a
+  // child who taps it, watches it vanish and gains nothing has been robbed by the
+  // interface. It is worth a dollar and it is what a thief takes first; that is what
+  // it is for. Being on full health is the other case, and is the same silence.
+  const holding = player.supply.find((i) => i.id === itemId);
+  if (!holding || holding.value <= 0 || player.health >= player.maxHealth) return state;
+
   const { player: fed, used } = consume(player, itemId);
   if (!used) return state;
 
   const gained = fed.health - player.health;
   return note(
     withPlayer(state, fed),
-    gained > 0
-      ? `${player.name} ate the ${used.name} and got ${gained} health back.`
-      : `${player.name} ate the ${used.name} on a full stomach.`,
+    `${player.name} ate the ${used.name} and got ${gained} health back.`,
   );
 }

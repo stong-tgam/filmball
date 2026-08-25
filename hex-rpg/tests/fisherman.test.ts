@@ -18,6 +18,7 @@ import {
   search,
 } from "../src/game/actions";
 import { createInitialState } from "../src/game/setup";
+import { eat, heal } from "../src/game/actions";
 import { activePlayer } from "../src/game/turn";
 import { ROLES, TURN_ORDER } from "../src/game/players";
 import {
@@ -25,6 +26,8 @@ import {
   FISHING_ROD,
   FISH,
   FISH_TO_UPGRADE,
+  BONE,
+  FOOD,
   SUPPLY_CAP,
   canTake,
   equip,
@@ -304,5 +307,58 @@ describe("the trade the role is built on", () => {
     expect(after.find?.from).toBe("line");
     expect(after.find?.kind).toBe("fish");
     expect(after.find?.gained.map((i) => i.name)).toEqual([FISH]);
+  });
+});
+
+describe("bugs the playtest found", () => {
+  it("lets the doctor patch themselves up - the heal used to be undone", () => {
+    const base = createInitialState(4471);
+    const di = TURN_ORDER.indexOf("doctor");
+    const hurt: GameState = {
+      ...base,
+      activePlayerIndex: di,
+      players: base.players.map((p, i) => (i === di ? { ...p, health: 1 } : p)),
+    };
+
+    const healed = heal(hurt, "doctor");
+    // Spending the action wrote the pre-heal snapshot of the healer back over the
+    // patched-up one. Self-healing is the doctor's common case, not the rare one:
+    // the party starts four tiles apart, so there is usually nobody else in reach.
+    expect(healed.players[di].health).toBe(2);
+    expect(healed.players[di].actedThisTurn).toBe(true);
+  });
+
+  it("refuses food that would heal nothing instead of swallowing it", () => {
+    const base = createInitialState(4471);
+    const bone = makeItem(FOOD.find((f) => f.name === BONE)!, "bone-1");
+    const hungry: GameState = {
+      ...base,
+      players: base.players.map((p, i) => (i === 0 ? { ...p, health: 1, supply: [bone] } : p)),
+    };
+    // §12 makes the bone worthless on purpose - it sells for a dollar and a thief
+    // takes it first. Eating it must not quietly destroy it for no health.
+    expect(eat(hungry, "knight", "bone-1")).toBe(hungry);
+    expect(hungry.players[0].supply).toHaveLength(1);
+
+    const full: GameState = {
+      ...base,
+      players: base.players.map((p, i) =>
+        i === 0 ? { ...p, supply: [makeItem(FOOD[0], "cake-1")] } : p,
+      ),
+    };
+    expect(eat(full, "knight", "cake-1")).toBe(full);
+  });
+
+  it("still feeds anybody who is actually hungry, on anybody's turn", () => {
+    const base = createInitialState(4471);
+    const cake = makeItem(FOOD[0], "cake-2");
+    const hungry: GameState = {
+      ...base,
+      activePlayerIndex: 2,
+      players: base.players.map((p, i) => (i === 0 ? { ...p, health: 1, supply: [cake] } : p)),
+    };
+    const fed = eat(hungry, "knight", "cake-2");
+    expect(fed.players[0].health).toBe(3);
+    expect(fed.players[0].supply).toEqual([]);
   });
 });

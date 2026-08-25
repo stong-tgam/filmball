@@ -266,6 +266,7 @@ export default function App() {
           onAttack={attack}
           onFlee={flee}
           onTakeLoot={takeLoot}
+          onEat={eat}
           onClose={closeCombat}
           ground={game.tiles[key(fight.enemy.hex)]}
         />

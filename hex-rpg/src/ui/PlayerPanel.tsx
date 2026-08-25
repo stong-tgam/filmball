@@ -126,11 +126,13 @@ export function PartyList({
                     type="button"
                     className="eat"
                     onClick={() => onEat(player.id, item.id)}
-                    disabled={player.health >= player.maxHealth}
+                    disabled={item.value <= 0 || player.health >= player.maxHealth}
                     title={
-                      player.health >= player.maxHealth
-                        ? `${player.name} is on full health`
-                        : `Eat the ${item.name} for ${item.value} health`
+                      item.value <= 0
+                        ? `The ${item.name} is not food. Sell it, or let a thief take it.`
+                        : player.health >= player.maxHealth
+                          ? `${player.name} is on full health`
+                          : `Eat the ${item.name} for ${item.value} health`
                     }
                   >
                     <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">

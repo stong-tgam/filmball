@@ -29,6 +29,13 @@ type Props = {
   onAttack: () => void;
   onFlee: () => void;
   onTakeLoot: (itemId: string) => void;
+  /**
+   * Eating is not the turn's action and never was - the spec is explicit that supply
+   * may be used at any time, "including in the middle of a fight". It could not be:
+   * the party list lives in the sidebar and this modal covers it, so the one moment a
+   * child actually wants a sandwich was the one moment they could not reach one.
+   */
+  onEat: (playerId: string, itemId: string) => void;
   onClose: () => void;
   /** The tile the fight is on: it decides which of the enemy's features bite. */
   ground: Tile | undefined;
@@ -58,6 +65,7 @@ export default function CombatModal({
   onAttack,
   onFlee,
   onTakeLoot,
+  onEat,
   onClose,
   ground,
 }: Props) {
@@ -185,6 +193,38 @@ export default function CombatModal({
           </footer>
         ) : (
           <footer className="fight-foot">
+            {player.supply.length > 0 && (
+              <div className="fight-supply">
+                <p className="fight-supply-title">
+                  {player.health >= player.maxHealth
+                    ? `${player.name} is on full health.`
+                    : "Eat something. It does not cost the turn."}
+                </p>
+                <ul className="stock">
+                  {player.supply.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className="buy"
+                        onClick={() => onEat(player.id, item.id)}
+                        disabled={item.value <= 0 || player.health >= player.maxHealth}
+                        title={
+                          item.value <= 0
+                            ? `The ${item.name} is not food. Sell it, or let a thief take it.`
+                            : `Eat the ${item.name} for ${item.value} health`
+                        }
+                      >
+                        <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art">
+                          <ItemArt name={item.name} seedName={item.id} />
+                        </svg>
+                        <span className="buy-name">{item.name}</span>
+                        <span className="buy-value">+{item.value}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <p className="muted">
               Round {combat.round + 1}. Hurting it counts even if you leave — and an
               exact tie does nothing at all. Backing off is a gamble: fast feet get away
