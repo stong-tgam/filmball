@@ -18,9 +18,9 @@ import {
   search,
 } from "../src/game/actions";
 import { createInitialState } from "../src/game/setup";
-import { eat, heal } from "../src/game/actions";
+import { eat, give, giveTargets, heal, tileMates } from "../src/game/actions";
 import { activePlayer } from "../src/game/turn";
-import { ROLES, TURN_ORDER } from "../src/game/players";
+import { ROLES, TURN_ORDER, withMaxHealth } from "../src/game/players";
 import {
   EQUIPMENT,
   FISHING_ROD,
@@ -360,5 +360,97 @@ describe("bugs the playtest found", () => {
     const fed = eat(hungry, "knight", "cake-2");
     expect(fed.players[0].health).toBe(3);
     expect(fed.players[0].supply).toEqual([]);
+  });
+});
+
+describe("standing together", () => {
+  /** Two players on one tile, which is now a thing you can walk into. */
+  function together(seed = 4471): GameState {
+    const base = createInitialState(seed);
+    return {
+      ...base,
+      activePlayerIndex: 0,
+      players: base.players.map((p, i) => (i === 1 ? { ...p, hex: base.players[0].hex } : p)),
+    };
+  }
+
+  it("lists everybody on your tile, and nobody who is merely next to you", () => {
+    const state = together();
+    expect(tileMates(state, state.players[0]).map((p) => p.id)).toEqual(["rogue"]);
+    const apart = createInitialState(4471);
+    expect(tileMates(apart, apart.players[0])).toEqual([]);
+  });
+
+  it("hands something over without costing the turn's action", () => {
+    const base = together();
+    const cake = makeItem(FOOD[0], "cake-give");
+    const state: GameState = {
+      ...base,
+      players: base.players.map((p, i) => (i === 0 ? { ...p, supply: [cake] } : p)),
+    };
+
+    const after = give(state, "rogue", "cake-give");
+    expect(after.players[0].supply).toEqual([]);
+    expect(after.players[1].supply.map((i) => i.id)).toEqual(["cake-give"]);
+    // Walking to each other already cost both of them turns. That is the price.
+    expect(after.players[0].actedThisTurn).toBe(false);
+  });
+
+  it("only ever offers what the other player can actually take", () => {
+    const base = together();
+    const coat = makeItem(EQUIPMENT.find((e) => e.slot === "armor")!, "spare-coat");
+    const worn = makeItem(EQUIPMENT.filter((e) => e.slot === "armor")[1], "their-coat");
+    const state: GameState = {
+      ...base,
+      players: base.players.map((p, i) =>
+        i === 0 ? { ...p, armor: coat } : i === 1 ? { ...p, armor: worn } : p,
+      ),
+    };
+    // The rogue is already wearing one. A trade that quietly costs them their coat is
+    // an argument waiting to happen, so it is not offered at all.
+    const offers = giveTargets(state, state.players[0]);
+    expect(offers.flatMap((o) => o.items).map((i) => i.id)).not.toContain("spare-coat");
+    expect(give(state, "rogue", "spare-coat")).toBe(state);
+  });
+
+  it("gives the knight somewhere to put a second coat, and nobody else", () => {
+    const base = createInitialState(4471);
+    const worn = makeItem(EQUIPMENT.find((e) => e.slot === "armor")!, "worn");
+    const found = makeItem(EQUIPMENT.filter((e) => e.slot === "armor")[1], "found");
+
+    const knight = { ...base.players[0], armor: worn };
+    const kitted = equip(knight, found);
+    expect(kitted.player.armor?.id).toBe("worn");
+    expect(kitted.player.spareArmor?.id).toBe("found");
+    expect(kitted.returned).toBeNull();
+
+    // Everybody else swaps as before: a spare on the wrong back is never handed over.
+    const rogue = { ...base.players[1], armor: worn };
+    const swapped = equip(rogue, found);
+    expect(swapped.player.armor?.id).toBe("found");
+    expect(swapped.player.spareArmor).toBeNull();
+    expect(swapped.returned?.id).toBe("worn");
+  });
+
+  it("lets the knight hand the spare to somebody with a bare back", () => {
+    const base = together();
+    const spare = makeItem(EQUIPMENT.find((e) => e.slot === "armor")!, "the-spare");
+    const state: GameState = {
+      ...base,
+      players: base.players.map((p, i) => (i === 0 ? { ...p, spareArmor: spare } : p)),
+    };
+
+    const after = give(state, "rogue", "the-spare");
+    expect(after.players[0].spareArmor).toBeNull();
+    expect(after.players[1].armor?.id).toBe("the-spare");
+    // Armour is max health in this game, so the receiver gets bigger on the spot.
+    expect(after.players[1].maxHealth).toBeGreaterThan(state.players[1].maxHealth);
+  });
+
+  it("carries no weight: the spare does nothing for the knight holding it", () => {
+    const base = createInitialState(4471);
+    const spare = makeItem(EQUIPMENT.find((e) => e.slot === "armor")!, "dead-weight");
+    const carrying = withMaxHealth({ ...base.players[0], spareArmor: spare });
+    expect(carrying.maxHealth).toBe(base.players[0].maxHealth);
   });
 });

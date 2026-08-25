@@ -54,14 +54,12 @@ const note = (state: GameState, text: string): GameState => ({
 export function legalMoves(state: GameState, player: Player): Map<string, number> {
   if (player.dead || stepsLeft(player) === 0 || state.phase === "gameOver") return new Map();
 
-  // Another player blocks outright now. The old rule let you move *through* somebody
-  // as long as you did not stop on them, which only made sense when a two-tile move
-  // was chosen in one go: taken a step at a time you could always simply end the turn
-  // standing on them, so the rule was unenforceable. Walk round your friend.
-
-  const occupied = new Set(
-    state.players.filter((p) => p.id !== player.id && !p.dead).map((p) => key(p.hex)),
-  );
+  // **You may stand on a friend.** Players stack, and getting the party onto one tile
+  // is now something the game wants: it is how you trade face to face, it is where the
+  // fisherman's hook puts you, and it is where a group fight has to happen. Blocking
+  // it was the older rule and it made the party four people who could never quite meet.
+  //
+  // Monsters are the opposite and always have been: onto one, never past it (§5).
 
   const guarded = (h: { q: number; r: number }) => enemyAt(state.enemies, key(h)) !== undefined;
   // Ground the tornado has just been through is nobody's idea of a route.
@@ -70,7 +68,7 @@ export function legalMoves(state: GameState, player: Player): Map<string, number
 
   const moves = new Map<string, number>();
   for (const [label, steps] of reachable(player.hex, 1, standable, guarded)) {
-    if (steps === 0 || occupied.has(label)) continue;
+    if (steps === 0) continue;
     moves.set(label, steps);
   }
   return moves;

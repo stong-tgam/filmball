@@ -16,8 +16,11 @@ import {
   FOOD_PRICE,
   GEAR_PRICE,
   SUPPLY_CAP,
+  canReceive,
   canTake,
+  giveable,
   isRod,
+  removeItem,
   carriedGear,
   consume,
   equip,
@@ -812,6 +815,54 @@ export function sell(state: GameState, itemId: string): GameState {
 
 /** What the active player could sell right now. */
 export const sellable = (player: Player): Item[] => [...carriedGear(player), ...player.supply];
+
+/* ------------------------------------------------------------------ handing over */
+
+/** Everybody else standing on this tile. Players stack; this is why. */
+export const tileMates = (state: GameState, player: Player): Player[] =>
+  state.players.filter((p) => p.id !== player.id && !p.dead && key(p.hex) === key(player.hex));
+
+/**
+ * Handing something to somebody you are standing with.
+ *
+ * **Free, not the turn's action.** The whole point of two players sharing a tile is
+ * that they can pool what they are carrying, and a child who has to spend their entire
+ * go to pass a sandwich will simply never do it. Walking to each other already cost
+ * both of them turns; that is the price, and it is enough.
+ *
+ * Only ever offered for something the other player can actually take - an empty slot,
+ * or room in the pack. No swaps, no "are you sure": a trade that quietly costs the
+ * receiver their better coat is exactly the kind of thing that starts an argument.
+ */
+export function canGive(state: GameState, player: Player): boolean {
+  if (state.phase === "gameOver" || state.ending !== null || player.dead) return false;
+  return giveTargets(state, player).length > 0;
+}
+
+/** Who is here, and what they could be handed. */
+export function giveTargets(
+  state: GameState,
+  player: Player,
+): { player: Player; items: Item[] }[] {
+  return tileMates(state, player)
+    .map((mate) => ({ player: mate, items: giveable(player).filter((i) => canReceive(mate, i)) }))
+    .filter((offer) => offer.items.length > 0);
+}
+
+export function give(state: GameState, toId: string, itemId: string): GameState {
+  const from = activePlayer(state);
+  const offer = giveTargets(state, from).find((o) => o.player.id === toId);
+  const item = offer?.items.find((i) => i.id === itemId);
+  if (!offer || !item) return state;
+
+  const { player: lighter } = removeItem(from, itemId);
+  const { player: heavier, returned } = equip(offer.player, item);
+  if (returned) return state;
+
+  let next = withPlayer(state, withMaxHealth(lighter));
+  next = withPlayer(next, withMaxHealth(heavier));
+  return note(next, `${from.name} handed ${gearLabel(item)} to ${offer.player.name}.`);
+}
 
 /* ------------------------------------------------------------------- doctor */
 

@@ -88,6 +88,14 @@ export type Player = {
   fellAt: Hex | null;
   /** Turn they died on, for the self-revive clock. */
   fellOn: number | null;
+  /**
+   * A second coat, on the knight's back and nobody else's.
+   *
+   * It does nothing for the person carrying it - no health, no armour, no weight. It
+   * exists to be handed to somebody else, which is the knight's job: the one who can
+   * take a hit is the one who should be carrying the spare.
+   */
+  spareArmor: Item | null;
   /** Homeless-person donation: extra dice on the next fight only. */
   bonusDiceNextFight: number;
   /**

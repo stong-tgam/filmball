@@ -64,6 +64,14 @@ export type RoleProfile = {
   /** Fishermen, and only fishermen, can fish a river and cast the hook. */
   canFish: boolean;
   /**
+   * Room for a second coat, for the knight alone.
+   *
+   * The knight's own bonus is that they can take one more hit, so the party's spare
+   * armour riding on their back is the same idea said twice: they are the one who can
+   * afford to be carrying something they are not wearing.
+   */
+  carriesSpare: boolean;
+  /**
    * Token colour. Picked to read against fields, forest and city alike, and to stay
    * clear of the board's orange selection ring.
    */
@@ -73,13 +81,14 @@ export type RoleProfile = {
 export const ROLES: Record<Role, RoleProfile> = {
   knight: {
     name: "Knight",
-    blurb: "Tough. Takes one more hit than anybody else.",
+    blurb: "Tough. Takes one more hit, and carries the party's spare coat.",
     healthBonus: 1,
     attackBonus: 0,
     moveBonus: 0,
     sightBonus: 0,
     canHeal: false,
     canFish: false,
+    carriesSpare: true,
     colour: "#d64545",
   },
   rogue: {
@@ -91,6 +100,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     sightBonus: 0,
     canHeal: false,
     canFish: false,
+    carriesSpare: false,
     colour: "#9b5de5",
   },
   scout: {
@@ -102,6 +112,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     sightBonus: 1,
     canHeal: false,
     canFish: false,
+    carriesSpare: false,
     colour: "#17b3c9",
   },
   doctor: {
@@ -113,6 +124,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     sightBonus: 0,
     canHeal: true,
     canFish: false,
+    carriesSpare: false,
     colour: "#f0ece0",
   },
   fisherman: {
@@ -124,6 +136,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     sightBonus: 0,
     canHeal: false,
     canFish: true,
+    carriesSpare: false,
     colour: "#3f9e5a",
   },
 };
@@ -158,6 +171,7 @@ const spawn = (role: Role, hex: Hex): Player => {
     weapon: ROLES[role].canFish ? makeItem(ROD_TEMPLATE, "fishing-rod") : null,
     armor: null,
     boots: null,
+    spareArmor: null,
     supply: [],
     dead: false,
     fellAt: null,

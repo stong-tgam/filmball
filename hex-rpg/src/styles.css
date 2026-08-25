@@ -194,6 +194,9 @@ button:active { transform: translateY(1px); }
 
 .compass-findings { color: var(--accent); }
 
+/* The knight's spare coat, marked so nobody mistakes it for something being worn. */
+.kit-spare { opacity: 0.72; border-style: dashed; }
+
 /* ---------- sidebar ---------- */
 
 .sidebar {

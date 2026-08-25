@@ -48,6 +48,23 @@ These are the tiebreakers when a design question comes up mid-task:
 - **Axial coordinates for maths, A1–I5 labels for display.** Never do geometry on the
   labels; row widths change direction at the middle row.
 
+## Version numbers
+
+**We are pre-release and the number must say so.** `v1.0` is reserved for the first
+build that is actually ready to hand to somebody outside the family — it is a decision
+point for the owner of this project, not a milestone this repo reaches on its own.
+Nothing here may number itself 1.x without them saying so.
+
+So the scheme is: **`v0.<milestone>`**, a milestone being a chunk of work worth a
+heading in the README, and **`v0.<milestone>.<fix>`** for bug fixes on top of one. The
+current number lives in `src/App.tsx`'s header and in "Current state" below; keep the
+two the same.
+
+The history was renumbered one decimal place in v0.16.1 - what used to read v1.4 is
+now v0.14 - because a run of 1.x numbers had accumulated without anybody deciding the
+game was released. Ordering is unchanged; the old "v1.0" was simply the tenth
+milestone.
+
 ## Where things are
 
 ```
@@ -63,13 +80,13 @@ reference/    the rulebook, the build spec, and the token art prompt
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 308 tests
+npm test           # 317 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html you can hand to somebody
 npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
 ```
 
-## Current state: v1.6
+## Current state: v0.17
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -97,10 +114,25 @@ Key rules, so nothing gets "improved" back to a guess:
     `tile.searched`; that split is what lets the fisherman always eat without letting
     them farm one bend.
   - **The hook** (`hookTargets`, `hook`) reaches one tile and either reels a friend
-    onto your tile or hauls you onto theirs. It is the one thing that may **put two
-    players on one tile** — `legalMoves` still forbids *walking* onto a friend, and
-    that rule stands, but a rope is not a walk. Dragging a downed friend to the doctor
-    is the best thing it does, so `fellAt` moves with the body.
+    onto your tile or hauls you onto theirs. Dragging a downed friend to the doctor is
+    the best thing it does, so `fellAt` moves with the body. It is now a shortcut
+    rather than the only way onto a shared tile — see below.
+- **Players stack.** Walking onto a friend is legal, and getting the party onto one
+  tile is something the game wants: it is where you trade face to face, where the
+  fisherman's hook puts you, and where a group fight will have to happen. The old
+  blocking rule made the party five people who could never quite meet. Monsters are
+  unchanged — onto one, never past it (§5).
+- **Handing things over** (`tileMates`, `giveTargets`, `give`) costs **nothing**, not
+  the turn's action: walking to each other already cost both players turns, and a child
+  who must spend a whole go to pass a sandwich will never do it. Only ever offered for
+  something the receiver gains outright — `canReceive` is derived from `equip` (it
+  returns nothing only when there was room), so a gift can never quietly cost somebody
+  their better coat.
+- **The knight carries the party's spare coat** (`Player.spareArmor`,
+  `RoleProfile.carriesSpare`). A second piece of armour goes on their back instead of
+  displacing what they are wearing; it does nothing for them — no health, no armour —
+  and exists to be handed to somebody with a bare back. Same idea as their own bonus
+  said twice: the one who can take a hit is the one who can afford to carry a spare.
 - **Monster placement adapts to party size** (`safeRadiusFor`). `SAFE_RADIUS` is still
   2, but held at 2 with five players there were **20 legal tiles for 19 monsters** —
   every legal tile got one and all six tiles round the dragon were a wall. The radius
@@ -376,11 +408,12 @@ Choices the rulebook leaves open (its §15), all marked in the code where they a
 - **The tornado picks which piece of gear it takes and where it drops you.** The
   rulebook makes both the player's choice; automating them keeps a turn moving, and it
   takes the least useful piece.
-- **Another player blocks outright.** The old rule let you move *through* somebody so
-  long as you did not stop on them, which only worked when a multi-tile move was chosen
-  in one go. Spent a step at a time you could always simply end the turn standing on
-  them, so the rule was unenforceable — walk round your friend. Enemies are unchanged:
-  onto, never past (§5).
+- **Players may stand on each other.** This has been round the houses: first you could
+  move *through* somebody but not stop on them; then a friend blocked outright; now they
+  do not block at all. The reason for the last change is that sharing a tile turned out
+  to be something the game *wants* — trading face to face, the fisherman's hook, and
+  group fights all need it — and a rule against it made the party people who could never
+  quite meet. Enemies are unchanged: onto, never past (§5).
 - **Movement is spent one tile at a time** (`stepsTaken`, `stepsLeft`). Never offer a
   multi-tile destination up front: on a board nobody can see, that is a leap into the
   dark, and it turns the Scout's bonus from scouting into teleporting.

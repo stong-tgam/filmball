@@ -118,27 +118,27 @@ describe("legal moves", () => {
     expect(legalMoves(state, knight).size).toBe(3);
   });
 
-  it("treats another player as a wall to walk round", () => {
-    // Movement is spent a tile at a time, so there is no such thing as passing
-    // through any more: you could always just stop on them. Scout in the middle,
-    // someone standing due east of them.
+  it("lets you walk onto a friend, because the party has to be able to meet", () => {
+    // Players stack now. Standing on each other is how you trade face to face, where
+    // the fisherman's hook puts you, and where a group fight has to happen; the old
+    // blocking rule made the party four people who could never quite meet.
     const base = game();
     const rogue = { ...base.players[2], hex: { q: 0, r: 0 } };
-    const blocker = { ...base.players[0], hex: { q: 1, r: 0 } };
+    const friend = { ...base.players[0], hex: { q: 1, r: 0 } };
     const beyond = { q: 2, r: 0 };
-    // Clear the monsters: they block movement, and this test is about players.
+    // Clear the monsters: they still block, and this test is about players.
     const state: GameState = {
       ...base,
       activePlayerIndex: 0,
-      players: [rogue, blocker],
+      players: [rogue, friend],
       enemies: [],
     };
 
     expect(moveRange(rogue)).toBe(2);
     const moves = legalMoves(state, rogue);
-    expect(moves.has(label(blocker.hex))).toBe(false);
-    // Two tiles of movement, but only ever one tile offered: the far side of the
-    // blocker is next turn's problem, or this turn's second step taken the long way.
+    expect(moves.has(label(friend.hex))).toBe(true);
+    // Still only ever one tile offered at a time, friend or no friend: the far side
+    // is next turn's problem, or this turn's second step taken separately.
     expect(moves.has(label(beyond))).toBe(false);
     for (const steps of moves.values()) expect(steps).toBe(1);
   });

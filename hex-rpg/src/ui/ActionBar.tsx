@@ -24,6 +24,8 @@ type Props = {
   /** Whether this water still has anything in it beyond the fish. */
   freshWater: boolean;
   canHook: boolean;
+  /** Somebody is standing on this tile who could be handed something. */
+  canGive: boolean;
   canTrade: boolean;
   canDonate: boolean;
   canHeal: boolean;
@@ -31,6 +33,7 @@ type Props = {
   onSearch: () => void;
   onFish: () => void;
   onHook: () => void;
+  onGive: () => void;
   onTrade: () => void;
   onDonate: () => void;
   onHeal: () => void;
@@ -48,6 +51,7 @@ export default function ActionBar({
   canFish,
   freshWater,
   canHook,
+  canGive,
   canTrade,
   canDonate,
   canHeal,
@@ -55,6 +59,7 @@ export default function ActionBar({
   onSearch,
   onFish,
   onHook,
+  onGive,
   onTrade,
   onDonate,
   onHeal,
@@ -119,7 +124,7 @@ export default function ActionBar({
   return (
     <div className="actionbar">
       <p className="actionbar-ask">{prompt}</p>
-      {(canSearch || canFish || canHook || canTrade || canDonate || canHeal || canPayOff) && (
+      {(canSearch || canFish || canHook || canGive || canTrade || canDonate || canHeal || canPayOff) && (
         <div className="actionbar-buttons">
           {canPayOff && (
             <button type="button" className="ghost" onClick={onPayOff}>
@@ -134,6 +139,11 @@ export default function ActionBar({
           {canDonate && (
             <button type="button" className="ghost" onClick={onDonate}>
               Give $2
+            </button>
+          )}
+          {canGive && (
+            <button type="button" className="ghost" onClick={onGive}>
+              Hand something over
             </button>
           )}
           {canFish && (

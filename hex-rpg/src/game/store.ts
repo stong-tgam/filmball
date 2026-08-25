@@ -12,12 +12,15 @@ import {
   buy,
   canHeal,
   canFish,
+  canGive,
   canHook,
   canSearch,
   canTrade,
   clearFind,
   eat,
   fish,
+  give,
+  giveTargets,
   hook,
   hookTargets,
   heal,
@@ -27,7 +30,7 @@ import {
   sell,
 } from "./actions";
 import { canDonate, canPayOff, donate, payOff } from "./hazards";
-import type { Enemy, GameState, Player, Tile } from "./types";
+import type { Enemy, GameState, Item, Player, Tile } from "./types";
 
 type Store = {
   game: GameState;
@@ -43,6 +46,7 @@ type Store = {
   search: () => void;
   fish: () => void;
   hook: (targetId: string, how: "pull" | "cross") => void;
+  give: (toId: string, itemId: string) => void;
   donate: () => void;
   /** Shops are a panel, not a phase: opening one spends the turn's action. */
   shopOpen: boolean;
@@ -76,6 +80,7 @@ export const useGame = create<Store>((set, get) => ({
   search: () => set({ game: search(get().game) }),
   fish: () => set({ game: fish(get().game) }),
   hook: (targetId, how) => set({ game: hook(get().game, targetId, how), selected: null }),
+  give: (toId, itemId) => set({ game: give(get().game, toId, itemId) }),
   donate: () => set({ game: donate(get().game) }),
   shopOpen: false,
   openShop: () => set({ game: openShop(get().game), shopOpen: true }),
@@ -103,6 +108,10 @@ export const useCanHook = (): boolean =>
   useGame((s) => canHook(s.game, activePlayer(s.game)));
 export const useHookTargets = (): Player[] =>
   useGame((s) => hookTargets(s.game, activePlayer(s.game)));
+export const useCanGive = (): boolean =>
+  useGame((s) => canGive(s.game, activePlayer(s.game)));
+export const useGiveTargets = (): { player: Player; items: Item[] }[] =>
+  useGame((s) => giveTargets(s.game, activePlayer(s.game)));
 export const useCanTrade = (): boolean =>
   useGame((s) => canTrade(s.game, activePlayer(s.game)));
 export const useCanDonate = (): boolean =>

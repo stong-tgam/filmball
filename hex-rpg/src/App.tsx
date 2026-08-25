@@ -11,14 +11,17 @@ import GameOver from "./ui/GameOver";
 import EventCardModal from "./ui/EventCard";
 import FindCard from "./ui/FindCard";
 import HookModal from "./ui/HookModal";
+import GiveModal from "./ui/GiveModal";
 import {
   useActivePlayer,
   useCanDonate,
   useCanHeal,
   useCanPayOff,
   useCanFish,
+  useCanGive,
   useCanHook,
   useCanSearch,
+  useGiveTargets,
   useHookTargets,
   useCanTrade,
   useCombatants,
@@ -81,6 +84,10 @@ export default function App() {
   const fish = useGame((s) => s.fish);
   const castHook = useGame((s) => s.hook);
   const [hooking, setHooking] = useState(false);
+  const canGive = useCanGive();
+  const giveTargets = useGiveTargets();
+  const handOver = useGame((s) => s.give);
+  const [giving, setGiving] = useState(false);
   const canTrade = useCanTrade();
   const canDonate = useCanDonate();
   const canHeal = useCanHeal();
@@ -122,7 +129,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v1.6 — drawn by the children</span>
+          <span className="version">v0.17 — drawn by the children</span>
         </div>
         <button
           type="button"
@@ -203,6 +210,7 @@ export default function App() {
           canFish={canFish}
           freshWater={!game.tiles[key(player.hex)]?.searched}
           canHook={canHook}
+          canGive={canGive}
           canTrade={canTrade}
           canDonate={canDonate}
           canHeal={canHeal}
@@ -210,6 +218,7 @@ export default function App() {
           onSearch={search}
           onFish={fish}
           onHook={() => setHooking(true)}
+          onGive={() => setGiving(true)}
           onTrade={openShop}
           onDonate={donate}
           onHeal={() => healTargets[0] && heal(healTargets[0].id)}
@@ -280,6 +289,17 @@ export default function App() {
           player sees first. Nothing else can be open: a search is the turn's action. */}
       {game.find && !game.draw && !game.combat && !game.ending && (
         <FindCard find={game.find} onClose={clearFind} />
+      )}
+
+      {giving && canGive && !game.combat && !game.ending && (
+        <GiveModal
+          offers={giveTargets}
+          onGive={(toId, itemId) => {
+            handOver(toId, itemId);
+            setGiving(false);
+          }}
+          onClose={() => setGiving(false)}
+        />
       )}
 
       {hooking && canHook && !game.combat && !game.ending && (

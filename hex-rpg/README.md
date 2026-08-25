@@ -13,7 +13,7 @@ rulebook actually says. **The goal is now a real goal: beat the dragon before tu
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 308 tests
+npm test           # 317 tests
 npm run build      # type-check + production build into dist/
 npm run build:play # one self-contained .html you can hand to somebody
 
@@ -90,7 +90,7 @@ tests/           vitest, node environment, no rendering
 The hard rule from the spec holds: `src/game/` never imports React, and every rule is
 a pure function over serialisable state.
 
-## v1.4: the drawings are in the game
+## v0.14: the drawings are in the game
 
 The monsters, gear, food and boss features drawn for this game now appear in it —
 monsters as chits on the ground and a portrait when a fight opens, gear and food in the
@@ -101,7 +101,7 @@ remembers nothing about the map, which is the whole point), and standing on a ri
 button now reads **"Open the chest"** instead of "Search here", because a river is the
 best odds in the game and nothing was saying so.
 
-## v1.3: movement is a step at a time
+## v0.13: movement is a step at a time
 
 A Scout has two tiles of movement, and now spends them **one at a time**. Take a step,
 look at what that step turned up, and *then* decide: another step, or search, or shop,
@@ -115,7 +115,7 @@ One consequence: another player now blocks you outright. You used to be allowed 
 whole move was chosen in one go — taken step by step you could always just end the turn
 standing on them. Walk round your friend.
 
-## v1.2: better gear, riskier running, searches that bite
+## v0.12: better gear, riskier running, searches that bite
 
 - **Gear comes in two grades.** Ordinary is +1, fine is +2, and the name is the same
   either way — a Frying Pan +2 is still a Frying Pan. Ordinary monsters never drop a
@@ -133,7 +133,7 @@ standing on them. Walk round your friend.
 - **Cities can be searched** as well as shopped in. Both cost your one action, so it
   is a choice.
 
-## v1.1: the ground around you
+## v0.11: the ground around you
 
 There is no board on screen and nothing shows where you are. What you see is the hex
 you are standing on and the hexes you could step onto, drawn properly — so you can tell
@@ -156,7 +156,7 @@ straight back on the screen, and there is a test that fails if one ever appears.
 There is a **"Peek at the map"** button in the header for grown-ups. It shows the old
 2D board, positions and all. It is a debug switch, not part of the game.
 
-## v0.8: nobody can see the map
+## v0.08: nobody can see the map
 
 The board is hidden. On your turn you see the tile you are standing on and the ring
 around it, and nothing else — and it goes blank again as soon as you walk away, because
@@ -183,7 +183,7 @@ something the four of you do out loud, with the notebook in the sidebar.
 `npx vite-node tools/sim.ts 200` plays a couple of hundred bot games and reports how
 they end. Right now: 23% wins, 56% out of time, 21% wipes.
 
-## v1.5: money in the ground, and a moment for finding it
+## v0.15: money in the ground, and a moment for finding it
 
 Two ways to get paid, both open to somebody nowhere near a shop:
 
@@ -211,7 +211,7 @@ The endings do not move: 20% wins, 55% out of time, 26% wipes, the same games as
 before. Money per player at the end goes $2.5 to $4.3, which `tools/sim.ts` now
 reports alongside the endings.
 
-## v1.6: the fisherman
+## v0.16: the fisherman
 
 A fifth role, and the first one whose bonus is a **thing** rather than a number.
 
@@ -241,6 +241,23 @@ spends its turns fishing. Both of the fisherman's payoffs (food, and pulling the
 into one place) are things the bot cannot use: it never eats and never coordinates. So
 this is a floor, and an unusually pessimistic one. The honest read is that a support
 role does not pay off until §8 lets bodies join a fight.
+
+## v0.17: the party can finally meet
+
+- **Players stand on the same tile now.** Walking onto a friend is legal. Sharing a
+  square is something the game wants — it is where you trade, where the Fisher's hook
+  puts you, and where a group fight will have to happen — and the old blocking rule
+  made the party five people who could never quite get together.
+- **Hand anything to somebody on your tile**, and it costs nothing. Walking to each
+  other already cost you both turns; that is the price. Only things the other player
+  gains outright are offered, so a gift can never quietly cost them their better coat.
+- **The Knight carries the party's spare coat.** A second piece of armour rides on
+  their back instead of displacing the one they are wearing. It does nothing for them
+  at all — it is there to be given away. Their own bonus is taking one more hit, so
+  they are the one who can afford to carry something they are not using.
+
+The bot reads **20% wins, 56% out of time, 24% wipes**, up from 19/63/19 — it stopped
+getting boxed in by its own teammates on the way to the middle.
 
 ## Still open
 

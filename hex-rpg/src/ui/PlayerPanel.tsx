@@ -103,12 +103,20 @@ export function PartyList({
             </span>
             <span className="party-money">${player.money}</span>
 
-            {(player.weapon || player.armor || player.boots) && (
+            {(player.weapon || player.armor || player.boots || player.spareArmor) && (
               <span className="party-gear">
-                {[player.weapon, player.armor, player.boots]
+                {[player.weapon, player.armor, player.boots, player.spareArmor]
                   .filter((i): i is NonNullable<typeof i> => i !== null)
                   .map((item) => (
-                    <span key={item.id} className={`kit kit-${item.slot}`} title={item.name}>
+                    <span
+                      key={item.id}
+                      className={`kit kit-${item.slot}${item.id === player.spareArmor?.id ? " kit-spare" : ""}`}
+                      title={
+                        item.id === player.spareArmor?.id
+                          ? `Spare — ${item.name}. Stand with somebody and hand it over.`
+                          : item.name
+                      }
+                    >
                       <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">
                         <ItemArt name={item.name} seedName={item.id} />
                       </svg>

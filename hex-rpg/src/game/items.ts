@@ -168,6 +168,12 @@ export function equip(player: Player, item: Item): { player: Player; returned: I
     if (player.supply.length >= SUPPLY_CAP) return { player, returned: item };
     return { player: { ...player, supply: [...player.supply, item] }, returned: null };
   }
+  // A second coat goes on the knight's back rather than displacing the one they are
+  // wearing. Everybody else's spare armour still goes back to the pile - carrying one
+  // is the knight's job, and a spare on the wrong back is a spare nobody hands over.
+  if (item.slot === "armor" && canCarrySpare(player) && player.armor && !player.spareArmor) {
+    return { player: { ...player, spareArmor: item }, returned: null };
+  }
   // The rod is not swappable. A ground search equips what it finds without asking,
   // so without this the fisherman loses the whole role to a lucky card and a child
   // has no idea why they can no longer fish.
@@ -177,11 +183,52 @@ export function equip(player: Player, item: Item): { player: Player; returned: I
   return { player: { ...player, [slotKey(item.slot)]: item }, returned };
 }
 
+/**
+ * Only the knight has anywhere to put a coat they are not wearing. Kept here rather
+ * than read off `ROLES` so `items.ts` stays free of the role table it would otherwise
+ * have to import in a circle.
+ */
+export const canCarrySpare = (player: Player): boolean => player.role === "knight";
+
 /** Whether taking this would actually do anything for the player. */
 export const canTake = (player: Player, item: Item): boolean =>
   item.slot === "supply"
     ? player.supply.length < SUPPLY_CAP
     : !(item.slot === "weapon" && isRod(player.weapon));
+
+/**
+ * Whether this player can take the item **without giving anything up for it**.
+ *
+ * Derived from `equip` rather than written out again, so the two can never disagree:
+ * `equip` hands an item straight back when there is no room for it and hands back the
+ * displaced piece when a slot is swapped, so "returned nothing" is exactly "they are
+ * strictly better off". That is the bar for a gift. `canTake` is the looser test and
+ * stays looser - a shop or a loot pick is meant to let you swap.
+ */
+export const canReceive = (player: Player, item: Item): boolean =>
+  equip(player, item).returned === null;
+
+/** Everything this player could hand to somebody else, spare coat included. */
+export const giveable = (player: Player): Item[] =>
+  [player.spareArmor, ...player.supply, ...carriedGear(player)].filter(
+    (i): i is Item => i !== null,
+  );
+
+/** Take a named item off a player, wherever on them it was sitting. */
+export function removeItem(player: Player, itemId: string): { player: Player; item: Item | null } {
+  if (player.spareArmor?.id === itemId) {
+    return { player: { ...player, spareArmor: null }, item: player.spareArmor };
+  }
+  const food = player.supply.find((i) => i.id === itemId);
+  if (food) {
+    return { player: { ...player, supply: player.supply.filter((i) => i.id !== itemId) }, item: food };
+  }
+  for (const slot of ["weapon", "armor", "boots"] as const) {
+    const worn = player[slot];
+    if (worn?.id === itemId) return { player: { ...player, [slot]: null }, item: worn };
+  }
+  return { player, item: null };
+}
 
 /**
  * Eat something. Heals up to the player's maximum and leaves the pack. The bone heals
