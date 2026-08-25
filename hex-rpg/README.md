@@ -200,8 +200,9 @@ Two ways to get paid, both open to somebody nowhere near a shop:
   chest on the water, up in the corner of the tile so it survives a token being stood
   on top of it. It is the one thing about a tile you cannot see by looking at it, and
   without it a child searches the same square twice.
-- **A search stops the table for a moment.** The card turns over, and then what came
-  out of the ground lands on top of it: the item's own token if you found something,
+- **A search stops the table for a moment.** The card comes up face down for two
+  seconds — *Searching…*, *Opening…* — and then turns over on what came out of the
+  ground (tap to skip if the table is impatient): the item's own token if you found something,
   a purse of coins if it paid, and a card that says so if it did not. Empty ground
   gets its own line — *"A very good hole. Nothing in it."* — because a search that
   showed nothing at all reads as a broken button.

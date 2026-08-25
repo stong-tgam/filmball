@@ -283,8 +283,12 @@ onto paper is the remaining art job.
 ## The find card
 
 A search puts a `Find` in `GameState.find`, and `src/ui/FindCard.tsx` holds it on
-screen until the table has looked at it — the item's own `Token`, or a purse of coins,
-or a card that says the ground was empty. It clears on the button, and `endTurn` clears
+screen until the table has looked at it. The card comes up **face down** for
+`SUSPENSE_MS` (two seconds) saying *Searching…* or *Opening…*, then turns over on what
+was found — the item's own `Token`, a purse of coins, or a card that says the ground
+was empty. The outcome was decided the instant the button was pressed and has been
+sitting in state ever since; the wait is theatre, and it is the point. A tap skips it,
+because two seconds is right the first ten times and a toll the fortieth. It clears on the button, and `endTurn` clears
 it too so a search on one turn is never the first thing the next player sees.
 
 Two things about it that are load-bearing:

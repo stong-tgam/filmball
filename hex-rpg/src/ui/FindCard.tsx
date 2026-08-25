@@ -11,8 +11,15 @@
  * the same reason `EventCard` shows the turn's draw even when nothing happens - and a
  * seven-year-old who searched and got no card at all would reasonably think the button
  * was broken. Empty ground gets its own line, its own animation, and its own way out.
+ *
+ * The card comes up face down first and says what is being done - *Searching...*,
+ * *Opening...* - for `SUSPENSE_MS` before it turns over. The whole outcome is decided
+ * the instant the button is pressed and has been sitting in `GameState.find` ever
+ * since; this is theatre, and it is the point of the feature. Waiting two seconds to
+ * find out is the difference between a rule firing and something happening to you.
  */
 
+import { useEffect, useState } from "react";
 import { PlayingCard } from "./EventCard";
 import Token from "./Token";
 import ItemArt from "./art/items";
@@ -43,10 +50,58 @@ const EMPTY_HANDED = [
   "Half a worm, and it did not want to be found.",
 ];
 
+/** How long the card stays face down before it turns over. */
+export const SUSPENSE_MS = 2000;
+
 export default function FindCard({ find, onClose }: { find: Find; onClose: () => void }) {
   const { kind, gained, lost, coins, hurt } = find;
   const said = HEADLINE[kind];
   const empty = EMPTY_HANDED[find.card.rank.charCodeAt(0) % EMPTY_HANDED.length];
+
+  const [turned, setTurned] = useState(false);
+  useEffect(() => {
+    // Keyed on the search itself, so a second search starts its own two seconds
+    // rather than inheriting the first one's timer.
+    setTurned(false);
+    const timer = setTimeout(() => setTurned(true), SUSPENSE_MS);
+    return () => clearTimeout(timer);
+  }, [find]);
+
+  if (!turned) {
+    return (
+      <div
+        className="modal-backdrop"
+        role="dialog"
+        aria-modal="true"
+        aria-label={find.from === "chest" ? "Opening the chest" : "Searching the ground"}
+      >
+        {/*
+          Tap to skip. Two seconds is right the first ten times and a toll the fortieth,
+          and this fires on every single search - a table that has seen it can get on
+          with the game. Deliberately not a button: nobody should be *looking* for the
+          way out of the exciting bit.
+        */}
+        <div
+          className="modal modal-narrow find find-waiting"
+          onClick={() => setTurned(true)}
+          role="presentation"
+        >
+          <p className="draw-turn">{find.from === "chest" ? "Out of the water" : "Under the ground"}</p>
+          <div className="card card-down">
+            <span className="card-down-word">
+              {find.from === "chest" ? "Opening" : "Searching"}
+              <span className="card-down-dots" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+            </span>
+          </div>
+          <p className="find-waiting-hint">Hold your breath...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="What the search turned up">
