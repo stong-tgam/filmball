@@ -37,6 +37,18 @@ export const PALETTE = {
   robber: "#8a5a2b",
   tornado: "#9aa3ab",
   homeless: "#8fd67a",
+
+  /* ------------------------------------------------------------- the stones */
+  /**
+   * The green stone (`src/game/gems.ts`).
+   *
+   * Green is the third one on this list - the scout's dark wood and the traveller's
+   * pale sprout are already here - so it is deliberately the *brightest* of the three
+   * and the only one that reads as a jewel rather than as cloth or leaves. If red and
+   * blue stones follow, they want the same treatment against the knight's pink and the
+   * fisher's blue: a stone is a stone, and it should look like one across the table.
+   */
+  gemGreen: "#19c37d",
 } as const;
 
 export type PaletteKey = keyof typeof PALETTE;
@@ -47,7 +59,7 @@ export type PaletteKey = keyof typeof PALETTE;
  * The doctor's white and the rogue's yellow need dark text on them; everything else
  * takes light. Worked out once here rather than guessed at each call site.
  */
-const DARK_TEXT: PaletteKey[] = ["doctor", "rogue", "homeless", "fisherman", "tornado"];
+const DARK_TEXT: PaletteKey[] = ["doctor", "rogue", "homeless", "fisherman", "tornado", "gemGreen"];
 
 export const inkOn = (key: PaletteKey): string =>
   DARK_TEXT.includes(key) ? "#141a1f" : "#ffffff";

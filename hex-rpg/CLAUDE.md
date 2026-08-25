@@ -70,7 +70,8 @@ milestone.
 ```
 src/palette.ts  every colour that names a character or an event, in one place
 src/game/     pure logic, no React - hex, rng, setup, turn, combat, actions,
-              hazards, events, items, enemies, vision, sense, save, store
+              hazards, events, items, gems, enemies, collapse, vision, sense,
+              save, store
 src/ui/       TitleScreen.tsx (who is playing), Compass.tsx (what a player
               sees), Tile.tsx (one hex), Board.tsx (the grown-up's map peek),
               CombatModal.tsx (the fight, invitations and loot), FindCard.tsx
@@ -91,13 +92,13 @@ you have not published.
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 389 tests
+npm test           # 405 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html, plus the artifact fragment
 npx vite-node tools/sim.ts 800 5 # bot playtest: how do 800 five-player games end?
 ```
 
-## Current state: v0.25
+## Current state: v0.26
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -352,6 +353,35 @@ Key rules, so nothing gets "improved" back to a guess:
   an empty river chest has something floating in it. Both are consolation on the rounds
   where the gear pile hands over nothing anybody wants, which late in a game is most of
   them. Neither competes with gear, so neither can unbalance §10.
+- **Stones give verbs, not numbers** (`src/game/gems.ts`). This is the equipment-depth
+  system and it is deliberately not more arithmetic: gear owns the numbers, and by turn
+  six everybody holds the best of all three slots and a find is a shrug. A stone gives
+  you **a button you did not have**. Green is built; red and blue are designed and
+  written up in the README.
+  - **One stone per player, three meanings.** It may be moved between weapon, coat and
+    boots for **nothing** on your turn — that is the whole decision, and it is re-made
+    whenever the game changes shape. **Never mid-fight** (`canSetGem`): switching to the
+    coat after seeing a roll fall short would turn a once-a-game save into a save every
+    fight, which is the one way this could quietly become a number again.
+  - **Green** (`GEMS.green`): weapon → *Spoils*, win a fight and everyone who swung
+    finds something to eat; coat → *Second wind*, once a game a blow that would put you
+    down leaves you on one; boots → *Dig again*, once a game search ground somebody has
+    already been over. Spending is tracked **per setting** (`Gem.spent`), so the coat's
+    save and the boots' dig are separate.
+  - Three rules the next two colours must also hold to. **No stone may show you the
+    board** — the hidden map is what the note-taking is for. **No stone may do a role's
+    job better than the role** — none heals, sees further, or hits harder. **No
+    invisible passives** — either it is a button, or it is drawn where a child can see
+    it, and a spent power is greyed out on the strip and in the party list.
+  - **Drops are low and only ever to somebody empty-handed** (`maybeAStone`): a body
+    `GEM_FROM_A_BODY`, ground `GEM_FROM_THE_GROUND`, a chest `GEM_FROM_A_CHEST`. That
+    one rule replaces a whole pile of "you already have one" handling and spreads
+    stones round the party by itself. A search rolls for one **on top of** its card,
+    never instead of it. Measured at **1.8 a game with five players**; that is the dial
+    if the table wants them commoner.
+  - **Dig again never opens a chest twice** (`canDigAgain`). `Tile.searched` is what a
+    chest spends, so without that guard the stone would be the best find in the game
+    rather than a nice one.
 - **Loot (§10)**: items, **plus a small purse** — $1 mob, $2 mid boss, $5 dragon. This
   bends §10, which is items-only, on purpose. Keep the amounts under `GEAR_PRICE`:
   the moment a mob out-earns a sale, the shop stops mattering and so does the
@@ -466,8 +496,8 @@ how they end; the second argument is the party size, and every size wants its ow
 enough to invent an improvement that is not there. That happened: v0.17 read 20% on 200
 games and 25% on 800.
 
-At v0.24, five players: **48% wins, 35% out of time, 17% wipes**, and every party size
-from two to five lands in a **41-48% win band** — the tightest it has been. The per-size
+At v0.26, five players: **46% wins, 39% out of time, 15% wipes**, and every party size
+from two to five lands in a **44-47% win band** — the tightest it has been. The per-size
 table is in the README. v0.23 had drifted to 85% wins after the sim bot was taught to
 eat (which was a measurement fix, not a game change, and which made every wipe figure
 printed before it fiction); v0.24's harder dragon, sleeping opening and collapsing board
@@ -491,6 +521,7 @@ How it got here, because the shape of the story is the useful part:
 | v0.23 | 74% | 21% | 5% | **the bot learned to eat** - a sim fix, not a game change |
 | v0.23 | 85% | 12% | 3% | the party starting in pairs |
 | v0.24 | 48% | 35% | 17% | **a dragon that scales per player**, a board that falls in, and the dragon sleeping through the opening |
+| v0.26 | 46% | 39% | 15% | the green stone — inside the noise, which is the point: it adds a decision, not a number |
 
 Two things worth keeping in mind before you trust a number here:
 

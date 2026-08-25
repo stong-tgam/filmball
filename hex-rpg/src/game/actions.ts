@@ -32,6 +32,13 @@ import {
   slotKey,
 } from "./items";
 import { meet } from "./hazards";
+import {
+  GEM_FROM_A_CHEST,
+  GEM_FROM_THE_GROUND,
+  maybeAStone,
+  powerHere,
+  spend,
+} from "./gems";
 import { ROLES, withMaxHealth } from "./players";
 import { bearingBetween, compassName } from "./sense";
 import { makeRng } from "./rng";
@@ -91,8 +98,21 @@ const busy = (state: GameState, player: Player): boolean =>
  *   extra. It is also where the wire strung across an alley lives; see `MISHAPS`.
  */
 export function canSearch(state: GameState, player: Player): boolean {
-  return !busy(state, player) && hasFindings(tileUnder(state, player));
+  const tile = tileUnder(state, player);
+  return !busy(state, player) && (hasFindings(tile) || canDigAgain(player, tile));
 }
+
+/**
+ * The green stone in a pair of boots: once a game, ground somebody has already been
+ * over gives something up a second time.
+ *
+ * **Ordinary ground only.** A chest is the best odds in the game and a river only has
+ * `CHESTS_IN_THE_RIVER` of them; letting a stone open one twice would make the stone
+ * the best find in the game rather than a nice one. `Tile.searched` is what a chest
+ * spends, so without this guard "dig again" is "open the treasure again".
+ */
+export const canDigAgain = (player: Player, tile: Tile): boolean =>
+  tile.searched && searchKind(tile) === "ground" && powerHere(player, "boots") !== null;
 
 /**
  * Is there still anything to be had off this tile?
@@ -384,6 +404,7 @@ export function search(state: GameState): GameState {
   if (!canSearch(state, player)) return state;
 
   const tile = tileUnder(state, player);
+  const again = canDigAgain(player, tile) && !hasFindings(tile);
   const pull = drawCard(state.searchDeck, state.rngState, true);
 
   let next: GameState = {
@@ -392,10 +413,19 @@ export function search(state: GameState): GameState {
     searchDeck: pull.deck,
     tiles: { ...state.tiles, [key(player.hex)]: { ...tile, searched: true } },
   };
-  const acted = { ...player, actedThisTurn: true };
+  // A second dig spends the stone's once-a-game power, whatever it turns up. The
+  // player chose to press a button that said so.
+  const acted = {
+    ...player,
+    actedThisTurn: true,
+    gem: again && player.gem ? spend(player.gem) : player.gem,
+  };
   next = withPlayer(next, acted);
   const from = searchKind(tile);
-  next = note(next, `${player.name} ${from === "chest" ? "fished a chest out of the water" : "searched the ground here"} and drew ${cardName(pull.card)}.`);
+  next = note(
+    next,
+    `${player.name} ${from === "chest" ? "fished a chest out of the water" : again ? "went over this ground a second time" : "searched the ground here"} and drew ${cardName(pull.card)}.`,
+  );
 
   // The scout's second look, on the ground they know. Drawn *before* resolving, so
   // the card that gets read is the better of the two rather than the first one being
@@ -408,7 +438,14 @@ export function search(state: GameState): GameState {
     next = note(next, `${player.name} knows these woods. Second look: ${cardName(card)}.`);
   }
 
-  const after = resolveSearch(next, acted, card, from);
+  // The stone rolls **on top of** whatever the card said, never instead of it: a find
+  // that replaced a find would make the rarest thing in the game feel like a tax on
+  // the common one.
+  const after = maybeAStone(
+    resolveSearch(next, acted, card, from),
+    acted.id,
+    from === "chest" ? GEM_FROM_A_CHEST : GEM_FROM_THE_GROUND,
+  );
   return { ...after, find: whatTurnedUp(next, after, acted, card, from) };
 }
 
@@ -509,10 +546,16 @@ function whatTurnedUp(
 
   // A joker means a different thing on each table: somebody in the undergrowth, the
   // lid of the chest, or - on the line - the big one getting away with your bait.
+  // A stone is the rarest thing the ground has, so it takes the headline even when
+  // gear came up with it - the gear still gets its token on the card underneath.
+  const stone = now.gem && !was.gem ? now.gem : null;
+
   const kind: Find["kind"] = isJoker(card) && from !== "line"
     ? from === "chest"
       ? "trap"
       : "thief"
+    : stone
+    ? "stone"
     : gained.length > 0
     ? // A cast that brought up nothing but supper is its own headline. A cast that
       // also brought up gear is a find, and the gear is the part worth shouting about.
@@ -535,6 +578,9 @@ function whatTurnedUp(
     lost,
     coins: Math.max(0, coins),
     hurt,
+    // Derived like everything else on this card: the stone is one the player is
+    // holding now and was not holding before.
+    gem: stone,
     lines: after.log.slice(before.log.length).map((entry) => entry.text),
   };
 }

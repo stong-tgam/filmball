@@ -114,6 +114,15 @@ export type Player = {
    * take a hit is the one who should be carrying the spare.
    */
   spareArmor: Item | null;
+  /**
+   * The one stone they are carrying, or none (`src/game/gems.ts`).
+   *
+   * One per player, and it is the only thing in the game that gives an *ability*
+   * rather than a number. Which of their three pieces of kit it is set in is on the
+   * stone itself, because that is the decision - not owning it, but choosing what it
+   * is for today.
+   */
+  gem: Gem | null;
   /** Homeless-person donation: extra dice on the next fight only. */
   bonusDiceNextFight: number;
   /**
@@ -122,6 +131,27 @@ export type Player = {
    */
   fishCaught: number;
   joinedFightThisRound: boolean;
+};
+
+/** Green is built. Red and blue are designed and not written; see the README. */
+export type GemKind = "green";
+
+/** The three places a stone can sit. Not `"supply"` - a stone is not lunch. */
+export type GemSetting = "weapon" | "armor" | "boots";
+
+export type Gem = {
+  id: string;
+  kind: GemKind;
+  /** Where it is set right now. Free to change on your own turn, never mid-fight. */
+  set: GemSetting;
+  /**
+   * Which of its powers have been used up.
+   *
+   * Per setting, not per stone: spending the coat's once-a-game save must not also
+   * spend the boots' second dig. Two of green's three are once a game; the weapon's
+   * is not, and never appears here.
+   */
+  spent: GemSetting[];
 };
 
 export type EnemyKind = "mob" | "midboss" | "finalboss" | "robber" | "pirates";
@@ -252,7 +282,7 @@ export type Find = {
    */
   from: "chest" | "ground" | "line";
   /** The headline, for the card's title and its animation. */
-  kind: "gear" | "fish" | "coins" | "full" | "nothing" | "mishap" | "thief" | "trap";
+  kind: "gear" | "stone" | "fish" | "coins" | "full" | "nothing" | "mishap" | "thief" | "trap";
   /** What the player is holding now that they were not holding before. Drawn as tokens. */
   gained: Item[];
   /** What it displaced or cost them - a swapped piece, or one a mishap took. */
@@ -260,6 +290,13 @@ export type Find = {
   coins: number;
   /** Health it cost. Never more than one. */
   hurt: number;
+  /**
+   * A stone that turned up with it, or null - which is almost always.
+   *
+   * Its own field rather than one of `gained`, because a stone is not an item: it
+   * has no slot, no price and no plus, and the card gives it the whole width.
+   */
+  gem: Gem | null;
   /** The lines the search wrote to the log, in order. Read aloud. */
   lines: string[];
 };

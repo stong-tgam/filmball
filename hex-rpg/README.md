@@ -4,7 +4,7 @@ Hotseat (one device, passed around) digital version of the Hex RPG tabletop game
 Built to `reference/hex-rpg-rulebook.md`, with `reference/webapp-spec.md` as the build
 plan.
 
-**This build is v0.25.** Every system the spec asks for is in, every placeholder from
+**This build is v0.26.** Every system the spec asks for is in, every placeholder from
 the early builds has been replaced with what the rulebook actually says, and the two
 rules the rulebook leans on hardest — the hidden board and the group fight — are both
 built. **The goal: kill the dragon before the board falls out from under you.**
@@ -545,6 +545,67 @@ with the odd dollars to whoever picked the fight.
 Balance is unmoved: 49% wins at five players, 44% at two, against 48/45 in v0.24. The
 bot always fights a thief now, which is how the sim measures the money coming back.
 
+## v0.26: the green stone
+
+The equipment problem, stated plainly: gear is one number in one of three slots, and by
+turn six everybody holds +2 in all three. After that a find is a shrug, and *keep it or
+sell it* — the decision §10 exists to protect — always answers "sell it".
+
+More numbers would not fix that. They would inflate the single digits that make this
+game legible to a seven-year-old, which is the property most at risk from any depth
+system. So the rule the whole thing rests on is:
+
+> **Gear gives numbers. Stones give verbs.**
+
+A stone never changes a stat. It gives you **a button you did not have before**. Nothing
+has to be remembered, because the ability *is* the button and the button says what it
+does — the action bar has always shown only what you can actually do right now.
+
+**One stone, three meanings.** A player carries at most one, and may move it between
+their weapon, coat and boots for nothing on their turn. That is the decision, and it is
+re-made every time the game changes shape: the stone is not a thing you own, it is a
+question you answer — *what do I want this to be today?*
+
+| The green stone, in your… | does |
+|---|---|
+| **weapon** — *Spoils* | Win a fight and everyone who swung finds something to eat |
+| **coat** — *Second wind* | Once a game, a blow that would put you down leaves you on one health |
+| **boots** — *Dig again* | Once a game, search ground somebody has already been over |
+
+Spending is tracked per setting, so the coat's save and the boots' dig are separate, and
+a spent one is greyed out on the strip and in the party list — a once-a-game power a
+child forgets they have is a power they never had.
+
+Three rules the next two colours have to hold to as well:
+
+- **No stone may show you the board.** The hidden map is what the note-taking and the
+  talking across the table are for, and a reveal would delete both.
+- **No stone may do a role's job better than the role does it.** None of these heals,
+  sees further, or hits harder. The roles are the game's identity.
+- **No invisible passives.** Either it is a button, or it is drawn where you can see it.
+
+**They are rare, and only ever go to somebody empty-handed** — off a body, out of the
+ground, out of a chest. That one rule does a lot of work: it means a second find is
+never a dud, and it spreads stones round the party without a rule saying so. A search
+rolls for one *on top of* its card, never instead of it. Two of five children get one in
+a typical game; that is the dial to turn if the table wants them commoner.
+
+Balance is unmoved, which is the point of the design: **46% wins at five players against
+48% in v0.24**, inside the noise. Every party size is now in a 44-47% band.
+
+| Players | Win | Out of time | Wiped | Stones a game |
+|---|---|---|---|---|
+| 2 | 47% | 20% | 33% | 0.9 |
+| 3 | 47% | 24% | 29% | 1.2 |
+| 4 | 44% | 33% | 23% | 1.6 |
+| 5 | 46% | 39% | 15% | 1.8 |
+
+800 games each. **Red and blue are designed and not built.** Red is *you, now* —
+re-throw your dice, ignore one failed round, one guaranteed escape. Blue is *everybody
+else* — shout for help one tile further, take a hit meant for a friend on your tile,
+hand something across a gap. If they make the party too strong, the answer is the same
+system pointed the other way: give the dragon a stone.
+
 ## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.
 - **Four event cards** that need effects lasting beyond the moment they are read:
@@ -554,13 +615,10 @@ bot always fights a thief now, which is how the sim measures the money coming ba
   the +1/+2 grades; this is the other half.
 - **Must mid bosses die first? (§15)** — nothing stops a party running at the dragon
   on turn one. The dice make that a bad idea, but no rule forbids it.
-- **Equipment depth.** Gear is one weapon, one coat, one pair of boots, at +1 or +2,
-  and a party saturates on it early — after that a find is a shrug. The direction asked
-  for: skills or gems on weapons so a fight is more than a dice roll, gear you keep
-  building on rather than finding once, and random skills on monsters late on so they
-  keep pace. The thing to watch is that it must not make the game *simpler* — right now
-  every number is single-digit and a seven-year-old can hold the whole thing in their
-  head, and that is the property most at risk from a depth system.
+- **The other two stones.** Green is in (v0.26); red and blue are designed and written
+  up there and not built. The other half of that direction is still open too: **random
+  skills on monsters late on so they keep pace**, which is also the balance lever if
+  three colours of stone make the party too strong.
 - **Undo is unbuilt.** Autosave is in as of v0.21 and rests on the same groundwork, so
   this is now the cheap half of the pair. The seed is visible and typeable in the header.
 - **The bot never spends its money**, so the sim's purse line is gross earnings, not

@@ -17,6 +17,7 @@ import { activePlayer, endTurn, legalMoves, movePlayer } from "../src/game/turn"
 import { attack, endCombat, flee, invitable, inviteTargets, invite, takeSpoil } from "../src/game/combat";
 import { canFish, canSearch, eat, fish, search, tileMates } from "../src/game/actions";
 import { canFightThief, fightThief } from "../src/game/hazards";
+import { canSetGem, powerOf, setGem } from "../src/game/gems";
 import { clearDraw } from "../src/game/turn";
 import { distance, fromLabel } from "../src/game/hex";
 import { doomed, edgeFallsAfter } from "../src/game/collapse";
@@ -89,6 +90,8 @@ const stats = {
   handOvers: 0,
   dragonFights: 0,
   thiefFights: 0,
+  stonesFound: 0,
+  secondWinds: 0,
   lostToAbyss: 0,
   rounds: 0,
   goes: 0,
@@ -102,15 +105,33 @@ export const resetStats = (): void => {
   stats.handOvers = 0;
   stats.dragonFights = 0;
   stats.thiefFights = 0;
+  stats.stonesFound = 0;
+  stats.secondWinds = 0;
   stats.lostToAbyss = 0;
   stats.rounds = 0;
   stats.goes = 0;
 };
 
+/**
+ * What the bot does with a stone.
+ *
+ * Leave it in the coat, which is where it lands, until the once-a-game save has been
+ * used - then move it to the weapon, whose power never runs out. That is the dullest
+ * defensible policy, which is what a bot should have: a family will read the three
+ * lines and pick, and every figure this file prints is meant to be a floor.
+ */
+function mindTheStone(state: GameState): GameState {
+  const me = activePlayer(state);
+  if (!me.gem || !canSetGem(state, me)) return state;
+  const spentHere = powerOf(me.gem).onceAGame && me.gem.spent.includes(me.gem.set);
+  return spentHere && me.gem.set !== "weapon" ? setGem(state, me.id, "weapon") : state;
+}
+
 /** One turn of a bot that walks about, pokes at things, and runs when hurt. */
 function botTurn(state: GameState, roll: () => number): GameState {
   let next = state.draw ? clearDraw(state) : state;
   next = eatIfHurt(next);
+  next = mindTheStone(next);
   // Which fight, if any, was already running when this turn began. A fight usually
   // *starts* partway through a turn - you walk into it - so counting at the top of
   // the turn misses every one of them, which is how the first version of this counter
@@ -219,6 +240,8 @@ function play(
   const rng = makeRng(seed * 7919 + 13);
   let state = startGame(seed, TURN_ORDER.slice(0, party));
   for (let i = 0; i < 4000 && !state.ending; i++) state = botTurn(state, () => rng.next());
+  stats.stonesFound += state.log.filter((l) => /turned up a green stone/.test(l.text)).length;
+  stats.secondWinds += state.log.filter((l) => /green stone held them up/.test(l.text)).length;
   const dragon = state.enemies.find((e) => e.kind === "finalboss")!;
   stats.lostToAbyss += state.players.filter((p) => p.gone).length;
   stats.rounds += state.turn;
@@ -242,6 +265,8 @@ if (process.env.DIAG) {
     state = botTurn(state, () => rng.next());
     if (!before && state.combat) fights++;
   }
+  stats.stonesFound += state.log.filter((l) => /turned up a green stone/.test(l.text)).length;
+  stats.secondWinds += state.log.filter((l) => /green stone held them up/.test(l.text)).length;
   const dragon = state.enemies.find((e) => e.kind === "finalboss")!;
   console.log({
     turn: state.turn,
@@ -287,5 +312,6 @@ console.log(`  ${"together".padEnd(12)} ${per(stats.groupFights)} boss fights + 
 console.log(`  ${"meals".padEnd(12)} ${per(stats.mealsEaten)} eaten a game`);
 console.log(`  ${"dragon".padEnd(12)} ${per(stats.dragonFights)} fights a game, ${((dragonLeft / games) * 100).toFixed(0)}% of it still standing at the end`);
 console.log(`  ${"thieves".padEnd(12)} ${per(stats.thiefFights)} taken on a game`);
+console.log(`  ${"stones".padEnd(12)} ${per(stats.stonesFound)} found a game, ${per(stats.secondWinds)} second winds`);
 console.log(`  ${"length".padEnd(12)} ${per(stats.rounds)} rounds, ${(stats.rounds / games * party).toFixed(0)} individual goes`);
 console.log(`  ${"abyss".padEnd(12)} ${per(stats.lostToAbyss)} lost over the edge a game`);

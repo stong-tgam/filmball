@@ -17,6 +17,7 @@
 import { ENEMIES, healthLeft, nameWithArticle, verb } from "./enemies";
 import { distance, key, neighbours, type Hex } from "./hex";
 import { standing } from "./collapse";
+import { GEM_FROM_A_BODY, maybeAStone, powerHere, spend } from "./gems";
 import { makeRng } from "./rng";
 import { canTake, equip, makeFine, randomFood } from "./items";
 import { ROLES, maxHealthOf, moveRange } from "./players";
@@ -218,11 +219,24 @@ function hurt(state: GameState, amount: number, why: string): GameState {
   if (!combat || hit.length === 0 || amount <= 0) return state;
 
   const fallen = new Set<string>();
+  const saved = new Set<string>();
   let next: GameState = {
     ...state,
     players: state.players.map((p) => {
       if (!hit.some((f) => f.id === p.id)) return p;
       const health = Math.max(0, p.health - amount);
+
+      // The green stone in the coat: once a game, a blow that would put you down
+      // leaves you on one instead. Checked here rather than in `gems.ts` because this
+      // is the only place in the game where a player's health reaches zero in a fight,
+      // and a save that lived anywhere else would be a save that could be missed.
+      // The abyss is deliberately not covered: going over the edge is going over.
+      const stone = powerHere(p, "armor");
+      if (health === 0 && stone) {
+        saved.add(p.id);
+        return { ...p, health: 1, gem: spend(stone) };
+      }
+
       if (health === 0) fallen.add(p.id);
       return {
         ...p,
@@ -242,6 +256,12 @@ function hurt(state: GameState, amount: number, why: string): GameState {
       ? `${why} ${hit[0].name} is down to ${next.players.find((p) => p.id === hit[0].id)!.health} health.`
       : `${why} ${amount} health off each of ${hit.map((f) => f.name).join(", ")}.`,
   );
+  for (const id of saved) {
+    next = note(
+      next,
+      `${state.players.find((p) => p.id === id)!.name} should have gone down — the green stone held them up on one health. That was its one time.`,
+    );
+  }
   for (const id of fallen) {
     next = note(next, `${state.players.find((p) => p.id === id)!.name} has fallen.`);
   }
@@ -602,10 +622,45 @@ function beaten(state: GameState, enemy: Enemy): GameState {
         : `The $${purse} ${verb(enemy.kind, "it had", "they had")} taken went back to the party.`,
     );
   }
+  // The green stone in a weapon feeds everybody who swung. Food is the smallest win in
+  // the game and never competes with gear, which is exactly what makes it safe to hand
+  // out - and what it actually buys is a reason to shout for help, since the payout
+  // scales with how many of you turned up rather than with anybody's dice.
+  const fed = fighters(state);
+  if (fed.some((f) => powerHere(f, "weapon"))) {
+    const larder = makeRng(next.rngState);
+    let hands = next;
+    let given = 0;
+    for (const who of fed) {
+      const holder = hands.players.find((p) => p.id === who.id);
+      if (!holder) continue;
+      const bite = randomFood(larder, `spoils-${enemy.id}-${who.id}`);
+      const { player: carrying, returned } = equip(holder, bite);
+      if (returned) continue;
+      given++;
+      hands = { ...hands, players: hands.players.map((p) => (p.id === who.id ? carrying : p)) };
+    }
+    next = { ...hands, rngState: larder.state() };
+    if (given > 0) {
+      next = note(
+        next,
+        given === 1
+          ? `The green stone turned up something to eat in the wreckage.`
+          : `The green stone found supper for all ${given} of them.`,
+      );
+    }
+  }
   if (robbing && winner) {
     next = note(next, `${winner.name} went through its pockets as well. One extra thing to keep.`);
   }
   next = note(next, `${profile.name} ${verb(enemy.kind, "is", "are")} beaten!`);
+
+  // A stone off the body, rarely, and only ever to somebody who has not got one. The
+  // starter gets first refusal; failing that it goes to whoever else swung and is
+  // still empty-handed, so a party of five spreads them about by itself.
+  const empty = fed.filter((f) => !next.players.find((p) => p.id === f.id)?.gem);
+  const first = empty.find((f) => f.id === winner?.id) ?? empty[0];
+  if (first) next = maybeAStone(next, first.id, GEM_FROM_A_BODY);
 
   // Rulebook §14: the dragon is the game.
   if (enemy.kind === "finalboss") {

@@ -43,8 +43,9 @@ import {
   sell,
 } from "./actions";
 import { canDonate, canFightThief, canPayOff, donate, fightThief, payOff, thiefFacing } from "./hazards";
+import { canSetGem, setGem } from "./gems";
 import { clearSave, readSave, saveGame } from "./save";
-import type { Enemy, GameState, Item, Player, Role, Tile } from "./types";
+import type { Enemy, GameState, GemSetting, Item, Player, Role, Tile } from "./types";
 
 type Store = {
   game: GameState;
@@ -74,6 +75,7 @@ type Store = {
   heal: (playerId: string) => void;
   payOff: () => void;
   fightThief: () => void;
+  setGem: (setting: GemSetting) => void;
   eat: (playerId: string, itemId: string) => void;
   takeLoot: (itemId: string, toId?: string) => void;
   /** Rulebook §8: shout somebody into the fight. It does not cost them their turn. */
@@ -120,6 +122,8 @@ export const useGame = create<Store>((set, get) => ({
   heal: (playerId) => set({ game: heal(get().game, playerId), selected: null }),
   payOff: () => set({ game: payOff(get().game) }),
   fightThief: () => set({ game: fightThief(get().game) }),
+  setGem: (setting) =>
+    set({ game: setGem(get().game, activePlayer(get().game).id, setting) }),
   eat: (playerId, itemId) => set({ game: eat(get().game, playerId, itemId) }),
   takeLoot: (itemId, toId) => set({ game: takeSpoil(get().game, itemId, toId) }),
   invite: (playerId) => set({ game: invite(get().game, playerId) }),
@@ -167,6 +171,9 @@ export const useCanDonate = (): boolean =>
   useGame((s) => canDonate(s.game, activePlayer(s.game)));
 export const useCanPayOff = (): boolean =>
   useGame((s) => canPayOff(s.game, activePlayer(s.game)));
+/** The active player's stone, and whether it may be moved right now. */
+export const useCanSetGem = (): boolean =>
+  useGame((s) => canSetGem(s.game, activePlayer(s.game)));
 export const useCanFightThief = (): boolean =>
   useGame((s) => canFightThief(s.game, activePlayer(s.game)));
 /** Which thief is standing here, and how much of the party's money they are holding. */

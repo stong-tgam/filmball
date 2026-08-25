@@ -5,6 +5,7 @@ import CrayonDefs from "./ui/art/CrayonDefs";
 import ActionBar from "./ui/ActionBar";
 import Log from "./ui/Log";
 import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
+import GemBar from "./ui/GemBar";
 import CombatModal from "./ui/CombatModal";
 import ShopModal from "./ui/ShopModal";
 import GameOver from "./ui/GameOver";
@@ -20,6 +21,7 @@ import {
   useCanDonate,
   useCanHeal,
   useCanFightThief,
+  useCanSetGem,
   useCanPayOff,
   useThiefHere,
   useCanFish,
@@ -113,12 +115,14 @@ export default function App() {
   const canHeal = useCanHeal();
   const canPayOff = useCanPayOff();
   const canFightThief = useCanFightThief();
+  const canSetGem = useCanSetGem();
   const thiefHere = useThiefHere();
   const healTargets = useHealTargets();
   const donate = useGame((s) => s.donate);
   const heal = useGame((s) => s.heal);
   const payOff = useGame((s) => s.payOff);
   const takeOnThief = useGame((s) => s.fightThief);
+  const setGem = useGame((s) => s.setGem);
   const sell = useGame((s) => s.sell);
 
   const [seedInput, setSeedInput] = useState("");
@@ -171,7 +175,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.25 — what happened while you waited</span>
+          <span className="version">v0.26 — the green stone</span>
         </div>
         <button
           type="button"
@@ -254,6 +258,12 @@ export default function App() {
             their eyes already are. Up in the sidebar it was a diagonal across the whole
             screen from the hex they had just tapped. */}
         <div className="deck">
+          {/* Free, and not the turn's action - so it sits with the map and the buttons
+              rather than among them, and above the one that ends the turn. */}
+          {player.gem && !over && (
+            <GemBar gem={player.gem} canSet={canSetGem} onSet={setGem} />
+          )}
+
           <ActionBar
             canMove={legalMoves.size > 0}
             moved={hasMoved(player)}

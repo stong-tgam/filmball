@@ -1738,3 +1738,82 @@ button.fight-thief {
   color: #17110b;
   font-weight: 700;
 }
+
+
+/* ---------- the stones ---------- */
+
+.gembar {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #171d23;
+  /* The stone's own colour edges the strip, so "I have the green one" is legible from
+     across the table without reading a word of it. */
+  border: 1px solid var(--stone);
+  box-shadow: inset 3px 0 0 var(--stone);
+}
+
+.gembar-art { width: 40px; height: 40px; }
+.gembar-says { min-width: 0; }
+.gembar-power { margin: 0; font-size: 14px; display: flex; align-items: baseline; gap: 8px; }
+.gembar-text { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+
+.gembar-once {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--stone);
+}
+
+.gembar-once.is-spent { color: var(--muted); text-decoration: line-through; }
+
+.gembar-slots { display: flex; gap: 6px; }
+
+.gembar-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  /* Tablet. Every touch target in this app is at least 44px. */
+  min-width: 52px;
+  min-height: 46px;
+  padding: 4px 6px;
+  font-size: 11px;
+  background: #10151a;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.gembar-slot .gembar-slot-name { text-transform: capitalize; }
+.gembar-icon { display: block; }
+.gembar-slot.is-here {
+  background: var(--stone);
+  border-color: var(--stone);
+  color: #10151a;
+  font-weight: 700;
+}
+/* A once-a-game power already used, in a setting the stone is not in: say so before
+   they move it there and find out. */
+.gembar-slot.is-spent:not(.is-here) { opacity: 0.45; }
+.gembar-slot:disabled { cursor: default; }
+
+.party-stone {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px 1px 2px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+.party-stone.is-spent { opacity: 0.55; }
+
+.find-stone { display: grid; justify-items: center; gap: 6px; margin: 4px 0 2px; }
+.find-stone-power { margin: 0; font-size: 15px; text-align: center; }
+.find-stone-hint { margin: 0; font-size: 13px; text-align: center; }

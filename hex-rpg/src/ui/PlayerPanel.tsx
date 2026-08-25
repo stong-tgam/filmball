@@ -8,6 +8,8 @@
 
 import { ROLES } from "../game/players";
 import ItemArt from "./art/items";
+import GemArt from "./art/gems";
+import { GEMS, WORN, isSpent, powerOf } from "../game/gems";
 import { gearLabel } from "../game/items";
 import { moveRange, stepsLeft } from "../game/turn";
 import type { Player } from "../game/types";
@@ -115,6 +117,21 @@ export function PartyList({
               {player.gone ? "lost" : `${player.health}/${player.maxHealth}`}
             </span>
             <span className="party-money">${player.money}</span>
+
+            {player.gem && (
+              // Which stone, and which pocket it is in. A child navigates by colour,
+              // so the stone is drawn rather than named, and the setting is what tells
+              // the rest of the table what it is doing this turn.
+              <span
+                className={`party-stone${isSpent(player.gem) ? " is-spent" : ""}`}
+                title={`${GEMS[player.gem.kind].name}, in their ${WORN[player.gem.set]} — ${powerOf(player.gem).title}: ${powerOf(player.gem).text}`}
+              >
+                <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">
+                  <GemArt kind={player.gem.kind} />
+                </svg>
+                {WORN[player.gem.set]}
+              </span>
+            )}
 
             {(player.weapon || player.armor || player.boots || player.spareArmor) && (
               <span className="party-gear">
