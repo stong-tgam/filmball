@@ -79,11 +79,19 @@ tests/        vitest, node environment, no rendering
 reference/    the rulebook, the build spec, and the token art prompt
 ```
 
+**Every build ships to the artifact.** The owner playtests in a side panel next to the
+conversation, so `npm run build:play` is not finished until `dist-play/hex-rpg-artifact.html`
+has been republished — same file path every time, which keeps the URL stable so their
+tab does not break. `tools/inline.mjs` emits that fragment (title, styles, `#root`, the
+bundle, no doctype) precisely because the artifact host wraps the page in its own
+document and a second `<html>` inside one does not mount. Do not hand over a version
+you have not published.
+
 ```sh
 npm run dev        # http://localhost:5173
 npm test           # 345 tests
 npm run build      # type-check + production build
-npm run build:play # one self-contained .html you can hand to somebody
+npm run build:play # one self-contained .html, plus the artifact fragment
 npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
 ```
 
