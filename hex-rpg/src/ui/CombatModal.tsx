@@ -91,11 +91,26 @@ export default function CombatModal({
   const beast = ENEMIES[enemy.kind];
   const role = ROLES[player.role];
   const over = combat.outcome !== "ongoing";
+  // One class for "that hurt" and one for "we got it", both keyed on the round so the
+  // animation replays on every roll rather than only the first.
+  const beat =
+    combat.outcome === "enemyDefeated"
+      ? "fight-won"
+      : combat.toll > 0
+        ? "fight-hit"
+        : "";
   const result = RESULT[combat.outcome];
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Fight">
-      <div className="modal">
+    <div
+      className={`modal-backdrop${combat.outcome === "enemyDefeated" ? " backdrop-flash" : ""}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Fight"
+    >
+      {/* Keyed on the round so the shake or the glow replays on every roll, not just
+          the first one - a fight is three or four beats and each needs its own. */}
+      <div className={`modal ${beat}`} key={`${combat.round}-${beat}`}>
         <header className="fight-head">
           <div className="fighter">
             <span className="fighter-dot" style={{ background: role.colour }} />

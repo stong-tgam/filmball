@@ -26,8 +26,13 @@ export function PlayingCard({ draw }: { draw: Draw }) {
 
 export default function EventCardModal({ draw, turn, onClose }: { draw: Draw; turn: number; onClose: () => void }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="The turn's card">
-      <div className="modal modal-narrow">
+    <div
+      className={`modal-backdrop${draw.event ? " backdrop-flash" : ""}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="The turn's card"
+    >
+      <div className={`modal modal-narrow draw${draw.event ? " draw-event-card" : ""}`}>
         <p className="draw-turn">Turn {turn}</p>
         <PlayingCard draw={draw} />
 

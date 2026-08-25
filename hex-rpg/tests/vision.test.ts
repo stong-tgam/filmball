@@ -32,7 +32,9 @@ describe("what a player can see", () => {
     const state = createInitialState(4471);
     const knight = at(state, 0);
     const far = Object.values(state.tiles).filter((t) => distance(knight.hex, t.hex) > 2);
-    expect(far.length).toBeGreaterThan(30);
+    // Most of the board, wherever the rim is: the point is that sight is a couple of
+    // rings and the rest is blank paper.
+    expect(far.length).toBeGreaterThan(Object.keys(state.tiles).length / 2);
     for (const tile of far) expect(canSee(knight, tile.hex)).toBe(false);
   });
 

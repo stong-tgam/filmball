@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TURN_ORDER } from "../src/game/players";
+import { THIEVES, monsterCount } from "../src/game/enemies";
 import {
   CITY_COUNT,
   CITY_MIN_DISTANCE,
@@ -11,7 +12,7 @@ import {
   createInitialState,
   generateBoard,
 } from "../src/game/setup";
-import { DIRS, add, allHexes, distance, hexLine, inBoard, key, label, neighbours, type Hex } from "../src/game/hex";
+import { DIRS, add, allHexes, distance, hexLine, inBoard, key, label, neighbours, type Hex, RADIUS } from "../src/game/hex";
 import { MAX_ELEMENTS } from "../src/game/types";
 import { makeRng } from "../src/game/rng";
 
@@ -93,7 +94,7 @@ describe("generateBoard", () => {
       expect(river.length, `seed ${seed}`).toBeGreaterThanOrEqual(5);
       expect(connected(tiles, (t) => t.river), `seed ${seed}`).toBe(true);
       // It runs from one rim to another, not in a puddle in the middle.
-      const onRim = river.filter((t) => distance(t.hex, { q: 0, r: 0 }) === 4);
+      const onRim = river.filter((t) => distance(t.hex, { q: 0, r: 0 }) === RADIUS);
       expect(onRim.length, `seed ${seed}`).toBeGreaterThanOrEqual(2);
     }
   });
@@ -253,7 +254,11 @@ describe("createInitialState", () => {
     expect(state.players).toHaveLength(TURN_ORDER.length);
     // Rulebook §2/§15: fifteen mobs, four mid bosses and the dragon, plus the robber
     // and the pirates, who are monsters as well as hazards.
-    expect(state.enemies).toHaveLength(22);
+    // The dragon, the scaled mobs and mid bosses, and the two thieves who are
+    // monsters as well as hazards. Derived: the counts scale with party and board.
+    const monsters =
+      1 + monsterCount("mob", state.players.length) + monsterCount("midboss", state.players.length);
+    expect(state.enemies).toHaveLength(monsters + THIEVES.length);
     expect(state.combat).toBeNull();
     expect(state.itemPile).toHaveLength(15);
     expect(state.pokerDeck).toHaveLength(52);

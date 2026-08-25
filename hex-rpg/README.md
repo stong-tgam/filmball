@@ -377,6 +377,37 @@ hazard moves, 42 of 43 landings resolved on the spot. No change needed there.)*
 Two is still the hardest, which is right — a pair *should* struggle. Five is unchanged
 from v0.20, so the existing balance is preserved rather than re-tuned underneath it.
 
+## v0.22: half the length, and something happening when you tap
+
+**The game was too long.** Measured, not guessed: the old board took 20 rounds and
+**94 individual turns** to play out — well over an hour on one device, with each child
+watching four fifths of it. Interestingly, only 10% of turns produced nothing at all,
+so the board was never boring; it was simply too far across.
+
+- **The board is 37 tiles, down from 61.** One ring smaller. A corner is three tiles
+  from the dragon rather than four, and a third of the walking is gone.
+- **Sixteen rounds, down from thirty-two.** That only works *because* the board shrank
+  with it — cut one without the other and the ending becomes "we never found it".
+- Monsters, cities, forests, chests and hazard spacing all scale off the board size, so
+  the density is unchanged; there is just less ground.
+
+| Players | Turns | Roughly | Win | Out of time | Wiped |
+|---|---|---|---|---|---|
+| 3 | 26 | 9–15 min | 45% | 28% | 26% |
+| 5 | 48 | 16–28 min | 46% | 41% | 14% |
+
+**Visual feedback**, because a tap should visibly do something:
+
+- Every button presses in.
+- A modal that matters — an event fired, a monster went down — washes the screen behind
+  it. A quiet turn card gets none of it, which is exactly what makes the loud one read.
+- The turn banner replays its entrance when the device changes hands.
+- A fight shakes on a roll that fell short and glows when the monster drops, once per
+  round rather than once per fight.
+
+Everything stops under `prefers-reduced-motion`, and none of it is longer than a beat —
+these fire dozens of times an evening.
+
 ## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.
 - **Four event cards** that need effects lasting beyond the moment they are read:

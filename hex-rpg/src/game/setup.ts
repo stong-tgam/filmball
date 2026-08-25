@@ -31,22 +31,26 @@ import { freshDeck } from "./cards";
 import { createEventDeck } from "./events";
 import { MAX_ELEMENTS, type Element, type GameState, type Role, type Tile } from "./types";
 
-export const CITY_COUNT = 5;
+export const CITY_COUNT = 3;
 /** Cities must be this far apart, so no two are a single step from each other. */
-export const CITY_MIN_DISTANCE = 3;
-export const FOREST_CLUSTERS = 7;
+export const CITY_MIN_DISTANCE = 2;
+export const FOREST_CLUSTERS = 4;
 /** Woods are seeded this far apart, so they spread over the board instead of massing
  *  in one corner and leaving whole rows as empty grass. */
 export const FOREST_MIN_DISTANCE = 3;
 /**
  * Turns in a game.
  *
- * Was 25 when the whole board was visible and a party could walk straight at what it
- * wanted. Blind, a good chunk of every game goes on finding things at all, so the
- * limit has to pay for the exploring or the ending is "we never found the dragon",
+ * The whole target is **an evening under twenty minutes**. With five players that is
+ * about 60 individual turns, so the limit has to sit near sixteen rounds - and on the
+ * smaller board (`RADIUS` 3) sixteen is enough to cross the map several times over.
+ *
+ * It was 25 when the board was visible, then 32 when it went blind and finding things
+ * became most of the job. Cutting it back only works *because* the board shrank with
+ * it; raise one without the other and the ending becomes "we never found the dragon",
  * which is not a defeat, just a shrug. Re-tuned against the bot sim - see the README.
  */
-export const DEFAULT_TURN_LIMIT = 32;
+export const DEFAULT_TURN_LIMIT = 16;
 
 type Draft = Map<string, Tile>;
 
@@ -135,7 +139,7 @@ function carveRiver(board: Draft, rng: Rng): void {
  * past - and put a chest mark on a dozen hexes, which is a map that says nothing.
  * Four is few enough that seeing one is worth changing course for.
  */
-export const CHESTS_IN_THE_RIVER = 4;
+export const CHESTS_IN_THE_RIVER = 2;
 
 /** Sink the chests, once the river knows where it runs. */
 function sinkChests(board: Draft, rng: Rng): void {

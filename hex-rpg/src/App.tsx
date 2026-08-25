@@ -165,7 +165,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.21 — drawn by the children</span>
+          <span className="version">v0.22 — drawn by the children</span>
         </div>
         <button
           type="button"
@@ -203,6 +203,10 @@ export default function App() {
         </div>
       ) : (
         <ActivePlayerBanner
+          // Keyed on whose turn it is, so React remounts the banner and the entrance
+          // animation replays. With one device going round a table, "it is your go"
+          // has to be impossible to miss.
+          key={player.id}
           player={player}
           moves={legalMoves.size}
           smoke={smellsSmoke(game, player)}

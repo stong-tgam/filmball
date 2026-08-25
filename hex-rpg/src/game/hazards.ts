@@ -67,8 +67,14 @@ export const HAZARDS: Record<HazardKind, HazardProfile> = {
 export const DONATION = 1;
 /** How far the tornado can put you down (§5.5). */
 export const TORNADO_THROW = 3;
-/** Hazards start at least this far from the party. */
-export const HAZARD_SAFE_RADIUS = 3;
+/**
+ * Hazards start at least this far from the party, where the board can afford it.
+ *
+ * Two, not three: on the 37-tile board three is most of the way across, so it could
+ * almost never be honoured and the guarantee that mattered - never *adjacent* - was
+ * getting lost in the fallbacks behind it.
+ */
+export const HAZARD_SAFE_RADIUS = 2;
 
 const note = (state: GameState, text: string): GameState => ({
   ...state,
@@ -114,9 +120,16 @@ export function placeHazards(
         players.every((p) => distance(p.hex, tile.hex) >= HAZARD_SAFE_RADIUS),
     );
     // Fall back through the softer constraints rather than failing to place a hazard.
+    // Water comes before personal space for the ones that keep to it: on the small
+    // board the river is only a few tiles long, and pirates who start on dry land are
+    // a contradiction in the rules, where pirates who start next to somebody are only
+    // bad luck - and a visible hazard at that, since hazards are never hidden.
     const home =
       wants[0] ??
       shuffled.find((tile) => open(tile) && (!HAZARDS[kind].keepsToWater || tile.river)) ??
+      (HAZARDS[kind].keepsToWater
+        ? rng.shuffle(Object.values(tiles)).find((tile) => open(tile) && tile.river)
+        : undefined) ??
       shuffled.find(open) ??
       shuffled[0];
 

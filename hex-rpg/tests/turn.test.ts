@@ -7,6 +7,7 @@ import { BASE_HEALTH, BASE_MONEY, ROLES, TURN_ORDER, createPlayers } from "../sr
 import { makeRng } from "../src/game/rng";
 import { FISHING_ROD } from "../src/game/items";
 import {
+  RADIUS,
   boardCorners,
   distance,
   fromLabel,
@@ -33,18 +34,21 @@ describe("the party", () => {
     expect(TURN_ORDER.length).toBeLessThanOrEqual(boardCorners().length);
   });
 
-  it("starts everyone on a corner, four tiles apart and equidistant from the middle", () => {
+  it("starts everyone on a corner, a board's width apart and equidistant from the middle", () => {
+    // Written against `RADIUS` rather than a number: the board shrank from 61 tiles to
+    // 37 in v0.22 and this is exactly the sort of test that quietly stops meaning
+    // anything when it keeps passing against a constant nobody re-read.
     for (const seed of SEEDS) {
       const players = createInitialState(seed).players;
       const corners = boardCorners().map(key);
       for (const p of players) {
         expect(corners).toContain(key(p.hex));
-        expect(distance(p.hex, { q: 0, r: 0 })).toBe(4);
+        expect(distance(p.hex, { q: 0, r: 0 })).toBe(RADIUS);
       }
       for (const a of players) {
         for (const b of players) {
           if (a.id === b.id) continue;
-          expect(distance(a.hex, b.hex)).toBeGreaterThanOrEqual(4);
+          expect(distance(a.hex, b.hex)).toBeGreaterThanOrEqual(RADIUS);
         }
       }
     }

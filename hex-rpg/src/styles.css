@@ -698,6 +698,74 @@ button.ghost {
   color: var(--accent);
 }
 
+/* ---------- things happening ----------
+
+   Kids on one device need to *see* that a tap did something. Every one of these is
+   short - a beat, not a cutscene - because they fire dozens of times an evening and an
+   effect you sit through is a tax. All of them stop under prefers-reduced-motion, and
+   none of them carries information that is not also written down somewhere.          */
+
+/* Every button in the game presses in. One rule, everywhere, and it is the single
+   biggest "the app is alive" win available for the money. */
+button:not(:disabled):active {
+  transform: translateY(1px) scale(0.97);
+}
+button { transition: transform 90ms ease, background-color 120ms ease, border-color 120ms ease; }
+
+/* A wash of light behind a modal that matters: an event fired, or a monster went down.
+   The quiet turn card gets none of it, which is what makes the loud one read. */
+.backdrop-flash { animation: wash 620ms ease-out; }
+
+@keyframes wash {
+  0% { background: rgba(240, 160, 44, 0.55); }
+  100% { background: rgba(8, 11, 14, 0.72); }
+}
+
+/* The turn changing hands. Remounted on the active player's id, so it replays. */
+.banner { animation: banner-in 380ms cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+
+@keyframes banner-in {
+  0% { transform: translateX(-14px); opacity: 0; border-color: var(--who); }
+  60% { transform: translateX(2px); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+
+/* A roll that landed short, and one that finished it. */
+.fight-hit { animation: knock 420ms cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+.fight-won { animation: triumph 520ms cubic-bezier(0.2, 1.4, 0.4, 1); }
+
+@keyframes knock {
+  0%, 100% { transform: none; }
+  15% { transform: translateX(-9px) rotate(-0.5deg); }
+  35% { transform: translateX(7px) rotate(0.4deg); }
+  55% { transform: translateX(-5px); }
+  75% { transform: translateX(3px); }
+}
+
+@keyframes triumph {
+  0% { transform: scale(0.94); box-shadow: 0 0 0 0 rgba(240, 160, 44, 0.65); }
+  60% { transform: scale(1.02); box-shadow: 0 0 0 18px rgba(240, 160, 44, 0); }
+  100% { transform: none; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55); }
+}
+
+/* The event card itself leans in when it brought something. */
+.draw-event-card { animation: lean 460ms cubic-bezier(0.2, 1.3, 0.4, 1) both; }
+
+@keyframes lean {
+  0% { transform: scale(0.9) rotate(-1.5deg); opacity: 0; }
+  70% { transform: scale(1.02) rotate(0.6deg); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled):active { transform: none; }
+  .backdrop-flash,
+  .banner,
+  .fight-hit,
+  .fight-won,
+  .draw-event-card { animation: none; }
+}
+
 /* ---------- the title screen ----------
 
    The first thing anybody sees, and the audience is a table of children arguing over

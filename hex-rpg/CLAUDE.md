@@ -97,7 +97,7 @@ npm run build:play # one self-contained .html, plus the artifact fragment
 npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
 ```
 
-## Current state: v0.21
+## Current state: v0.22
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -172,6 +172,23 @@ Key rules, so nothing gets "improved" back to a guess:
   half of a game is where a quiet turn is just a turn spent walking. Three bands: jack
   and up, then ten and up, then nine and up (31% / 38% / 46%). The ace counts
   throughout, which §4 quietly excluded.
+- **The board is 37 tiles (`RADIUS` 3), and the turn limit is 16.** Both were cut in
+  v0.22 to get an evening under twenty minutes. The old 61-tile board measured **20
+  rounds and 94 individual turns** — well over an hour on one device, with each child
+  watching four fifths of it. Only 10% of turns were empty, so the board was never
+  boring, just too far across. It is now **26 turns at three players and 48 at five**.
+  Everything sized against the board scales off `RADIUS`: monster counts, cities,
+  forests, chests, hazard spacing. **Cut one without the other and the ending becomes
+  "we never found the dragon"** — the limit only survives the cut because the board
+  shrank with it.
+- **Visual feedback is deliberate and short** (`styles.css`, "things happening"). Every
+  button presses in; a modal that matters washes the screen behind it while a quiet
+  turn card does not; the turn banner replays its entrance because it is keyed on the
+  active player's id; a fight shakes on a roll that fell short and glows when the
+  monster goes down, keyed on the round so every beat gets its own. All of it is off
+  under `prefers-reduced-motion`, and **none of it carries information that is not also
+  written down** — these fire dozens of times an evening, so an effect you have to sit
+  through is a tax rather than a moment.
 - **Games are saved after every change** (`src/game/save.ts`, and a `useGame.subscribe`
   in the store rather than a call in each of twenty setters — the twenty-first would be
   the one somebody forgot, and a save that is right most of the time loses an evening

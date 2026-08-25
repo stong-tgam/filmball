@@ -21,24 +21,26 @@ import {
 const CENTRE: Hex = { q: 0, r: 0 };
 
 describe("board shape", () => {
-  it("holds 61 tiles", () => {
-    expect(allHexes()).toHaveLength(61);
+  it("holds a whole hexagon of tiles for whatever radius it is set to", () => {
+    // 1 + 3r(r+1): 37 at radius 3, 61 at radius 4. Written as the formula rather than
+    // the number, because the board shrank in v0.22 and will likely be tuned again.
+    expect(allHexes()).toHaveLength(1 + 3 * RADIUS * (RADIUS + 1));
   });
 
-  it("is a hexagon of radius 4 - every tile is within 4 of the centre", () => {
+  it("is a hexagon - every tile is within RADIUS of the centre", () => {
     for (const h of allHexes()) expect(distance(h, CENTRE)).toBeLessThanOrEqual(RADIUS);
   });
 
   it("excludes everything past the rim", () => {
-    expect(inBoard({ q: 5, r: 0 })).toBe(false);
-    expect(inBoard({ q: 4, r: 1 })).toBe(false); // q+r = 5
-    expect(inBoard({ q: 4, r: -4 })).toBe(true); // a corner
+    expect(inBoard({ q: RADIUS + 1, r: 0 })).toBe(false);
+    expect(inBoard({ q: RADIUS, r: 1 })).toBe(false); // q+r past the rim
+    expect(inBoard({ q: RADIUS, r: -RADIUS })).toBe(true); // a corner
   });
 
-  it("has 24 tiles on the rim and 5 tiles per side", () => {
-    expect(edgeHexes()).toHaveLength(24);
-    // A side runs corner to corner: 24 rim tiles / 6 sides + 1 shared corner each.
-    expect(edgeHexes().length / 6 + 1).toBe(5);
+  it("has a full rim, six tiles per ring-step", () => {
+    expect(edgeHexes()).toHaveLength(6 * RADIUS);
+    // A side runs corner to corner: rim / 6 sides, plus the corner each one shares.
+    expect(edgeHexes().length / 6 + 1).toBe(RADIUS + 1);
   });
 
   it("contains no duplicate tiles", () => {
@@ -53,8 +55,8 @@ describe("neighbours", () => {
   });
 
   it("clips at the rim - a corner has three, an edge tile four", () => {
-    expect(neighbours({ q: 4, r: -4 })).toHaveLength(3);
-    expect(neighbours({ q: 4, r: -2 })).toHaveLength(4);
+    expect(neighbours({ q: RADIUS, r: -RADIUS })).toHaveLength(3);
+    expect(neighbours({ q: RADIUS, r: -RADIUS + 2 })).toHaveLength(4);
   });
 
   it("is symmetric: if b neighbours a, a neighbours b", () => {
@@ -109,17 +111,26 @@ describe("distance", () => {
 
 describe("labels", () => {
   it("names the corners and centre the way the table does", () => {
-    expect(label({ q: 0, r: -4 })).toBe("A1"); // top-left corner
-    expect(label({ q: 4, r: -4 })).toBe("A5"); // top-right corner
-    expect(label({ q: 0, r: 0 })).toBe("E5"); // centre of the widest row
-    expect(label({ q: -4, r: 4 })).toBe("I1"); // bottom-left corner
+    // Rows run A..? from the top, numbered from 1 across each row. All derived from
+    // `RADIUS`, so shrinking the board does not quietly turn this into a test of
+    // whatever the labels happen to be today.
+    const rows = "ABCDEFGHI";
+    const top = rows[0];
+    const middle = rows[RADIUS];
+    const bottom = rows[RADIUS * 2];
+
+    expect(label({ q: 0, r: -RADIUS })).toBe(`${top}1`);
+    expect(label({ q: RADIUS, r: -RADIUS })).toBe(`${top}${RADIUS + 1}`);
+    expect(label({ q: 0, r: 0 })).toBe(`${middle}${RADIUS + 1}`);
+    expect(label({ q: -RADIUS, r: RADIUS })).toBe(`${bottom}1`);
   });
 
   it("numbers each row from 1 with the right row widths", () => {
-    const widths = "ABCDEFGHI".split("").map(
-      (row) => allHexes().filter((h) => label(h)[0] === row).length,
-    );
-    expect(widths).toEqual([5, 6, 7, 8, 9, 8, 7, 6, 5]);
+    // Widest in the middle, narrowing by one to each rim: RADIUS+1 .. 2*RADIUS+1 .. RADIUS+1.
+    const rows = "ABCDEFGHI".slice(0, RADIUS * 2 + 1).split("");
+    const widths = rows.map((row) => allHexes().filter((h) => label(h)[0] === row).length);
+    const expected = rows.map((_, i) => RADIUS + 1 + (i <= RADIUS ? i : RADIUS * 2 - i));
+    expect(widths).toEqual(expected);
   });
 
   it("round-trips through fromLabel for every tile", () => {
@@ -127,10 +138,13 @@ describe("labels", () => {
   });
 
   it("rejects labels that are off the board or malformed", () => {
-    expect(fromLabel("A6")).toBeNull();
-    expect(fromLabel("J1")).toBeNull();
+    const rows = "ABCDEFGHI";
+    // One past the end of the top row, and one row past the bottom of the board.
+    expect(fromLabel(`A${RADIUS + 2}`)).toBeNull();
+    expect(fromLabel(`${rows[RADIUS * 2 + 1]}1`)).toBeNull();
     expect(fromLabel("banana")).toBeNull();
-    expect(fromLabel("e5")).toEqual({ q: 0, r: 0 });
+    // Lower case still reads: the centre is the middle row, middle column.
+    expect(fromLabel(`${rows[RADIUS].toLowerCase()}${RADIUS + 1}`)).toEqual({ q: 0, r: 0 });
   });
 });
 
@@ -139,19 +153,21 @@ describe("range and pathing", () => {
     expect(hexesInRange(CENTRE, 0)).toHaveLength(1);
     expect(hexesInRange(CENTRE, 1)).toHaveLength(7);
     expect(hexesInRange(CENTRE, 2)).toHaveLength(19);
-    expect(hexesInRange(CENTRE, 4)).toHaveLength(61);
+    // Out to the rim is the whole board, whatever the rim is set to.
+    expect(hexesInRange(CENTRE, RADIUS)).toHaveLength(1 + 3 * RADIUS * (RADIUS + 1));
   });
 
   it("clips range at the rim", () => {
-    expect(hexesInRange({ q: 4, r: -4 }, 1)).toHaveLength(4);
+    expect(hexesInRange({ q: RADIUS, r: -RADIUS }, 1)).toHaveLength(4);
   });
 
   it("walks the shortest path, inclusive of both ends", () => {
-    const path = findPath({ q: -4, r: 0 }, { q: 4, r: 0 })!;
+    // Rim to rim straight through the middle: 2*RADIUS steps, so 2*RADIUS+1 tiles.
+    const path = findPath({ q: -RADIUS, r: 0 }, { q: RADIUS, r: 0 })!;
     expect(path).not.toBeNull();
-    expect(path).toHaveLength(9);
-    expect(path[0]).toEqual({ q: -4, r: 0 });
-    expect(path.at(-1)).toEqual({ q: 4, r: 0 });
+    expect(path).toHaveLength(RADIUS * 2 + 1);
+    expect(path[0]).toEqual({ q: -RADIUS, r: 0 });
+    expect(path.at(-1)).toEqual({ q: RADIUS, r: 0 });
     for (let i = 1; i < path.length; i++) expect(distance(path[i - 1], path[i])).toBe(1);
   });
 
@@ -174,15 +190,17 @@ describe("range and pathing", () => {
   it("reaches only what the step budget allows", () => {
     const steps = reachable(CENTRE, 2);
     expect(steps.size).toBe(19);
-    expect(steps.get("E5")).toBe(0);
-    expect(steps.get("A1")).toBeUndefined();
+    expect(steps.get(label(CENTRE))).toBe(0);
+    // A corner is RADIUS away, so out of reach of a two-step budget on any board
+    // bigger than radius 2.
+    expect(steps.get(label({ q: 0, r: -RADIUS }))).toBeUndefined();
   });
 });
 
 describe("hexLine", () => {
   it("draws a straight run of adjacent tiles", () => {
-    const line = hexLine({ q: -4, r: 0 }, { q: 4, r: 0 });
-    expect(line).toHaveLength(9);
+    const line = hexLine({ q: -RADIUS, r: 0 }, { q: RADIUS, r: 0 });
+    expect(line).toHaveLength(RADIUS * 2 + 1);
     for (let i = 1; i < line.length; i++) expect(distance(line[i - 1], line[i])).toBe(1);
   });
 
@@ -219,6 +237,6 @@ describe("pixel layout", () => {
       const p = hexToPixel(h, 40);
       return `${p.x.toFixed(3)},${p.y.toFixed(3)}`;
     });
-    expect(new Set(seen).size).toBe(61);
+    expect(new Set(seen).size).toBe(allHexes().length);
   });
 });
