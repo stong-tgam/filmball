@@ -227,10 +227,14 @@ export function endTurn(state: GameState): GameState {
     );
   }
 
-  // A fresh turn for whoever is up next.
-  const ready = next.players.map((p, i) =>
-    i === index ? { ...p, stepsTaken: 0, actedThisTurn: false } : p,
-  );
+  // A fresh turn for whoever is up next. Rulebook §8's second guard - a player joins
+  // at most one fight per round - is cleared when the round rolls over rather than
+  // per player, or the same friend gets dragged into every fight of the round.
+  const rolled = turn !== next.turn;
+  const ready = next.players.map((p, i) => ({
+    ...(i === index ? { ...p, stepsTaken: 0, actedThisTurn: false } : p),
+    joinedFightThisRound: rolled ? false : p.joinedFightThisRound,
+  }));
   const started = { ...next, players: ready, activePlayerIndex: index, turn, phase: "playerMove" as const };
   // A new turn for the whole party, not just the next player, is what draws a card.
   return turn === next.turn ? started : beginTurn(note(started, `— Turn ${turn} —`));

@@ -15,7 +15,7 @@ import { CHIP, INK } from "./art/crayon";
 import MonsterArt from "./art/monsters";
 import FeatureArt from "./art/features";
 import ItemArt from "./art/items";
-import { gearLabel, equipped } from "../game/items";
+import { canTake, gearLabel, equipped } from "../game/items";
 import type { Combat, Enemy, Item, Player, Tile } from "../game/types";
 
 /** What this item would push out of its slot, if anything. */
@@ -28,7 +28,13 @@ type Props = {
   enemy: Enemy;
   onAttack: () => void;
   onFlee: () => void;
-  onTakeLoot: (itemId: string) => void;
+  /** §10: the starter keeps a pick, or hands it to anybody who fought beside them. */
+  onTakeLoot: (itemId: string, toId?: string) => void;
+  /** Everybody swinging, starter first. */
+  party: Player[];
+  /** Who could still be shouted for, per §8. Empty for mobs, which stay solo. */
+  inviteTargets: Player[];
+  onInvite: (playerId: string) => void;
   /**
    * Eating is not the turn's action and never was - the spec is explicit that supply
    * may be used at any time, "including in the middle of a fight". It could not be:
@@ -65,6 +71,9 @@ export default function CombatModal({
   onAttack,
   onFlee,
   onTakeLoot,
+  party,
+  inviteTargets,
+  onInvite,
   onEat,
   onClose,
   ground,
@@ -167,23 +176,55 @@ export default function CombatModal({
               <div className="loot">
                 <p className="loot-title">
                   Keep {combat.picksLeft} of {combat.spoils.length}. The rest goes back.
+                  {party.length > 1 && " Yours to hand out."}
                 </p>
                 <ul className="stock">
-                  {combat.spoils.map((item) => {
-                    const swapping = replacing(player, item);
-                    return (
-                      <li key={item.id}>
-                        <button type="button" className="buy" onClick={() => onTakeLoot(item.id)}>
+                  {combat.spoils.map((item) => (
+                    <li key={item.id}>
+                      {/*
+                        §10 gives the picks to the starter and lets them hand any of
+                        them to somebody who fought. Solo, that is one button and reads
+                        exactly as it always did; in a group each piece names the people
+                        who could take it, so nobody has to remember who was there.
+                      */}
+                      <div className="loot-item">
+                        <span className="loot-face">
                           <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art">
                             <ItemArt name={item.name} seedName={item.id} />
                           </svg>
                           <span className="buy-name">{gearLabel(item)}</span>
-                          <span className="buy-value">+{item.value}</span>
-                          <span className="buy-cost">{swapping ? `swap ${swapping.name}` : "take"}</span>
-                        </button>
-                      </li>
-                    );
-                  })}
+                        </span>
+                        <span className="loot-who">
+                          {party.map((who) => {
+                            const swapping = replacing(who, item);
+                            const room = canTake(who, item);
+                            return (
+                              <button
+                                key={who.id}
+                                type="button"
+                                className="ghost"
+                                disabled={!room}
+                                onClick={() => onTakeLoot(item.id, who.id)}
+                                title={
+                                  !room
+                                    ? `${who.name} has no room for it`
+                                    : swapping
+                                      ? `${who.name} swaps ${swapping.name}`
+                                      : `${who.name} takes it`
+                                }
+                              >
+                                {party.length === 1
+                                  ? swapping
+                                    ? `Swap ${swapping.name}`
+                                    : "Take it"
+                                  : who.name}
+                              </button>
+                            );
+                          })}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
@@ -224,6 +265,27 @@ export default function CombatModal({
                   ))}
                 </ul>
               </div>
+            )}
+            {inviteTargets.length > 0 && (
+              <div className="fight-supply">
+                <p className="fight-supply-title">
+                  Shout for help — they run in and roll with you, and it does not cost
+                  them their turn.
+                </p>
+                <div className="hook-ways">
+                  {inviteTargets.map((who) => (
+                    <button key={who.id} type="button" className="ghost" onClick={() => onInvite(who.id)}>
+                      {who.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {party.length > 1 && (
+              <p className="fight-party">
+                Fighting together: {party.map((p) => p.name).join(", ")}. All the dice
+                count, and a bad roll costs every one of them a health.
+              </p>
             )}
             <p className="muted">
               Round {combat.round + 1}. Hurting it counts even if you leave — and an

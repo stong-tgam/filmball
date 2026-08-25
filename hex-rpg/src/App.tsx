@@ -19,6 +19,8 @@ import {
   useCanPayOff,
   useCanFish,
   useCanGive,
+  useFighters,
+  useInviteTargets,
   useCanHook,
   useCanSearch,
   useGiveTargets,
@@ -85,6 +87,9 @@ export default function App() {
   const castHook = useGame((s) => s.hook);
   const [hooking, setHooking] = useState(false);
   const canGive = useCanGive();
+  const fightParty = useFighters();
+  const inviteTargets = useInviteTargets();
+  const callForHelp = useGame((s) => s.invite);
   const giveTargets = useGiveTargets();
   const handOver = useGame((s) => s.give);
   const [giving, setGiving] = useState(false);
@@ -129,7 +134,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.18 — drawn by the children</span>
+          <span className="version">v0.19 — drawn by the children</span>
         </div>
         <button
           type="button"
@@ -275,6 +280,9 @@ export default function App() {
           onAttack={attack}
           onFlee={flee}
           onTakeLoot={takeLoot}
+          party={fightParty}
+          inviteTargets={inviteTargets}
+          onInvite={callForHelp}
           onEat={eat}
           onClose={closeCombat}
           ground={game.tiles[key(fight.enemy.hex)]}

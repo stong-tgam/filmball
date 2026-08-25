@@ -13,7 +13,7 @@ rulebook actually says. **The goal is now a real goal: beat the dragon before tu
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 323 tests
+npm test           # 337 tests
 npm run build      # type-check + production build into dist/
 npm run build:play # one self-contained .html you can hand to somebody
 
@@ -288,12 +288,31 @@ wipes**. That last jump is the instrument getting honest, not the game getting b
 (The 20% quoted under v0.17 was a 200-game run; 800 games puts that build at 25%. Use
 800 for anything you intend to act on.)
 
-## Still open
+## v0.19: group fights
 
-- **Group fights (§8)** — inviting nearby players into a boss fight. Every fight is
-  one player against one enemy; `Player.joinedFightThisRound` is in the types waiting
-  for it. This is the biggest gap, and it changes the boss maths (§7.4 assumes 4
-  players against the dragon).
+The rule the whole boss maths was waiting for. §7.4 set the dragon at 20–30 health
+against a *party* rolling together; every fight until now was one child at 3 health
+grinding it down alone, which is why over half of games ran out the clock.
+
+- **Shout for help.** Whoever started the fight can call anybody within their own
+  movement range. They run in, roll with you, and **it does not cost them their turn**.
+- **All the dice count.** Every participant rolls three, and the whole lot is totalled
+  into one number against the monster.
+- **A bad roll costs everybody a health.** That is the price of all those dice.
+- **Mobs stay solo**, and you can only join one fight per round — both of §8's own
+  balance guards, without which the party clusters on every bandit and turn order stops
+  meaning anything.
+- **If the leader goes down and friends are still standing, the fight carries on** and
+  the next one along takes over. It ends only when everybody in it is down.
+- **The loot is handed out** (§10): the starter keeps each pick or gives it to anybody
+  who fought, one button per person. The purse is paid to each of them rather than
+  split — splitting $2 two ways is one argument and two disappointments.
+
+**Balance: 38% wins, 45% out of time, 17% wipes**, from 32/49/20. The biggest single
+move the game has made, and it lands exactly where the docs kept predicting it would —
+on the timeout share. Wipes fell too, because fights now end before they grind.
+
+## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.
 - **Four event cards** that need effects lasting beyond the moment they are read:
   *Foggy morning*, *Trade caravan*, *Scarecrow*, *Lost puppy*. They need a modifier

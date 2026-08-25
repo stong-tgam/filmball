@@ -7,7 +7,7 @@ import { create } from "zustand";
 import { startGame } from "./setup";
 import { randomSeed } from "./rng";
 import { activePlayer, clearDraw, endTurn, legalMoves, movePlayer } from "./turn";
-import { attack, combatants, endCombat, flee, takeSpoil } from "./combat";
+import { attack, canInvite, combatants, endCombat, fighters, flee, invite, inviteTargets, takeSpoil } from "./combat";
 import {
   buy,
   canHeal,
@@ -57,7 +57,9 @@ type Store = {
   heal: (playerId: string) => void;
   payOff: () => void;
   eat: (playerId: string, itemId: string) => void;
-  takeLoot: (itemId: string) => void;
+  takeLoot: (itemId: string, toId?: string) => void;
+  /** Rulebook §8: shout somebody into the fight. It does not cost them their turn. */
+  invite: (playerId: string) => void;
   /** Put the turn's card away once the table has read it. */
   clearDraw: () => void;
   /** Put away what the last search turned up. */
@@ -90,7 +92,8 @@ export const useGame = create<Store>((set, get) => ({
   heal: (playerId) => set({ game: heal(get().game, playerId), selected: null }),
   payOff: () => set({ game: payOff(get().game) }),
   eat: (playerId, itemId) => set({ game: eat(get().game, playerId, itemId) }),
-  takeLoot: (itemId) => set({ game: takeSpoil(get().game, itemId) }),
+  takeLoot: (itemId, toId) => set({ game: takeSpoil(get().game, itemId, toId) }),
+  invite: (playerId) => set({ game: invite(get().game, playerId) }),
   clearDraw: () => set({ game: clearDraw(get().game) }),
   clearFind: () => set({ game: clearFind(get().game) }),
 }));
@@ -122,6 +125,12 @@ export const useCanHeal = (): boolean =>
   useGame((s) => canHeal(s.game, activePlayer(s.game)));
 export const useHealTargets = (): Player[] =>
   useGame((s) => healTargets(s.game, activePlayer(s.game)));
+
+/** Everybody swinging in the fight on screen, starter first. */
+export const useFighters = (): Player[] => useGame((s) => fighters(s.game));
+/** Who the starter could still shout to, per §8. */
+export const useInviteTargets = (): Player[] => useGame((s) => inviteTargets(s.game));
+export const useCanInvite = (): boolean => useGame((s) => canInvite(s.game));
 
 /** The two sides of the fight on screen, or null when nobody is fighting. */
 export const useCombatants = (): { player: Player; enemy: Enemy } | null =>

@@ -677,6 +677,27 @@ button.ghost {
 }
 .fight-supply-title { margin: 0; font-size: 13px; color: var(--ink-muted); }
 
+/* Loot, handed round. §10 gives the picks to whoever started the fight and lets them
+   give any of them away, so each piece names the people who could take it - nobody
+   should have to remember who was standing there. */
+.loot-item {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff08;
+}
+.loot-face { display: flex; align-items: center; gap: 8px; }
+.loot-who { display: flex; flex-wrap: wrap; gap: 6px; }
+.loot-who button { min-width: 0; flex: 1 1 auto; padding: 0 10px; }
+
+.fight-party {
+  margin: 0;
+  font-size: 13px;
+  color: var(--accent);
+}
+
 /* ---------- casting the line at a friend ---------- */
 
 .hook { align-items: stretch; }

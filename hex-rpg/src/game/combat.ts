@@ -15,7 +15,7 @@
  */
 
 import { ENEMIES, healthLeft, nameWithArticle, verb } from "./enemies";
-import { key, neighbours } from "./hex";
+import { distance, key, neighbours } from "./hex";
 import { makeRng } from "./rng";
 import { canTake, equip, makeFine, randomFood } from "./items";
 import { ROLES, maxHealthOf, moveRange } from "./players";
@@ -46,6 +46,21 @@ export function rollDice(rngState: number, count: number): { dice: number[]; rng
   return { dice, rngState: rng.state() };
 }
 
+/**
+ * Everybody swinging, starter first.
+ *
+ * The starter is not special in a roll - §8 totals every participant's dice together -
+ * but they are special afterwards, because §10 gives them the picks. Keeping them at
+ * the head of the list is what makes both true at once.
+ */
+export function fighters(state: GameState): Player[] {
+  if (!state.combat) return [];
+  const ids = [state.combat.playerId, ...state.combat.allies];
+  return ids
+    .map((id) => state.players.find((p) => p.id === id))
+    .filter((p): p is Player => p !== undefined && !p.dead);
+}
+
 export const combatants = (state: GameState): { player: Player; enemy: Enemy } | null => {
   if (!state.combat) return null;
   const player = state.players.find((p) => p.id === state.combat!.playerId);
@@ -69,9 +84,16 @@ export function activeFeatures(enemy: Enemy, tile: Tile | undefined): Feature[] 
   );
 }
 
-/** Rulebook §9, field: the boss hits for one more per player in the fight. */
-export const extraToll = (enemy: Enemy, tile: Tile | undefined, party: number): number =>
-  activeFeatures(enemy, tile).includes("field") ? party : 0;
+/**
+ * Rulebook §9, field: the boss hits harder in the open.
+ *
+ * §9 says "+1 to the toll per player in the fight", which with one player is +1 and
+ * has only ever been read that way. With a group it splits two ways: +1 to *each* of
+ * them, or +N to each. The second is a party wipe on one bad roll - five players, six
+ * health gone each - so this build takes the first. A §15-style choice, made here.
+ */
+export const extraToll = (enemy: Enemy, tile: Tile | undefined): number =>
+  activeFeatures(enemy, tile).includes("field") ? 1 : 0;
 
 /** Rulebook §9, forest: everybody in the fight loses a point of attack. */
 export const attackPenalty = (enemy: Enemy, tile: Tile | undefined): number =>
@@ -125,6 +147,7 @@ export function startCombat(
   const combat: Combat = {
     enemyId: enemy.id,
     playerId: player.id,
+    allies: [],
     from,
     round: 0,
     playerRoll: null,
@@ -177,32 +200,130 @@ function openingBite(state: GameState, enemy: Enemy): GameState {
   return next;
 }
 
-/** Take health off whoever is in the fight, and see whether they are still standing. */
+/**
+ * Take health off **everybody in the fight**. Rulebook §8: all participants lose 1
+ * health on a failed roll, which is the price of all their dice counting.
+ *
+ * Anybody who runs out falls where they stand and drops out of the fight. If the
+ * *starter* falls with friends still up, the fight carries on and the next one along
+ * takes over as starter — the party is standing right there, and ending the fight
+ * because one of them went down would be the app overruling the table. The picks go
+ * with the job, per §10.
+ */
 function hurt(state: GameState, amount: number, why: string): GameState {
-  const player = state.players.find((p) => p.id === state.combat?.playerId);
-  if (!player || amount <= 0) return state;
+  const combat = state.combat;
+  const hit = fighters(state);
+  if (!combat || hit.length === 0 || amount <= 0) return state;
 
-  const health = Math.max(0, player.health - amount);
-  const down = health === 0;
+  const fallen = new Set<string>();
   let next: GameState = {
     ...state,
-    players: state.players.map((p) =>
-      p.id === player.id
-        ? {
-            ...p,
-            health,
-            dead: down,
-            fellAt: down ? p.hex : p.fellAt,
-            fellOn: down ? state.turn : p.fellOn,
-          }
-        : p,
-    ),
-    combat: state.combat
-      ? { ...state.combat, toll: amount, outcome: down ? "playerDown" : state.combat.outcome }
-      : null,
+    players: state.players.map((p) => {
+      if (!hit.some((f) => f.id === p.id)) return p;
+      const health = Math.max(0, p.health - amount);
+      if (health === 0) fallen.add(p.id);
+      return {
+        ...p,
+        health,
+        dead: health === 0,
+        fellAt: health === 0 ? p.hex : p.fellAt,
+        fellOn: health === 0 ? state.turn : p.fellOn,
+      };
+    }),
+    combat: { ...combat, toll: amount },
   };
-  next = note(next, `${why} ${player.name} is down to ${health} health.`);
-  return down ? note(next, `${player.name} has fallen.`) : next;
+
+  const standing = hit.filter((f) => !fallen.has(f.id));
+  next = note(
+    next,
+    hit.length === 1
+      ? `${why} ${hit[0].name} is down to ${next.players.find((p) => p.id === hit[0].id)!.health} health.`
+      : `${why} ${amount} health off each of ${hit.map((f) => f.name).join(", ")}.`,
+  );
+  for (const id of fallen) {
+    next = note(next, `${state.players.find((p) => p.id === id)!.name} has fallen.`);
+  }
+
+  if (standing.length === 0) {
+    return { ...next, combat: { ...next.combat!, outcome: "playerDown" } };
+  }
+
+  // Drop the fallen out, and hand the fight to whoever is still up if the starter
+  // is not among them.
+  const stillIn = standing.map((f) => f.id);
+  return {
+    ...next,
+    combat: {
+      ...next.combat!,
+      playerId: stillIn[0],
+      allies: stillIn.slice(1),
+      outcome: next.combat!.outcome,
+    },
+  };
+}
+
+/* ------------------------------------------------------------- group fights */
+
+/**
+ * Rulebook §8's balance guard: **only the big ones**.
+ *
+ * Mobs stay solo. Without this the whole party clusters on every bandit, steamrolls
+ * it, and turn order stops meaning anything - which the rulebook says in as many
+ * words. The thieves fight as mid bosses (§5.5) and count as big.
+ */
+export const invitable = (enemy: Enemy): boolean => enemy.kind !== "mob";
+
+/**
+ * Who the starter can shout to.
+ *
+ * §8 says "within their movement range", so it is the *starter's* legs that decide
+ * how far the shout carries - a scout who picks a fight can pull somebody in from two
+ * tiles away, and that is a second reason to send the scout first.
+ *
+ * A player joins at most one fight per turn cycle (`joinedFightThisRound`, cleared
+ * when the turn rolls over), which is §8's other guard: without it the same friend
+ * can be dragged into all five fights of a round.
+ */
+export function inviteTargets(state: GameState): Player[] {
+  const combat = state.combat;
+  if (!combat || combat.outcome !== "ongoing") return [];
+  const enemy = state.enemies.find((e) => e.id === combat.enemyId);
+  const starter = state.players.find((p) => p.id === combat.playerId);
+  if (!enemy || !starter || !invitable(enemy)) return [];
+
+  const reach = moveRange(starter);
+  const already = new Set([combat.playerId, ...combat.allies]);
+  return state.players.filter(
+    (p) =>
+      !already.has(p.id) &&
+      !p.dead &&
+      !p.joinedFightThisRound &&
+      distance(p.hex, enemy.hex) <= reach,
+  );
+}
+
+export const canInvite = (state: GameState): boolean => inviteTargets(state).length > 0;
+
+/**
+ * Pull somebody into the fight. §8: they move onto the tile and roll, and it does
+ * **not** spend their turn - so a player who has already had their go can still be
+ * shouted for, and one who has not still gets their own turn afterwards.
+ */
+export function invite(state: GameState, playerId: string): GameState {
+  const combat = state.combat;
+  if (!combat) return state;
+  const joining = inviteTargets(state).find((p) => p.id === playerId);
+  const enemy = state.enemies.find((e) => e.id === combat.enemyId);
+  if (!joining || !enemy) return state;
+
+  const next: GameState = {
+    ...state,
+    players: state.players.map((p) =>
+      p.id === joining.id ? { ...p, hex: enemy.hex, joinedFightThisRound: true } : p,
+    ),
+    combat: { ...combat, allies: [...combat.allies, joining.id] },
+  };
+  return note(next, `${joining.name} ran in to help. Their turn is still their own.`);
 }
 
 /* ---------------------------------------------------------------- one round */
@@ -214,21 +335,43 @@ export function attack(state: GameState): GameState {
   const { player, enemy } = pair;
 
   const ground = state.tiles[key(enemy.hex)];
-  const swing = rollDice(state.rngState, BASE_DICE + player.bonusDiceNextFight);
-  const dealt = total(swing.dice) + attackValue(player, enemy, ground);
-  const playerRoll: Roll = { dice: swing.dice, damage: dealt };
+  const party = fighters(state);
+
+  // Rulebook §8: every participant rolls and the whole lot is totalled together. One
+  // number against the monster's remaining health, not a turn each - which is what
+  // makes five people meaningfully better than one against thirty health.
+  let rngState = state.rngState;
+  const dice: number[] = [];
+  let dealt = 0;
+  const said: string[] = [];
+  for (const who of party) {
+    const swing = rollDice(rngState, BASE_DICE + who.bonusDiceNextFight);
+    rngState = swing.rngState;
+    const mine = total(swing.dice) + attackValue(who, enemy, ground);
+    dice.push(...swing.dice);
+    dealt += mine;
+    said.push(`${who.name} ${swing.dice.join("+")}${attackValue(who, enemy, ground) > 0 ? ` +${attackValue(who, enemy, ground)}` : ""}`);
+  }
+
+  const playerRoll: Roll = { dice, damage: dealt };
   const remaining = healthLeft(enemy);
+  const inFight = new Set(party.map((p) => p.id));
 
   let next: GameState = {
     ...state,
-    rngState: swing.rngState,
+    rngState,
     // The donated die is spent whether or not it helped.
     players: state.players.map((p) =>
-      p.id === player.id ? { ...p, bonusDiceNextFight: 0 } : p,
+      inFight.has(p.id) ? { ...p, bonusDiceNextFight: 0 } : p,
     ),
     combat: { ...state.combat, round: state.combat.round + 1, playerRoll, toll: 0 },
   };
-  next = note(next, `${player.name} rolled ${swing.dice.join("+")} for ${dealt}.`);
+  next = note(
+    next,
+    party.length === 1
+      ? `${player.name} rolled ${dice.join("+")} for ${dealt}.`
+      : `${said.join(", ")} — ${dealt} between them.`,
+  );
 
   // Rulebook §7: an exact tie does nothing at all, and you go back where you started.
   if (dealt === remaining) return standoff(next, enemy);
@@ -252,7 +395,7 @@ export function attack(state: GameState): GameState {
       e.id === enemy.id ? { ...e, damageTaken: e.damageTaken + dealt } : e,
     ),
   };
-  const toll = FAILED_ROLL_COST + extraToll(enemy, ground, 1);
+  const toll = FAILED_ROLL_COST + extraToll(enemy, ground);
   return hurt(
     wounded,
     toll,
@@ -336,13 +479,22 @@ function beaten(state: GameState, enemy: Enemy): GameState {
     },
   };
   if (profile.purse > 0 && winner) {
+    // Everybody who swung gets the purse. Splitting $1 five ways is four people
+    // getting nothing and one argument; paying each of them is legible, and the
+    // amounts are small enough (all under `GEAR_PRICE`) that it stays scarce.
+    const paid = fighters(state);
     next = {
       ...next,
       players: next.players.map((p) =>
-        p.id === winner.id ? { ...p, money: p.money + profile.purse } : p,
+        paid.some((f) => f.id === p.id) ? { ...p, money: p.money + profile.purse } : p,
       ),
     };
-    next = note(next, `${winner.name} took $${profile.purse} off the body.`);
+    next = note(
+      next,
+      paid.length === 1
+        ? `${winner.name} took $${profile.purse} off the body.`
+        : `$${profile.purse} each off the body, for all ${paid.length} of them.`,
+    );
   }
   if (robbing && winner) {
     next = note(next, `${winner.name} went through its pockets as well. One extra thing to keep.`);
@@ -383,12 +535,25 @@ function escapeDownriver(state: GameState, enemy: Enemy): GameState {
 }
 
 /** Take one of the things on the ground, up to what the rulebook lets you keep. */
-export function takeSpoil(state: GameState, itemId: string): GameState {
+/**
+ * Take one of the picks - for yourself, or for anybody who fought beside you.
+ *
+ * Rulebook §10, in as many words: "the starting player may keep their picks or give
+ * them to any player in the fight." That is the whole of loot distribution, and it is
+ * deliberately the *starter's* call rather than a vote: five children negotiating a
+ * dragon's hoard is not a mechanic, it is an evening.
+ *
+ * `toId` defaults to the starter, so every existing caller keeps working and the solo
+ * case reads exactly as it did.
+ */
+export function takeSpoil(state: GameState, itemId: string, toId?: string): GameState {
   const combat = state.combat;
   if (!combat || combat.picksLeft <= 0) return state;
 
   const item = combat.spoils.find((i) => i.id === itemId);
-  const player = state.players.find((p) => p.id === combat.playerId);
+  // Only somebody who was actually in the fight. A friend two tiles away does not get
+  // a share for watching.
+  const player = fighters(state).find((p) => p.id === (toId ?? combat.playerId));
   if (!item || !player) return state;
 
   if (!canTake(player, item)) return state;
@@ -406,7 +571,12 @@ export function takeSpoil(state: GameState, itemId: string): GameState {
       picksLeft: combat.picksLeft - 1,
     },
   };
-  next = note(next, `${player.name} kept the ${item.name}.`);
+  next = note(
+    next,
+    player.id === combat.playerId
+      ? `${player.name} kept the ${item.name}.`
+      : `${player.name} was handed the ${item.name}.`,
+  );
   return returned ? note(next, `${returned.name} went back to the pile.`) : next;
 }
 

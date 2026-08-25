@@ -80,13 +80,13 @@ reference/    the rulebook, the build spec, and the token art prompt
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 323 tests
+npm test           # 337 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html you can hand to somebody
 npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
 ```
 
-## Current state: v0.18
+## Current state: v0.19
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -138,6 +138,29 @@ Key rules, so nothing gets "improved" back to a guess:
   every legal tile got one and all six tiles round the dragon were a wall. The radius
   now gives ground to keep at least `MIN_OPEN_PER_MONSTER` tiles free per monster, so
   the board stays a scatter. There is a test on the packing ratio.
+- **Group fights (§8) are in.** The starter of a fight may shout for anybody inside
+  **their own** movement range (`inviteTargets`) — so a scout who picks the fight pulls
+  from further away, which is a second reason to send them first. Invited players move
+  onto the tile and roll, and it **does not spend their turn**. Every participant's
+  dice are totalled into one number against the monster, and a failed roll costs
+  **every one of them** a health.
+  - Both of §8's balance guards are enforced: **mobs stay solo** (`invitable`) and a
+    player joins **one fight per round** (`joinedFightThisRound`, cleared when the turn
+    rolls over). The rulebook is explicit that without these the party clusters on
+    every bandit and turn order stops mattering.
+  - **If the starter falls with friends still up, the fight carries on** and the next
+    one along takes over as starter — the party is standing right there, and ending it
+    because one of them went down would be the app overruling the table. The picks go
+    with the job. The fight ends only when everybody in it is down.
+  - **§9's field feature is +1 to each**, not +1 per player. §9's wording ("+1 to the
+    toll per player in the fight") reads both ways and has only ever been exercised
+    solo; the other reading is a five-player wipe on one bad roll. A §15-style choice,
+    made in `extraToll`.
+- **Loot distribution (§10)**: `takeSpoil(state, itemId, toId?)`. The starter keeps a
+  pick or hands it to **anybody who fought** — the rulebook's own words. Deliberately
+  the starter's call and not a vote: five children negotiating a dragon's hoard is not
+  a mechanic, it is an evening. The purse is paid to **each** participant rather than
+  split, because splitting $2 two ways is one argument and two disappointments.
 - **Combat (§7)**: roll 3 dice + attack against the enemy's *remaining* health. Over
   it, beaten. Under it, the damage sticks and you lose **1 health, flat**. Exactly
   equal, **nothing happens and you go back where you started**.
@@ -211,9 +234,7 @@ Key rules, so nothing gets "improved" back to a guess:
   endings; run it after touching any of the three.
 - **Winning (§14)**: kill the dragon before the turn limit. `GameState.ending`.
 
-What is left is listed under "Still open" in the README. The largest is **group fights
-(§8)** — every fight is currently one player against one enemy, and §7.4's boss maths
-assumes four.
+What is left is listed under "Still open" in the README.
 
 - `turn.ts` — `legalMoves`, `movePlayer`, `endTurn`. One move per turn; moving onto
   an enemy starts a fight, and the turn cannot pass while one is running.
@@ -406,9 +427,11 @@ Still genuinely undecided, from the rulebook's §15:
 
 - **Must mid bosses die before the dragon?** Nothing stops a party running at it on
   turn one. The dice punish that, but no rule forbids it.
-- **Group fights (§8)** are unbuilt, and the boss maths in §7.4 assumes them. This is
-  the biggest gap in the game: one player at 3 health grinding down a 20-30 health
-  dragon alone is why over half of simulated games run out the clock.
+- **How much should a group fight cost?** §8 is built, and the win rate says it was
+  the missing piece (32% to 38%). What is still a guess is the *price*: everybody in
+  the fight pays a health per failed roll, which is the rulebook's rule, but with five
+  players that is five health a round off the party. Watch whether big fights start
+  feeling like a tax on turning up.
 
 Choices the rulebook leaves open (its §15), all marked in the code where they are made:
 
@@ -439,8 +462,9 @@ Choices the rulebook leaves open (its §15), all marked in the code where they a
 - **Entry side is not a rule.** Sides are stored per direction, so "which element you
   are standing in depends on the side you entered from" remains available; nothing uses
   it, and `base` decides what a tile is for.
-- **Fights are one player against one enemy.** `Player.joinedFightThisRound` exists in
-  the types for the party-joins-a-fight rule and nothing sets it yet.
+- **A group fight is joined by invitation, never automatically.** The starter chooses
+  who to shout for; nobody is dragged in by standing too close. Standing on the tile is
+  not joining either — you have to be asked, which keeps the decision with a person.
 - **A tile can be searched once per game** (`Tile.searched`), or standing still beats
   playing.
 - **Swapped-out gear returns to the shared pile**, and so does anything a mishap takes:

@@ -234,7 +234,17 @@ export type CombatOutcome =
 /** A fight in progress. Only one runs at a time: it is the active player's turn. */
 export type Combat = {
   enemyId: string;
+  /**
+   * Whoever started it. Rulebook §8 calls them the starter and §10 gives them the
+   * picks, so the distinction outlives the fight.
+   */
   playerId: string;
+  /**
+   * Everybody else who piled in, in the order they joined. Rulebook §8: the starter
+   * may invite anyone inside their movement range, the invited move onto the tile and
+   * roll, and it does not cost them their turn.
+   */
+  allies: string[];
   /** Tile the player came from, so running away puts them back where they were. */
   from: string;
   round: number;

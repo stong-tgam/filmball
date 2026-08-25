@@ -14,12 +14,29 @@
 
 import { startGame } from "../src/game/setup";
 import { activePlayer, endTurn, legalMoves, movePlayer } from "../src/game/turn";
-import { attack, endCombat, flee, takeSpoil } from "../src/game/combat";
+import { attack, endCombat, flee, inviteTargets, invite, takeSpoil } from "../src/game/combat";
 import { canFish, canSearch, fish, search } from "../src/game/actions";
 import { clearDraw } from "../src/game/turn";
 import { distance, fromLabel } from "../src/game/hex";
 import { makeRng } from "../src/game/rng";
 import type { GameState } from "../src/game/types";
+
+/**
+ * Rulebook §8: pull in anybody within a shout who is not hurt enough to regret it.
+ *
+ * The bot is deliberately dim, and this is about as clever as it gets - but a bot
+ * that never invites cannot measure the rule at all, and the rule is the whole point
+ * of the change. Only healthy friends: dragging somebody on one health into a dragon
+ * fight is how you turn a timeout into a wipe.
+ */
+function shoutForHelp(state: GameState): GameState {
+  let next = state;
+  for (const who of inviteTargets(next)) {
+    if (who.health <= 2) continue;
+    next = invite(next, who.id);
+  }
+  return next;
+}
 
 /** One turn of a bot that walks about, pokes at things, and runs when hurt. */
 function botTurn(state: GameState, roll: () => number): GameState {
@@ -28,6 +45,7 @@ function botTurn(state: GameState, roll: () => number): GameState {
   // Fight, or get out if it is going badly.
   let guard = 0;
   while (next.combat && next.combat.outcome === "ongoing" && guard++ < 12) {
+    next = shoutForHelp(next);
     const me = next.players.find((p) => p.id === next.combat!.playerId)!;
     next = me.health <= 1 ? flee(next) : attack(next);
   }
@@ -62,6 +80,7 @@ function botTurn(state: GameState, roll: () => number): GameState {
 
   guard = 0;
   while (next.combat && next.combat.outcome === "ongoing" && guard++ < 12) {
+    next = shoutForHelp(next);
     const who = next.players.find((p) => p.id === next.combat!.playerId)!;
     next = who.health <= 1 ? flee(next) : attack(next);
   }

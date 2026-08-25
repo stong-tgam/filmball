@@ -385,6 +385,7 @@ describe("boss features", () => {
         combat: {
           enemyId: enemy.id,
           playerId: base.players[0].id,
+          allies: [],
           from: key(enemy.hex),
           round: 0,
           playerRoll: null,
@@ -429,6 +430,7 @@ describe("the water escape", () => {
       combat: {
         enemyId: enemy.id,
         playerId: base.players[0].id,
+        allies: [],
         from: key(wet.hex),
         round: 0,
         playerRoll: null,
