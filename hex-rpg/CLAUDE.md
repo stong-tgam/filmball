@@ -70,10 +70,12 @@ milestone.
 ```
 src/palette.ts  every colour that names a character or an event, in one place
 src/game/     pure logic, no React - hex, rng, setup, turn, combat, actions,
-              hazards, events, items, enemies, vision, sense, store
-src/ui/       Compass.tsx (what a player sees), Tile.tsx (one hex),
-              Board.tsx (the grown-up's map peek), FindCard.tsx (what a
-              search turned up), art/ (the drawings)
+              hazards, events, items, enemies, vision, sense, save, store
+src/ui/       TitleScreen.tsx (who is playing), Compass.tsx (what a player
+              sees), Tile.tsx (one hex), Board.tsx (the grown-up's map peek),
+              CombatModal.tsx (the fight, invitations and loot), FindCard.tsx
+              (what a search turned up), HookModal/GiveModal (the fisherman's
+              rope, and handing things over), art/ (the drawings)
 tools/        sim.ts (bot playtests), inline.mjs (single-file build)
 tests/        vitest, node environment, no rendering
 reference/    the rulebook, the build spec, and the token art prompt
@@ -108,8 +110,8 @@ Key rules, so nothing gets "improved" back to a guess:
   sight**, doctor heals and revives, **fisherman fishes and hooks**. Everyone starts on
   3 health and $2. The scout's sight is the bonus that matters most now the board is
   hidden — one extra ring is roughly triple what a turn tells you. Four are rulebook
-  §3; the fisherman is this build's own, and the party is **five**, on five of the six
-  corners.
+  §3; the fisherman is this build's own. The party is **whichever two to five of them
+  the table picked**, one to a corner — see the roster bullet below.
 - **The fisherman** is the odd role out on purpose: every other bonus is a number added
   to a roll, theirs is a **thing they hold**. The rod is in the weapon slot at **+0**,
   cannot be swapped away (`equip` refuses — a ground search equips what it finds
@@ -237,10 +239,11 @@ Key rules, so nothing gets "improved" back to a guess:
   would make the role a shield against bad luck rather than a nose for good ground; not
   on a find, which would be taking something off them. A bonus that fires everywhere is
   just a bigger number; one that fires *somewhere* is a reason to send a particular
-  child to a particular tile, and that is the party talking to each other. **On a river you pull up a chest
-  instead** (`searchKind`): face card = armour, red = two items, black = river water,
-  joker = the lid on your fingers for 1 health. Better than the ground on average, and
-  that is the point — the river should be worth a detour, not scenery.
+  child to a particular tile, and that is the party talking to each other.
+- **A chest tile gives up a chest instead of ground** (`searchKind`, and only where
+  `Tile.chest` is set): face card = armour, red = two pieces, black = one piece, joker
+  = the lid on your fingers for a health. The best odds in the game, which is what
+  makes a chest worth changing course for.
 - **A red picture card pays as well as finds** (`coinsFound`): jack $1, queen $2, king
   $3, on top of the gear, and a chest carries `CHEST_COINS` in the bottom. Coin **as
   well as** gear, never instead of it — the version that paid red faces in coin rather
@@ -313,7 +316,7 @@ What is left is listed under "Still open" in the README.
 Hazard and event phases slot in ahead of the move phase when they exist; the phase
 names are already in `Phase`.
 
-## The ground around you (v1.1)
+## The ground around you (v0.11)
 
 The 3D experiment is gone. The view is 2D again, and there is **no board and no
 position on screen at all** - not the player's, not anybody's. What a player gets is
@@ -390,21 +393,36 @@ notes are for.
 
 ## Balance, and how to check it
 
-`npx vite-node tools/sim.ts 200` plays the game with a bot and prints how it ends.
+`npx vite-node tools/sim.ts 800` plays the game with a bot and prints how it ends.
+**Use 800, not 200** — at 200 the standard error is about 3 points, which is wide
+enough to invent an improvement that is not there. That happened: v0.17 read 20% on 200
+games and 25% on 800.
 
-At v1.3: **20% wins, 55% out of time, 26% wipes** (v1.2 was 23/61/17, v0.8 23/56/21,
-35/45/20 before the fog). Step-by-step movement means the bot now spends every step
-instead of one, so it covers the same ground but bumps into more on the way: fewer
-timeouts, more wipes.
-Raising the turn limit barely helps — about +1% win per two turns — because the limit
-is not what is binding. What binds is that one player at 3 health grinds a 20–30 health
-dragon down alone: **§7.4's boss maths assumes the four-player group fight in §8, and
-§8 is not built.** That is the real fix for the timeout share, and it is the top item
-under "Open questions".
+At v0.21, five players: **40% wins, 34% out of time, 26% wipes.** Every party size from
+two to five lands in a 40-51% win band; the per-size table is in the README.
 
-The bot is deliberately worse than a family — it never eats, never buys gear and never
-coordinates — so treat these as a floor, not a forecast. Run it after any change to the
-turn limit, sight, monster placement or the economy.
+How it got here, because the shape of the story is the useful part:
+
+| | win | timeout | wipe | what moved it |
+|---|---|---|---|---|
+| v0.13 | 20% | 55% | 26% | — |
+| v0.18 | 32% | 49% | 20% | food from searches, rogue's extra pick, **and the bot finally taking loot** |
+| v0.19 | 38% | 45% | 17% | **group fights** |
+| v0.20 | 40% | 34% | 26% | more events late on |
+
+Two things worth keeping in mind before you trust a number here:
+
+- **The bot is deliberately worse than a family.** It never eats, never buys gear, and
+  coordinates only as far as shouting for help in a fight. Treat every figure as a
+  floor. The **wipe** share is the most distorted of the three, because not eating is
+  precisely what kills you.
+- **Fixing the bot moves the numbers without the game changing.** It went a dozen
+  versions never picking up loot, which made every change to what monsters drop
+  invisible to the sim; fixing that alone was worth three points. When a jump follows a
+  change to `tools/sim.ts`, say so rather than banking it as balance.
+
+Run it after any change to the turn limit, sight, monster placement, the economy, or
+anything in `bossHealth` / `monsterCount`.
 
 ## Artwork
 
@@ -421,7 +439,7 @@ Three things not to rediscover the hard way:
 - **Any token's picture can be replaced by an upload** (`art/overrides.ts`). The
   generated drawing is the fallback, never the only option.
 
-**The drawings are in the game now** (v1.4). Monsters are chits on the board and a
+**The drawings are in the game now** (v0.14). Monsters are chits on the board and a
 portrait in the fight; boss features, shop stock, loot and the party's kit all show
 their drawing. `CrayonDefs` is mounted once at the top of `App.tsx` — every drawing
 points into its filters, so nothing renders without it.

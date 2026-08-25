@@ -4,9 +4,14 @@ Hotseat (one device, passed around) digital version of the Hex RPG tabletop game
 Built to `reference/hex-rpg-rulebook.md`, with `reference/webapp-spec.md` as the build
 plan.
 
-**This build is v0.7: the game, by the rulebook.** Every system the spec asks for is
-in, and every placeholder that earlier builds invented has been replaced with what the
-rulebook actually says. **The goal is now a real goal: beat the dragon before turn 25.**
+**This build is v0.21.** Every system the spec asks for is in, every placeholder from
+the early builds has been replaced with what the rulebook actually says, and the two
+rules the rulebook leans on hardest — the hidden board and the group fight — are both
+built. **The goal: kill the dragon before turn 32.**
+
+The version is `v0.<milestone>`, and it stays below 1 on purpose: `v1.0` is reserved
+for the first build worth handing to somebody outside the family, and that is a
+decision to be made rather than a number to drift into.
 
 ## Running it
 
@@ -15,19 +20,22 @@ npm install
 npm run dev        # http://localhost:5173
 npm test           # 362 tests
 npm run build      # type-check + production build into dist/
-npm run build:play # one self-contained .html you can hand to somebody
+npm run build:play # one self-contained .html, plus the artifact fragment
 
-npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
+npx vite-node tools/sim.ts 800   # bot playtest: how do 800 games end?
 ```
 
 ## The game, in one paragraph
 
-Four players — knight, rogue, scout, doctor — start on **3 health and $2** at the
-corners of a 61-tile board. Each round a poker card turns over; a jack, queen or king
-brings an event. Then everyone moves one tile (the scout gets two) and takes one
-action: search the ground, trade in a city, fight what they are standing on, or, if
-they are the doctor, patch somebody up. Four hazards wander the board. Fifteen bandits,
-four ogres and one dragon stand between the party and turn 25.
+Two to five players — knight, rogue, scout, doctor, fisher, chosen at the table — start
+on **3 health and $2** on the corners of a 61-tile board **they cannot see**. Each round
+a poker card turns over and a high one brings an event, more often the later it gets.
+Then everyone moves a tile at a time (the scout gets two) and takes one action: search
+the ground, fish a river, trade in a city, hand something to whoever they are standing
+with, or fight what they walked into. Nobody fights a boss alone if they can help it —
+you shout, your friends run in, and all the dice count. Four hazards wander the board.
+Bandits, ogres and one dragon stand between the party and turn 32, and how many of each
+depends on how many of you sat down.
 
 ## What the rulebook changed
 
@@ -385,13 +393,24 @@ from v0.20, so the existing balance is preserved rather than re-tuned underneath
   keep pace. The thing to watch is that it must not make the game *simpler* — right now
   every number is single-digit and a seven-year-old can hold the whole thing in their
   head, and that is the property most at risk from a depth system.
-- Autosave and undo are unbuilt. The seed is already visible and typeable in the header.
+- **Undo is unbuilt.** Autosave is in as of v0.21 and rests on the same groundwork, so
+  this is now the cheap half of the pair. The seed is visible and typeable in the header.
 - **The bot never spends its money**, so the sim's purse line is gross earnings, not
   savings. It says money is reaching the party; it says nothing about whether the
   shop is worth walking to.
-- **Too many games run out of time** (55% in the bot sim). More turns barely helps —
-  about +1% win per two turns — because the clock is not what binds. What binds is one
-  player at 3 health grinding down a 20–30 health dragon alone. Group fights are the fix.
+- **Two-player games are the hardest by some way** — 44% wipes against 28% at five,
+  after the party-size scaling in v0.21 brought them down from 62%. A pair *should*
+  struggle, so this may be right rather than wrong; it is the number to watch if the
+  kids play in twos.
+- **The starting spread may be working against the newer systems.** Everyone starts on
+  a corner, four tiles apart. That is what hid the doctor bug for so long, what makes
+  the Fisher's hook hard to use, and what makes a group fight hard to assemble — you
+  need people near each other *before* a fight starts. Cheap to change, and it would
+  make the last few versions land harder at the table.
+- **The group-fight UI is verified by construction, not by eye.** The rules underneath
+  it have 20-odd tests and the owner has played it, but the invite and loot-handout
+  buttons have never been driven in an automated browser run: the random-walking bot
+  cannot reliably get a party to a mid boss, and two attempts timed out.
 - **The art is two hands.** The drawings are cream paper; the app shell around them is
   dark slate, and the hex tiles use their own older SVG renderer. Moving the shell onto
   the paper theme is the remaining art job.
