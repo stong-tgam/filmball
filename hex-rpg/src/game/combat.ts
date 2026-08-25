@@ -575,6 +575,33 @@ function beaten(state: GameState, enemy: Enemy): GameState {
         : `$${profile.purse} each off the body, for all ${paid.length} of them.`,
     );
   }
+  // Everything a thief has taken off the party goes back, in one lump, to whoever
+  // brought them down. `Hazard.carrying` is where `payOff` puts it, and until v0.25
+  // it went nowhere: the gear came back and the coins quietly left the game. "Catch
+  // them to get it back" is the whole reason chasing one is worth a turn.
+  const purse = state.hazards.find((h) => h.kind === enemy.kind)?.carrying ?? 0;
+  if (purse > 0 && winner) {
+    const paid = fighters(state);
+    const each = Math.floor(purse / paid.length);
+    const odd = purse - each * paid.length;
+    next = {
+      ...next,
+      hazards: next.hazards.map((h) => (h.kind === enemy.kind ? { ...h, carrying: 0 } : h)),
+      players: next.players.map((p) => {
+        const place = paid.findIndex((f) => f.id === p.id);
+        if (place < 0) return p;
+        // The odd dollars go to whoever picked the fight - a split that leaves change
+        // is an argument, and the rulebook already gives the starter the picks.
+        return { ...p, money: p.money + each + (p.id === winner.id ? odd : 0) };
+      }),
+    };
+    next = note(
+      next,
+      paid.length === 1
+        ? `${winner.name} got back the $${purse} ${verb(enemy.kind, "it was", "they were")} carrying.`
+        : `The $${purse} ${verb(enemy.kind, "it had", "they had")} taken went back to the party.`,
+    );
+  }
   if (robbing && winner) {
     next = note(next, `${winner.name} went through its pockets as well. One extra thing to keep.`);
   }

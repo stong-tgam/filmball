@@ -143,7 +143,7 @@ export default function FindCard({ find, onClose }: { find: Find; onClose: () =>
 
         {/* The card turns over first; everything below it is held back until it has. */}
         <div className="find-turn">
-          <PlayingCard draw={{ card: find.card, event: null }} />
+          <PlayingCard card={find.card} />
         </div>
 
         <h2 className="find-title">{said.title}</h2>

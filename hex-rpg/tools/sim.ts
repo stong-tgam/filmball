@@ -16,6 +16,7 @@ import { startGame } from "../src/game/setup";
 import { activePlayer, endTurn, legalMoves, movePlayer } from "../src/game/turn";
 import { attack, endCombat, flee, invitable, inviteTargets, invite, takeSpoil } from "../src/game/combat";
 import { canFish, canSearch, eat, fish, search, tileMates } from "../src/game/actions";
+import { canFightThief, fightThief } from "../src/game/hazards";
 import { clearDraw } from "../src/game/turn";
 import { distance, fromLabel } from "../src/game/hex";
 import { doomed, edgeFallsAfter } from "../src/game/collapse";
@@ -87,6 +88,7 @@ const stats = {
   mealsEaten: 0,
   handOvers: 0,
   dragonFights: 0,
+  thiefFights: 0,
   lostToAbyss: 0,
   rounds: 0,
   goes: 0,
@@ -99,6 +101,7 @@ export const resetStats = (): void => {
   stats.mealsEaten = 0;
   stats.handOvers = 0;
   stats.dragonFights = 0;
+  stats.thiefFights = 0;
   stats.lostToAbyss = 0;
   stats.rounds = 0;
   stats.goes = 0;
@@ -166,6 +169,15 @@ function botTurn(state: GameState, roll: () => number): GameState {
           );
       next = movePlayer(next, pick);
     }
+  }
+
+  // Walking onto a thief no longer starts the fight for you - §5.5 makes it a choice,
+  // fight them or buy your way past. The bot always fights: that is how the money it
+  // has been robbed of comes back, and a bot that always paid would measure a game
+  // nobody plays.
+  if (!next.combat && !next.ending && canFightThief(next, activePlayer(next))) {
+    next = fightThief(next);
+    if (next.combat) stats.thiefFights++;
   }
 
   countFight(next);
@@ -274,5 +286,6 @@ const per = (n: number) => (n / games).toFixed(1);
 console.log(`  ${"together".padEnd(12)} ${per(stats.groupFights)} boss fights + ${per(stats.soloFights)} mobs a game, ${per(stats.alliesJoined)} friends joining`);
 console.log(`  ${"meals".padEnd(12)} ${per(stats.mealsEaten)} eaten a game`);
 console.log(`  ${"dragon".padEnd(12)} ${per(stats.dragonFights)} fights a game, ${((dragonLeft / games) * 100).toFixed(0)}% of it still standing at the end`);
+console.log(`  ${"thieves".padEnd(12)} ${per(stats.thiefFights)} taken on a game`);
 console.log(`  ${"length".padEnd(12)} ${per(stats.rounds)} rounds, ${(stats.rounds / games * party).toFixed(0)} individual goes`);
 console.log(`  ${"abyss".padEnd(12)} ${per(stats.lostToAbyss)} lost over the edge a game`);

@@ -1687,3 +1687,54 @@ button { transition: transform 90ms ease, background-color 120ms ease, border-co
 @media (prefers-reduced-motion: reduce) {
   .banner-doomed .banner-rim-warning { animation: none; }
 }
+
+
+/* ---------- the turn's "meanwhile" ---------- */
+
+/* Everything the world did before the player who is up touched anything. It sits
+   under the card rather than in front of it: the card is the moment, this is the
+   briefing, and a child should be able to skip straight past it. */
+.draw-stir {
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+
+.draw-stir h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.stir-moves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 14px;
+}
+
+.stir-moves li { display: flex; align-items: center; gap: 6px; }
+
+.stir-lines {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.stir-lines li { margin-bottom: 2px; }
+
+/* The one button on the bar that starts a fight, so it does not look like the rest. */
+button.fight-thief {
+  border-color: transparent;
+  color: #17110b;
+  font-weight: 700;
+}

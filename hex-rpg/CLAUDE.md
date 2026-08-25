@@ -91,13 +91,13 @@ you have not published.
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 382 tests
+npm test           # 389 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html, plus the artifact fragment
 npx vite-node tools/sim.ts 800 5 # bot playtest: how do 800 five-player games end?
 ```
 
-## Current state: v0.24
+## Current state: v0.25
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -161,6 +161,23 @@ Key rules, so nothing gets "improved" back to a guess:
   the same tile. `HazardLayer` skips them (`EnemyLayer` draws them) and `sense` skips
   them in the enemy loop (the hazard loop reports them). Miss either and the board
   grows a second crew of pirates that nobody can find.
+- **Walking onto a thief offers a fight; it does not start one** (`canFightThief`,
+  `fightThief`, and the `THIEVES` guard in `movePlayer`). §5.5 makes this the one
+  encounter you are allowed to buy your way past, and a fight that began the instant
+  you stepped on the tile took that decision away before anybody was asked — so the
+  choice only ever existed when the thief walked onto *you*. Both are buttons now.
+  Everything else on the board is unchanged: walk onto it, you are in it.
+- **Beating a thief hands back every coin they took** (`Hazard.carrying`, paid out in
+  `beaten`). Their stolen *gear* always came back; the money went nowhere at all, which
+  quietly made "catch them to get it back" — the entire reason chasing one is worth a
+  turn — untrue. Split between everybody who swung, with the odd dollars to the starter.
+- **The turn card reports what happened before your go** (`Draw.stirred`,
+  `Draw.happenings`, `hazardMoves`). A turn opens with the rim maybe falling, the dragon
+  maybe landing, four wanderers each taking a step and a bandit maybe arriving — all
+  decided while the device was crossing the table, and all previously reported only as
+  log lines nobody was reading. The moves are **directions, never tiles** (the log rule
+  holds here too), and the happenings are read back off the log rather than described
+  branch by branch, the same way `Find` is — add an effect and it reports itself.
 - **Chests are rare** (`CHESTS_IN_THE_RIVER`, `TILE_COUNT / 15`). Every river tile used to hold one,
   which made the best odds in the game something you tripped over on the way past and
   put a chest mark on a dozen hexes. Rare and worth the walk beats common and ignored —

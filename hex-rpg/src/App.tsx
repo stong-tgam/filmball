@@ -19,7 +19,9 @@ import {
   useActivePlayer,
   useCanDonate,
   useCanHeal,
+  useCanFightThief,
   useCanPayOff,
+  useThiefHere,
   useCanFish,
   useCanGive,
   useFighters,
@@ -110,10 +112,13 @@ export default function App() {
   const canDonate = useCanDonate();
   const canHeal = useCanHeal();
   const canPayOff = useCanPayOff();
+  const canFightThief = useCanFightThief();
+  const thiefHere = useThiefHere();
   const healTargets = useHealTargets();
   const donate = useGame((s) => s.donate);
   const heal = useGame((s) => s.heal);
   const payOff = useGame((s) => s.payOff);
+  const takeOnThief = useGame((s) => s.fightThief);
   const sell = useGame((s) => s.sell);
 
   const [seedInput, setSeedInput] = useState("");
@@ -166,7 +171,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.24 — the ground gives way</span>
+          <span className="version">v0.25 — what happened while you waited</span>
         </div>
         <button
           type="button"
@@ -263,6 +268,8 @@ export default function App() {
             canDonate={canDonate}
             canHeal={canHeal}
             canPayOff={canPayOff}
+            canFightThief={canFightThief}
+            thief={thiefHere}
             onSearch={search}
             onFish={fish}
             onHook={() => setHooking(true)}
@@ -271,6 +278,7 @@ export default function App() {
             onDonate={donate}
             onHeal={() => healTargets[0] && heal(healTargets[0].id)}
             onPayOff={payOff}
+            onFightThief={takeOnThief}
             onEndTurn={endTurn}
             disabled={over || game.combat !== null}
           />

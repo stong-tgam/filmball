@@ -4,7 +4,7 @@ Hotseat (one device, passed around) digital version of the Hex RPG tabletop game
 Built to `reference/hex-rpg-rulebook.md`, with `reference/webapp-spec.md` as the build
 plan.
 
-**This build is v0.24.** Every system the spec asks for is in, every placeholder from
+**This build is v0.25.** Every system the spec asks for is in, every placeholder from
 the early builds has been replaced with what the rulebook actually says, and the two
 rules the rulebook leans on hardest — the hidden board and the group fight — are both
 built. **The goal: kill the dragon before the board falls out from under you.**
@@ -515,6 +515,35 @@ is a diagonal across the whole screen from the hex a child has just tapped.
 and back inside the brief after v0.23 drifted to 85%. Timeouts are now parties who
 *found* the dragon and could not finish it, which is a different and much better way to
 run out of time.
+
+## v0.25: what happened while you waited
+
+Three things, and they are all the same complaint: **the world moves while the device
+is crossing the table, and nobody was being told.**
+
+**The turn card now opens with a "Meanwhile".** Which way each wanderer went — the
+tornado south-east, the pirates west — as a coloured chip apiece, and under it
+everything the opening actually did: the rim falling in, the dragon landing, whoever a
+hazard caught and what it cost them. It is directions and never tiles, because the
+board is hidden and a grid reference on the card would hand the table the thing the
+whole design withholds. And the lines are read back off the log rather than written out
+by each effect, so a new hazard reports itself for free.
+
+**Walking onto a thief offers a fight instead of starting one.** §5.5 makes the robber
+and the pirates the one encounter you can buy your way past — and the choice only ever
+existed when *they* walked onto *you*, because stepping onto their tile started the
+fight before anybody was asked. Now the bar says *"The Robber is here, holding $6 of
+yours. Fight for it, or hand over the rest"* and both are buttons. Everything else on
+the board is unchanged: walk into it and you are in it.
+
+**And beating a thief hands back every coin they took.** Their stolen *gear* always came
+back. The money went nowhere at all — `carrying` went up when you paid them off and was
+never paid out to anyone — which quietly made "catch them to get it back", the entire
+reason chasing one is worth a turn, untrue. It is split between everybody who swung,
+with the odd dollars to whoever picked the fight.
+
+Balance is unmoved: 49% wins at five players, 44% at two, against 48/45 in v0.24. The
+bot always fights a thief now, which is how the sim measures the money coming back.
 
 ## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.

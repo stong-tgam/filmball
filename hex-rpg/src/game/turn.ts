@@ -9,9 +9,9 @@
 
 import { draw as drawCard, isFace, rankValue } from "./cards";
 import { startCombat } from "./combat";
-import { DRAGON_WAKES_ON, ENEMIES, enemyAt, wanderIn } from "./enemies";
+import { DRAGON_WAKES_ON, ENEMIES, THIEVES, enemyAt, wanderIn } from "./enemies";
 import { applyEvent, createEventDeck } from "./events";
-import { isDestroyed, meet, moveHazards } from "./hazards";
+import { hazardMoves, isDestroyed, meet, moveHazards } from "./hazards";
 import { fromLabel, key, reachable } from "./hex";
 import { collapseRim, hasFallen } from "./collapse";
 import { makeRng } from "./rng";
@@ -101,8 +101,14 @@ export function movePlayer(state: GameState, destination: string): GameState {
 
   // Walking onto something starts the fight there and then, and the fight is this
   // turn's action - you do not get to brawl and then go shopping.
+  //
+  // **Except a thief.** The robber and the pirates are the two things on the board you
+  // are allowed to buy your way past (§5.5), and a fight that starts the instant you
+  // step on the tile takes that choice away before anybody has been asked. `meet` has
+  // already said "fight, or pay up" above; the buttons for both are on the action bar
+  // (`canFightThief`, `canPayOff`).
   const enemy = enemyAt(arrived.enemies, destination);
-  if (!enemy) return arrived;
+  if (!enemy || THIEVES.includes(enemy.kind)) return arrived;
   // An unfound monster was not on the board when the move was chosen, so this is an
   // ambush and `flee` lets the player straight back out of it. Marking the action
   // spent still happens - the turn is gone either way - but `flee` un-spends it for
@@ -161,11 +167,22 @@ export function beginTurn(state: GameState): GameState {
   // event that changes the ground has to land after the ground has been changed.
   const stirred = arrivals(moveHazards(risen));
 
+  // The turn's "meanwhile", for the card the next player is about to be handed. Every
+  // line the opening wrote, and which way each wanderer went - read back off the state
+  // rather than assembled by the code that did it, so a new effect reports itself.
+  const opening = {
+    stirred: hazardMoves(state, stirred),
+    happenings: stirred.log.slice(state.log.length).map((l) => l.text),
+  };
+
   const pull = drawCard(stirred.pokerDeck, stirred.rngState);
   let next: GameState = { ...stirred, pokerDeck: pull.deck, rngState: pull.rngState };
 
   if (!bringsEvent(pull.card, next.turn, next.turnLimit)) {
-    return note({ ...next, draw: { card: pull.card, event: null } }, `Drew ${cardName(pull.card)}. A quiet turn.`);
+    return note(
+      { ...next, draw: { card: pull.card, event: null, ...opening } },
+      `Drew ${cardName(pull.card)}. A quiet turn.`,
+    );
   }
 
   // A high card brings an event, and "high" gets lower as the game goes on. The deck
@@ -174,7 +191,7 @@ export function beginTurn(state: GameState): GameState {
   const [event, ...rest] = deck;
   next = note(next, `Drew ${cardName(pull.card)} — an event!`);
   next = applyEvent({ ...next, eventDeck: rest }, event);
-  return { ...next, draw: { card: pull.card, event } };
+  return { ...next, draw: { card: pull.card, event, ...opening } };
 }
 
 /**

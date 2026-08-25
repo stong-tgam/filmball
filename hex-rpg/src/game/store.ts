@@ -42,7 +42,7 @@ import {
   search,
   sell,
 } from "./actions";
-import { canDonate, canPayOff, donate, payOff } from "./hazards";
+import { canDonate, canFightThief, canPayOff, donate, fightThief, payOff, thiefFacing } from "./hazards";
 import { clearSave, readSave, saveGame } from "./save";
 import type { Enemy, GameState, Item, Player, Role, Tile } from "./types";
 
@@ -73,6 +73,7 @@ type Store = {
   sell: (itemId: string) => void;
   heal: (playerId: string) => void;
   payOff: () => void;
+  fightThief: () => void;
   eat: (playerId: string, itemId: string) => void;
   takeLoot: (itemId: string, toId?: string) => void;
   /** Rulebook §8: shout somebody into the fight. It does not cost them their turn. */
@@ -118,6 +119,7 @@ export const useGame = create<Store>((set, get) => ({
   sell: (itemId) => set({ game: sell(get().game, itemId) }),
   heal: (playerId) => set({ game: heal(get().game, playerId), selected: null }),
   payOff: () => set({ game: payOff(get().game) }),
+  fightThief: () => set({ game: fightThief(get().game) }),
   eat: (playerId, itemId) => set({ game: eat(get().game, playerId, itemId) }),
   takeLoot: (itemId, toId) => set({ game: takeSpoil(get().game, itemId, toId) }),
   invite: (playerId) => set({ game: invite(get().game, playerId) }),
@@ -165,6 +167,15 @@ export const useCanDonate = (): boolean =>
   useGame((s) => canDonate(s.game, activePlayer(s.game)));
 export const useCanPayOff = (): boolean =>
   useGame((s) => canPayOff(s.game, activePlayer(s.game)));
+export const useCanFightThief = (): boolean =>
+  useGame((s) => canFightThief(s.game, activePlayer(s.game)));
+/** Which thief is standing here, and how much of the party's money they are holding. */
+export const useThiefHere = (): { kind: "robber" | "pirates"; carrying: number } | null =>
+  useGame((s) => {
+    const kind = thiefFacing(s.game, activePlayer(s.game));
+    if (!kind) return null;
+    return { kind, carrying: s.game.hazards.find((h) => h.kind === kind)?.carrying ?? 0 };
+  });
 export const useCanHeal = (): boolean =>
   useGame((s) => canHeal(s.game, activePlayer(s.game)));
 export const useHealTargets = (): Player[] =>

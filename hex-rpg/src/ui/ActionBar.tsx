@@ -8,6 +8,7 @@
  */
 
 import { useState } from "react";
+import { PALETTE } from "../palette";
 
 type Props = {
   canMove: boolean;
@@ -30,6 +31,10 @@ type Props = {
   canDonate: boolean;
   canHeal: boolean;
   canPayOff: boolean;
+  /** Take a swing at the thief you are standing with, rather than buying your way past. */
+  canFightThief: boolean;
+  /** Which thief it is and how much of the party's money they have, for the prompt. */
+  thief: { kind: "robber" | "pirates"; carrying: number } | null;
   onSearch: () => void;
   onFish: () => void;
   onHook: () => void;
@@ -38,6 +43,7 @@ type Props = {
   onDonate: () => void;
   onHeal: () => void;
   onPayOff: () => void;
+  onFightThief: () => void;
   onEndTurn: () => void;
   disabled: boolean;
 };
@@ -56,6 +62,8 @@ export default function ActionBar({
   canDonate,
   canHeal,
   canPayOff,
+  canFightThief,
+  thief,
   onSearch,
   onFish,
   onHook,
@@ -64,6 +72,7 @@ export default function ActionBar({
   onDonate,
   onHeal,
   onPayOff,
+  onFightThief,
   onEndTurn,
   disabled,
 }: Props) {
@@ -99,8 +108,14 @@ export default function ActionBar({
     );
   }
 
-  const prompt = canPayOff
-    ? "A thief is blocking the way. Fight, or hand it all over."
+  const thiefName = thief?.kind === "pirates" ? "The Pirates are" : "The Robber is";
+  const prompt = thief
+    ? // Say what is on the table. "Catch them to get it back" is the reason chasing a
+      // thief is worth a turn, and a child cannot weigh that against a fight unless
+      // the number is in front of them.
+      thief.carrying > 0
+      ? `${thiefName} here, holding $${thief.carrying} of yours. Fight for it, or hand over the rest.`
+      : `${thiefName} here. Fight, or hand it all over.`
     : canDonate
     ? "Someone here could use a hand."
     : canFish
@@ -124,8 +139,20 @@ export default function ActionBar({
   return (
     <div className="actionbar">
       <p className="actionbar-ask">{prompt}</p>
-      {(canSearch || canFish || canHook || canGive || canTrade || canDonate || canHeal || canPayOff) && (
+      {(canSearch || canFish || canHook || canGive || canTrade || canDonate || canHeal || canPayOff || canFightThief) && (
         <div className="actionbar-buttons">
+          {canFightThief && (
+            <button
+              type="button"
+              className="fight-thief"
+              // The thief's own colour, off the one palette file - a child knows the
+              // brown one and the purple one before they know either name.
+              style={{ background: PALETTE[thief?.kind ?? "robber"] }}
+              onClick={onFightThief}
+            >
+              {thief?.carrying ? `Fight for the $${thief.carrying}` : "Fight them"}
+            </button>
+          )}
           {canPayOff && (
             <button type="button" className="ghost" onClick={onPayOff}>
               Pay them off

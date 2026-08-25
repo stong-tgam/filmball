@@ -8,10 +8,9 @@
  */
 
 import { SUIT_PIP, isFace, isJoker, isRed } from "../game/cards";
-import type { Draw } from "../game/types";
+import type { Card, Draw } from "../game/types";
 
-export function PlayingCard({ draw }: { draw: Draw }) {
-  const { card } = draw;
+export function PlayingCard({ card }: { card: Card }) {
   return (
     <div
       className={`card${isRed(card) ? " card-red" : ""}${isFace(card) ? " card-face" : ""}${
@@ -34,7 +33,7 @@ export default function EventCardModal({ draw, turn, onClose }: { draw: Draw; tu
     >
       <div className={`modal modal-narrow draw${draw.event ? " draw-event-card" : ""}`}>
         <p className="draw-turn">Turn {turn}</p>
-        <PlayingCard draw={draw} />
+        <PlayingCard card={draw.card} />
 
         {draw.event ? (
           <div className="draw-event">
@@ -43,6 +42,39 @@ export default function EventCardModal({ draw, turn, onClose }: { draw: Draw; tu
           </div>
         ) : (
           <p className="muted draw-quiet">Nothing happens. Get on with it.</p>
+        )}
+
+        {/*
+          What happened before anybody's go. All of this was decided while the device
+          was being passed across the table - the rim maybe falling in, the dragon
+          maybe landing, four wanderers each taking a step - and until v0.25 it was
+          only ever log lines scrolling past a sidebar. A child being handed the
+          device has to be told what moved and who it landed on.
+
+          Directions, never tiles: the log rule holds here too.
+        */}
+        {(draw.stirred.length > 0 || draw.happenings.length > 0) && (
+          <div className="draw-stir">
+            <h3>Meanwhile</h3>
+            {draw.stirred.length > 0 && (
+              <ul className="stir-moves">
+                {draw.stirred.map((thing) => (
+                  <li key={thing.kind}>
+                    <span className="blip-dot" style={{ background: thing.colour }} />
+                    <strong>{thing.name}</strong>{" "}
+                    {thing.heading ? `moved ${thing.heading}` : "stayed put"}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {draw.happenings.length > 0 && (
+              <ul className="stir-lines">
+                {draw.happenings.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         <button type="button" onClick={onClose}>

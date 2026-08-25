@@ -17,12 +17,14 @@
  */
 
 import { standing } from "./collapse";
+import { startCombat } from "./combat";
 import { distance, hexesInRange, key, neighbours, type Hex } from "./hex";
 import { slotKey } from "./items";
 import { PALETTE } from "../palette";
 import { withMaxHealth } from "./players";
 import { makeRng, type Rng } from "./rng";
-import type { GameState, Hazard, HazardKind, LogEntry, Player, Tile } from "./types";
+import { bearingBetween, compassName } from "./sense";
+import type { GameState, Hazard, HazardKind, LogEntry, Player, Stirring, Tile } from "./types";
 
 export type HazardProfile = {
   name: string;
@@ -310,9 +312,50 @@ function blowAway(state: GameState, player: Player): GameState {
  * standing in your way - you either take them on, or pay them off and back away.
  */
 function confront(state: GameState, player: Player, kind: "robber" | "pirates"): GameState {
+  const who = kind === "pirates" ? "the Pirates" : "the Robber";
+  const held = state.hazards.find((h) => h.kind === kind)?.carrying ?? 0;
   return note(
     state,
-    `${player.name} ran into ${kind === "pirates" ? "the Pirates" : "the Robber"}. Fight, or pay up.`,
+    held > 0
+      ? `${player.name} ran into ${who}, and ${kind === "pirates" ? "they are" : "he is"} carrying $${held} of the party's money. Fight, or pay up.`
+      : `${player.name} ran into ${who}. Fight, or pay up.`,
+  );
+}
+
+/**
+ * Take a swing at the thief you are standing with, rather than paying them off.
+ *
+ * Walking onto a thief used to start the fight on the spot, which meant the one thing
+ * §5.5 makes a decision - fight them or buy your way past - was only ever a decision
+ * when *they* walked onto *you*. Now both are buttons, and this is the other one.
+ */
+export const canFightThief = (state: GameState, player: Player): boolean =>
+  !player.dead &&
+  state.combat === null &&
+  state.ending === null &&
+  !player.actedThisTurn &&
+  thiefFacing(state, player) !== null;
+
+export function fightThief(state: GameState): GameState {
+  const player = state.players[state.activePlayerIndex];
+  if (!canFightThief(state, player)) return state;
+  const kind = thiefFacing(state, player);
+  const enemy = state.enemies.find((e) => e.kind === kind && !e.defeated);
+  if (!enemy) return state;
+
+  // Standing on their tile already, so there is nowhere to be sent back to: `from` is
+  // where they are, and backing out of this one leaves you exactly here with the thief
+  // still in front of you.
+  return startCombat(
+    {
+      ...state,
+      players: state.players.map((p) =>
+        p.id === player.id ? { ...p, actedThisTurn: true } : p,
+      ),
+    },
+    enemy,
+    key(player.hex),
+    false,
   );
 }
 
@@ -414,4 +457,25 @@ export function canDonate(state: GameState, player: Player): boolean {
     key(traveller.hex) === key(player.hex) &&
     (player.money >= DONATION || player.supply.length > 0)
   );
+}
+
+/**
+ * Which way each wanderer went, by comparing the board before the step with the board
+ * after it.
+ *
+ * Derived rather than recorded, which keeps `moveHazards` free of reporting code and
+ * means a hazard that starts moving differently reports itself correctly for free.
+ * Directions only - see `Stirring`.
+ */
+export function hazardMoves(before: GameState, after: GameState): Stirring[] {
+  return after.hazards.map((now) => {
+    const was = before.hazards.find((h) => h.kind === now.kind);
+    const moved = was !== undefined && key(was.hex) !== key(now.hex);
+    return {
+      kind: now.kind,
+      name: HAZARDS[now.kind].name,
+      colour: HAZARDS[now.kind].colour,
+      heading: moved ? compassName(bearingBetween(was!.hex, now.hex)) : null,
+    };
+  });
 }

@@ -192,12 +192,43 @@ export type EventCard = {
 };
 
 /**
- * The turn's draw: a poker card, and the event it brought with it if it was a face
- * card. Held in state until somebody dismisses it, so the table gets to read it.
+ * One wanderer's step, for the turn's report. Where it went is a **direction**, never
+ * a tile: the log rule holds here too, and a grid reference on the card would hand the
+ * table the map the whole design hides.
+ */
+export type Stirring = {
+  kind: HazardKind;
+  name: string;
+  colour: string;
+  /** Eight-point compass name, or null if it could not move at all. */
+  heading: string | null;
+};
+
+/**
+ * The turn's draw: a poker card, the event it brought with it if it was a face card,
+ * and **what happened before anybody's go**.
+ *
+ * The last part is the "meanwhile". A turn opens with the rim maybe falling in, the
+ * dragon maybe landing, four hazards each taking a step and a bandit maybe arriving -
+ * all of it decided before the player who is up has touched anything, and all of it
+ * previously reported only as log lines scrolling past a sidebar nobody was reading.
+ * A child who is handed the device needs to know what moved and who it landed on.
  */
 export type Draw = {
   card: Card;
   event: EventCard | null;
+  /** Which way each wanderer went. */
+  stirred: Stirring[];
+  /**
+   * Everything the opening wrote to the log, in order - the collapse, the dragon
+   * landing, whoever a hazard caught and what it cost them.
+   *
+   * Read back off the log rather than described branch by branch, the same way
+   * `Find` is derived: a hand-written summary per hazard would go stale the first time
+   * somebody changed an effect and not its summary, and the card would then quietly
+   * lie about the rules.
+   */
+  happenings: string[];
 };
 
 /**
