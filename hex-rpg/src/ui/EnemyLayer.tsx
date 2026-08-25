@@ -31,7 +31,10 @@ export default function EnemyLayer({
   return (
     <g className="enemies">
       {enemies
-        .filter((e) => !e.defeated)
+        // A dormant dragon is not on the board yet (`DRAGON_WAKES_ON`) - not even for
+        // the grown-up peeking at the map, or the one person who is allowed to see
+        // everything would be looking at something that is not there.
+        .filter((e) => !e.defeated && !e.dormant)
         .map((enemy) => {
           const { x, y } = hexToPixel(enemy.hex, size);
           const beast = ENEMIES[enemy.kind];

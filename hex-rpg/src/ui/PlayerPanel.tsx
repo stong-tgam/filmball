@@ -16,15 +16,24 @@ export function ActivePlayerBanner({
   player,
   moves,
   smoke,
+  rim,
+  standingOnIt,
 }: {
   player: Player;
   moves: number;
   /** The dragon is within smelling distance. The one hint the fog ever gives. */
   smoke?: boolean;
+  /** The rim falls when this turn ends (`collapse.ts`), or null on a safe turn. */
+  rim?: string | null;
+  /** ...and this player is standing on the part that goes. */
+  standingOnIt?: boolean;
 }) {
   const role = ROLES[player.role];
   return (
-    <div className="banner" style={{ ["--who" as string]: role.colour }}>
+    <div
+      className={`banner${rim ? (standingOnIt ? " banner-doomed" : " banner-rim") : ""}`}
+      style={{ ["--who" as string]: role.colour }}
+    >
       <div className="banner-who">
         <span className="banner-dot" aria-hidden="true" />
         <div>
@@ -55,6 +64,10 @@ export function ActivePlayerBanner({
           </dd>
         </div>
       </dl>
+      {/* The one warning in the game that a player has to act on, so it goes above
+          the hint and shouts. A turn's notice is always enough: one step gets anybody
+          clear, which is what keeps the abyss a mistake rather than bad luck. */}
+      {rim && <p className="banner-rim-warning">{rim}</p>}
       <p className="banner-hint">
         {!stepsLeft(player)
           ? "Move used. End the turn when you are ready."
@@ -93,13 +106,13 @@ export function PartyList({
         return (
           <li
             key={player.id}
-            className={`party-row${player.id === activeId ? " is-active" : ""}${player.dead ? " is-dead" : ""}`}
+            className={`party-row${player.id === activeId ? " is-active" : ""}${player.dead ? " is-dead" : ""}${player.gone ? " is-gone" : ""}`}
             style={{ ["--who" as string]: role.colour }}
           >
             <span className="party-dot" aria-hidden="true" />
             <span className="party-name">{player.name}</span>
-            <span className="party-health" title="Health">
-              {player.health}/{player.maxHealth}
+            <span className="party-health" title={player.gone ? "Over the edge" : "Health"}>
+              {player.gone ? "lost" : `${player.health}/${player.maxHealth}`}
             </span>
             <span className="party-money">${player.money}</span>
 

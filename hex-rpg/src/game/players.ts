@@ -206,6 +206,7 @@ const spawn = (role: Role, hex: Hex): Player => {
     spareArmor: null,
     supply: [],
     dead: false,
+    gone: false,
     fellAt: null,
     fellOn: null,
     stepsTaken: 0,

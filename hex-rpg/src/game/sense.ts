@@ -72,7 +72,9 @@ export function sense(state: GameState, viewer: Player): Sensed[] {
   const near = (hex: Hex) => distance(viewer.hex, hex) <= SENSE_RANGE && distance(viewer.hex, hex) > 0;
 
   for (const enemy of state.enemies) {
-    if (enemy.defeated || !near(enemy.hex)) continue;
+    // A dormant dragon is not there yet: no smoke, no blip, nothing to walk into.
+    // See `DRAGON_WAKES_ON`.
+    if (enemy.defeated || enemy.dormant || !near(enemy.hex)) continue;
     const dragon = enemy.kind === "finalboss";
     if (!dragon && !enemy.found) continue;
     // The robber and the pirates are one thing wearing two hats: a hazard record and

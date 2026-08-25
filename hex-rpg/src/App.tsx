@@ -40,6 +40,7 @@ import { key } from "./game/hex";
 import { elementsOf } from "./game/setup";
 import { ROLES, hasMoved } from "./game/players";
 import { canSee, smellsSmoke } from "./game/vision";
+import { doomed, rimWarning } from "./game/collapse";
 import { sense } from "./game/sense";
 import { searchKind } from "./game/actions";
 import "./styles.css";
@@ -165,7 +166,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.23 — nobody starts alone</span>
+          <span className="version">v0.24 — the ground gives way</span>
         </div>
         <button
           type="button"
@@ -210,6 +211,8 @@ export default function App() {
           player={player}
           moves={legalMoves.size}
           smoke={smellsSmoke(game, player)}
+          rim={rimWarning(game, player)}
+          standingOnIt={doomed(player.hex, game.turn, game.turnLimit)}
         />
       )}
 
@@ -223,6 +226,7 @@ export default function App() {
             enemies={game.enemies}
             hazards={game.hazards}
             turn={game.turn}
+            turnLimit={game.turnLimit}
             activeId={player.id}
             viewer={player}
             activeColour={ROLES[player.role].colour}
@@ -233,40 +237,47 @@ export default function App() {
             viewer={player}
             tiles={game.tiles}
             turn={game.turn}
+            turnLimit={game.turnLimit}
             sensed={sense(game, player)}
             legalMoves={legalMoves}
             onMove={moveTo}
           />
         )}
+        {/* Under the map, not off in the corner of the sidebar.
+            A child looks at the ground, decides, and reaches for the button - and on a
+            tablet passed round a table that reach has to be short and in the same place
+            their eyes already are. Up in the sidebar it was a diagonal across the whole
+            screen from the hex they had just tapped. */}
+        <div className="deck">
+          <ActionBar
+            canMove={legalMoves.size > 0}
+            moved={hasMoved(player)}
+            acted={player.actedThisTurn}
+            canSearch={canSearch}
+            searchKind={searchKind(game.tiles[key(player.hex)])}
+            canFish={canFish}
+            freshWater={!game.tiles[key(player.hex)]?.searched}
+            canHook={canHook}
+            canGive={canGive}
+            canTrade={canTrade}
+            canDonate={canDonate}
+            canHeal={canHeal}
+            canPayOff={canPayOff}
+            onSearch={search}
+            onFish={fish}
+            onHook={() => setHooking(true)}
+            onGive={() => setGiving(true)}
+            onTrade={openShop}
+            onDonate={donate}
+            onHeal={() => healTargets[0] && heal(healTargets[0].id)}
+            onPayOff={payOff}
+            onEndTurn={endTurn}
+            disabled={over || game.combat !== null}
+          />
+        </div>
       </main>
 
       <aside className="sidebar">
-        <ActionBar
-          canMove={legalMoves.size > 0}
-          moved={hasMoved(player)}
-          acted={player.actedThisTurn}
-          canSearch={canSearch}
-          searchKind={searchKind(game.tiles[key(player.hex)])}
-          canFish={canFish}
-          freshWater={!game.tiles[key(player.hex)]?.searched}
-          canHook={canHook}
-          canGive={canGive}
-          canTrade={canTrade}
-          canDonate={canDonate}
-          canHeal={canHeal}
-          canPayOff={canPayOff}
-          onSearch={search}
-          onFish={fish}
-          onHook={() => setHooking(true)}
-          onGive={() => setGiving(true)}
-          onTrade={openShop}
-          onDonate={donate}
-          onHeal={() => healTargets[0] && heal(healTargets[0].id)}
-          onPayOff={payOff}
-          onEndTurn={endTurn}
-          disabled={over || game.combat !== null}
-        />
-
         <section className="panel">
           <h2>Party</h2>
           <PartyList players={game.players} activeId={player.id} onEat={eat} />

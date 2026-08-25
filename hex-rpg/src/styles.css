@@ -41,9 +41,21 @@ body {
 .app {
   display: grid;
   grid-template-columns: 1fr 320px;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto 1fr auto;
+  /* The action bar sits directly under the map rather than at the top of the sidebar:
+     a child taps a hex and then reaches for a button, and that reach used to be a
+     diagonal across the whole screen. */
   grid-template-areas: "top top" "banner side" "stage side";
   height: 100%;
+}
+
+/* The map and the buttons are one block, centred together: a child looks at the
+   ground, decides, and reaches - and that reach has to be short. Splitting them into
+   two grid rows put the map in the middle of the screen and the buttons at the very
+   bottom of it, which is the same problem the sidebar had, rotated. */
+.deck {
+  width: min(100%, 40rem);
+  min-width: 0;
 }
 
 /* ---------- top bar ---------- */
@@ -115,8 +127,11 @@ button:active { transform: translateY(1px); }
 
 .stage {
   grid-area: stage;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   padding: 12px;
   min-height: 0;
   min-width: 0;
@@ -1447,8 +1462,11 @@ button { transition: transform 90ms ease, background-color 120ms ease, border-co
   gap: 1.5rem;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
-  height: 100%;
+  padding: 1rem 1rem 0;
+  /* Share the stage with the buttons underneath rather than filling it: `min-height`
+     is what lets the flower give ground so the action bar stays on screen. */
+  flex: 0 1 auto;
+  min-height: 0;
 }
 @media (max-width: 900px) {
   .compass {
@@ -1457,7 +1475,7 @@ button { transition: transform 90ms ease, background-color 120ms ease, border-co
 }
 .compass-rose {
   width: 100%;
-  max-height: 68vh;
+  max-height: min(68vh, 100%);
 }
 .rose-ring {
   fill: none;
@@ -1602,4 +1620,70 @@ button { transition: transform 90ms ease, background-color 120ms ease, border-co
   border-radius: 4px;
   background: #fbf7ee;
   margin-right: 0.3rem;
+}
+
+
+/* ---------- the rim falling in ---------- */
+
+/* One warning the table has to act on, so it is allowed to be the loudest thing on
+   screen - and only on the turn before, which is what stops it becoming wallpaper. */
+.banner-rim-warning {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  background: #2a1a12;
+  border: 1px solid #8a4a24;
+  color: #f0b489;
+}
+
+.banner-doomed .banner-rim-warning {
+  background: #43160f;
+  border-color: #d2542a;
+  color: #ffd7bd;
+  animation: rim-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes rim-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Ground that goes when the turn ends. Cracked, not just tinted: the board already
+   has several colours doing work, and one more would be read as terrain. */
+.doomed-wash {
+  fill: #d2542a;
+  opacity: 0.16;
+}
+
+.doomed-crack {
+  fill: none;
+  stroke: #1b0e08;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.tile.is-doomed .tile-outline {
+  stroke: #d2542a;
+  stroke-dasharray: 5 4;
+}
+
+/* Ground that has already gone. Same hole as the edge of the world, because that is
+   what it now is. */
+.rose-abyss polygon {
+  fill: #0a0406;
+  stroke: #6b2f18;
+}
+
+.rose-abyss text { fill: #a8613f; }
+
+.compass-doom { color: #f0b489; }
+.blip-doom { background: #d2542a; }
+
+.party-row.is-gone { opacity: 0.4; }
+.party-row.is-gone .party-name { text-decoration: line-through; }
+
+@media (prefers-reduced-motion: reduce) {
+  .banner-doomed .banner-rim-warning { animation: none; }
 }

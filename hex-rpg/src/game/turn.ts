@@ -9,10 +9,12 @@
 
 import { draw as drawCard, isFace, rankValue } from "./cards";
 import { startCombat } from "./combat";
-import { enemyAt } from "./enemies";
+import { DRAGON_WAKES_ON, ENEMIES, enemyAt, wanderIn } from "./enemies";
 import { applyEvent, createEventDeck } from "./events";
 import { isDestroyed, meet, moveHazards } from "./hazards";
 import { fromLabel, key, reachable } from "./hex";
+import { collapseRim, hasFallen } from "./collapse";
+import { makeRng } from "./rng";
 import { hasMoved, stepsLeft } from "./players";
 import { bearingBetween, compassName } from "./sense";
 import { cardName } from "./cards";
@@ -62,9 +64,11 @@ export function legalMoves(state: GameState, player: Player): Map<string, number
   // Monsters are the opposite and always have been: onto one, never past it (§5).
 
   const guarded = (h: { q: number; r: number }) => enemyAt(state.enemies, key(h)) !== undefined;
-  // Ground the tornado has just been through is nobody's idea of a route.
+  // Ground the tornado has just been through is nobody's idea of a route, and ground
+  // that has fallen into the abyss is not ground at all.
   const standable = (h: { q: number; r: number }) =>
-    !isDestroyed(state.tiles[key(h)], state.turn);
+    !isDestroyed(state.tiles[key(h)], state.turn) &&
+    !hasFallen(h, state.turn, state.turnLimit);
 
   const moves = new Map<string, number>();
   for (const [label, steps] of reachable(player.hex, 1, standable, guarded)) {
@@ -145,9 +149,17 @@ export const bringsEvent = (card: Card, turn: number, turnLimit: number): boolea
   isFace(card) || rankValue(card) >= eventThreshold(turn, turnLimit);
 
 export function beginTurn(state: GameState): GameState {
-  // Hazards move first. The spec is explicit about the order, and it matters: an
+  // The rim goes first, on the turns it goes at all: everything after this happens on
+  // the board that is left, and a hazard that steps onto a tile which is about to fall
+  // would be a hazard the party can neither reach nor escape.
+  const solid = collapseRim(state);
+  if (solid.ending) return solid;
+
+  const risen = wakeTheDragon(solid);
+
+  // Hazards move next. The spec is explicit about the order, and it matters: an
   // event that changes the ground has to land after the ground has been changed.
-  const stirred = moveHazards(state);
+  const stirred = arrivals(moveHazards(risen));
 
   const pull = drawCard(stirred.pokerDeck, stirred.rngState);
   let next: GameState = { ...stirred, pokerDeck: pull.deck, rngState: pull.rngState };
@@ -163,6 +175,32 @@ export function beginTurn(state: GameState): GameState {
   next = note(next, `Drew ${cardName(pull.card)} — an event!`);
   next = applyEvent({ ...next, eventDeck: rest }, event);
   return { ...next, draw: { card: pull.card, event } };
+}
+
+/**
+ * The dragon lands on the mountain in the middle, on `DRAGON_WAKES_ON` and not before.
+ *
+ * Until then its record sits on the centre tile `dormant`: nothing can be placed
+ * there, nobody can walk into it, and it neither smokes nor senses. This is the beat
+ * the opening is building to, so it is said loudly and by name.
+ */
+function wakeTheDragon(state: GameState): GameState {
+  const dragon = state.enemies.find((e) => e.kind === "finalboss");
+  if (!dragon?.dormant || state.turn < DRAGON_WAKES_ON) return state;
+  return note(
+    {
+      ...state,
+      enemies: state.enemies.map((e) => (e.id === dragon.id ? { ...e, dormant: false } : e)),
+    },
+    `Everything goes quiet, and then the sky darkens. The ${ENEMIES.finalboss.name} has come home to the middle of the map — follow the smoke.`,
+  );
+}
+
+/** One more bandit on the board, more often the later it gets. See `mobArrivalChance`. */
+function arrivals(state: GameState): GameState {
+  const rng = makeRng(state.rngState);
+  const next = wanderIn(state, rng);
+  return { ...next, rngState: rng.state() };
 }
 
 /** Reshuffles the event deck in place when the last card has been played. */
@@ -182,7 +220,9 @@ export const clearDraw = (state: GameState): GameState => ({ ...state, draw: nul
 function tendTheFallen(state: GameState): GameState {
   let next = state;
   for (const player of state.players) {
-    if (!player.dead || player.fellOn === null) continue;
+    // `gone` is the abyss (`collapse.ts`) and there is no getting up from it. Their
+    // `fellOn` is already null, so this is the same test said in plain words.
+    if (!player.dead || player.gone || player.fellOn === null) continue;
     if (state.turn <= player.fellOn) continue;
 
     next = note(

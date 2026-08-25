@@ -15,6 +15,7 @@ import FogTile from "./FogTile";
 import { DIRS, add, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
 import { hasFindings, searchKind } from "../game/actions";
 import { isDestroyed } from "../game/hazards";
+import { doomed, hasFallen } from "../game/collapse";
 import { canSee, enemyVisible, playerVisible } from "../game/vision";
 import type { Enemy, Hazard, Player, Tile as TileData } from "../game/types";
 
@@ -31,6 +32,8 @@ type Props = {
   hazards: Hazard[];
   /** The turn number, which decides which wrecked tiles have recovered. */
   turn: number;
+  /** With the turn, which rings of the board have fallen in. See `collapse.ts`. */
+  turnLimit: number;
   activeId: string;
   /**
    * Whose eyes the board is drawn through. There is no bird's-eye view: everything
@@ -72,6 +75,7 @@ export default function Board({
   enemies,
   hazards,
   turn,
+  turnLimit,
   activeId,
   viewer,
   activeColour,
@@ -130,7 +134,8 @@ export default function Board({
       </g>
 
       {entries.map(([label, tile]) =>
-        canSee(viewer, tile.hex) ? (
+        // Gone into the abyss: drawn as nothing at all, which is what it is now.
+        hasFallen(tile.hex, turn, turnLimit) ? null : canSee(viewer, tile.hex) ? (
           <Tile
             key={label}
             label={label}
@@ -140,6 +145,7 @@ export default function Board({
             selected={selected === label}
             legal={legalMoves.has(label)}
             wrecked={isDestroyed(tile, turn)}
+            doomed={doomed(tile.hex, turn, turnLimit)}
             findings={hasFindings(tile) ? searchKind(tile) : null}
             onSelect={onSelect}
           />

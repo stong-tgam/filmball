@@ -18,6 +18,7 @@ import { attack, endCombat, flee, invitable, inviteTargets, invite, takeSpoil } 
 import { canFish, canSearch, eat, fish, search, tileMates } from "../src/game/actions";
 import { clearDraw } from "../src/game/turn";
 import { distance, fromLabel } from "../src/game/hex";
+import { doomed, edgeFallsAfter } from "../src/game/collapse";
 import { makeRng } from "../src/game/rng";
 import { MAX_PARTY, MIN_PARTY, TURN_ORDER } from "../src/game/players";
 import type { GameState } from "../src/game/types";
@@ -85,6 +86,10 @@ const stats = {
   alliesJoined: 0,
   mealsEaten: 0,
   handOvers: 0,
+  dragonFights: 0,
+  lostToAbyss: 0,
+  rounds: 0,
+  goes: 0,
 };
 
 export const resetStats = (): void => {
@@ -93,6 +98,10 @@ export const resetStats = (): void => {
   stats.alliesJoined = 0;
   stats.mealsEaten = 0;
   stats.handOvers = 0;
+  stats.dragonFights = 0;
+  stats.lostToAbyss = 0;
+  stats.rounds = 0;
+  stats.goes = 0;
 };
 
 /** One turn of a bot that walks about, pokes at things, and runs when hurt. */
@@ -107,6 +116,7 @@ function botTurn(state: GameState, roll: () => number): GameState {
   const countFight = (s: GameState) => {
     if (!s.combat || s.combat.enemyId === fightAtStart) return;
     const enemy = s.enemies.find((e) => e.id === s.combat!.enemyId);
+    if (enemy?.kind === "finalboss") stats.dragonFights++;
     if (enemy && invitable(enemy)) stats.groupFights++;
     else stats.soloFights++;
   };
@@ -129,15 +139,26 @@ function botTurn(state: GameState, roll: () => number): GameState {
   // actually gets in a turn.
   for (let step = 0; step < 4 && !next.combat && !next.ending; step++) {
     const me = activePlayer(next);
-    const moves = [...legalMoves(next, me).keys()];
+    let moves = [...legalMoves(next, me).keys()];
     if (moves.length === 0) break;
     {
+      // The rim falls in every quarter of the game and takes whoever is on it
+      // (`collapse.ts`). A family gets a turn's warning on the banner and on the
+      // ground itself, so a bot that walked into the abyss would be measuring a
+      // warning nobody read rather than the rule.
+      const doom = edgeFallsAfter(next.turn, next.turnLimit);
+      if (doom) {
+        const safe = moves.filter((m) => !doomed(fromLabel(m)!, next.turn, next.turnLimit));
+        if (safe.length > 0) moves = safe;
+      }
+      const cornered = doom && doomed(me.hex, next.turn, next.turnLimit);
       // Play like somebody who has read the box: the dragon is in the middle, so
       // walk inward, with enough wandering to bump into things on the way. A purely
       // random walker never crosses a 61-tile board inside the turn limit and tells
       // us nothing about whether the game is winnable.
       const centre = { q: 0, r: 0 };
-      const wander = roll() < 0.25;
+      // Standing on ground that is about to go is not the moment to wander.
+      const wander = !cornered && roll() < 0.25;
       const pick = wander
         ? moves[Math.floor(roll() * moves.length)]
         : moves.reduce((best, m) =>
@@ -179,11 +200,19 @@ function botTurn(state: GameState, roll: () => number): GameState {
   return next.combat ? next : endTurn(next);
 }
 
-function play(seed: number, party: number): { ending: GameState["ending"]; purse: number } {
+function play(
+  seed: number,
+  party: number,
+): { ending: GameState["ending"]; purse: number; dragonLeft: number } {
   const rng = makeRng(seed * 7919 + 13);
   let state = startGame(seed, TURN_ORDER.slice(0, party));
   for (let i = 0; i < 4000 && !state.ending; i++) state = botTurn(state, () => rng.next());
+  const dragon = state.enemies.find((e) => e.kind === "finalboss")!;
+  stats.lostToAbyss += state.players.filter((p) => p.gone).length;
+  stats.rounds += state.turn;
+  stats.goes += state.log.filter((l) => l.text.includes("— Turn")).length;
   return {
+    dragonLeft: 1 - Math.min(1, dragon.damageTaken / dragon.maxHealth),
     ending: state.ending ?? "outOfTime",
     // What the party is holding when the lights go up. The bot never shops, so this
     // is gross earnings rather than savings - which is the number a change to the
@@ -223,11 +252,13 @@ const games = Number(process.argv[2] ?? 200);
 const party = Math.min(Math.max(Number(process.argv[3] ?? TURN_ORDER.length), MIN_PARTY), MAX_PARTY);
 const tally: Record<string, number> = {};
 let purse = 0;
+let dragonLeft = 0;
 for (let seed = 1; seed <= games; seed++) {
   const result = play(seed, party);
   const ending = result.ending ?? "outOfTime";
   tally[ending] = (tally[ending] ?? 0) + 1;
   purse += result.purse;
+  dragonLeft += result.dragonLeft;
 }
 
 console.log(`${games} games, ${party} players:`);
@@ -242,3 +273,6 @@ console.log(`  ${"purse".padEnd(12)} ${`$${(purse / games).toFixed(1)}`.padStart
 const per = (n: number) => (n / games).toFixed(1);
 console.log(`  ${"together".padEnd(12)} ${per(stats.groupFights)} boss fights + ${per(stats.soloFights)} mobs a game, ${per(stats.alliesJoined)} friends joining`);
 console.log(`  ${"meals".padEnd(12)} ${per(stats.mealsEaten)} eaten a game`);
+console.log(`  ${"dragon".padEnd(12)} ${per(stats.dragonFights)} fights a game, ${((dragonLeft / games) * 100).toFixed(0)}% of it still standing at the end`);
+console.log(`  ${"length".padEnd(12)} ${per(stats.rounds)} rounds, ${(stats.rounds / games * party).toFixed(0)} individual goes`);
+console.log(`  ${"abyss".padEnd(12)} ${per(stats.lostToAbyss)} lost over the edge a game`);

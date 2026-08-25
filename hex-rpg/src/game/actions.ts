@@ -691,7 +691,7 @@ export const HOOK_RANGE = 1;
 export function hookTargets(state: GameState, fisher: Player): Player[] {
   if (!ROLES[fisher.role].canFish || !isRod(fisher.weapon)) return [];
   return state.players.filter((p) => {
-    if (p.id === fisher.id) return false;
+    if (p.id === fisher.id || p.gone) return false;
     const spot = p.dead ? p.fellAt : p.hex;
     return spot !== null && distance(spot, fisher.hex) === HOOK_RANGE;
   });
@@ -970,6 +970,9 @@ export function canHeal(state: GameState, player: Player): boolean {
 export function healTargets(state: GameState, healer: Player): Player[] {
   if (!ROLES[healer.role].canHeal) return [];
   return state.players.filter((p) => {
+    // Nobody reaches into the abyss. `fellAt` is already null for them, so this is
+    // saying out loud what the next line would do quietly.
+    if (p.gone) return false;
     const spot = p.dead ? p.fellAt : p.hex;
     if (!spot) return false;
     const near = distance(spot, healer.hex) <= 1;

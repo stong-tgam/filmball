@@ -24,7 +24,7 @@ export type Hex = { q: number; r: number };
  * Everything sized against the board scales off this: monster counts, cities, forests,
  * chests, and the turn limit. Change it and re-run `tools/sim.ts`.
  */
-export const RADIUS = 3;
+export const RADIUS = 4;
 
 export const inBoard = (h: Hex): boolean =>
   Math.abs(h.q) <= RADIUS &&

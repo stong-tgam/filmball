@@ -12,9 +12,10 @@
  */
 
 import { allHexes, distance, key, type Hex } from "./hex";
+import { standing } from "./collapse";
 import { PALETTE } from "../palette";
 import type { Rng } from "./rng";
-import type { Enemy, EnemyKind, Player } from "./types";
+import type { Enemy, EnemyKind, GameState, Player } from "./types";
 
 export type EnemyProfile = {
   name: string;
@@ -178,6 +179,9 @@ const spawn = (kind: EnemyKind, hex: Hex, n: number, health: number): Enemy => (
   hex,
   maxHealth: health,
   damageTaken: 0,
+  // The dragon is away for the opening (see `DRAGON_WAKES_ON`); everything else is
+  // on the board from the first turn.
+  dormant: kind === "finalboss",
   features: [],
   featuresRevealed: false,
   escapedOnce: false,
@@ -205,7 +209,7 @@ export const healthLeft = (enemy: Enemy): number =>
 
 /** The enemy standing on a tile, if any is still up. */
 export const enemyAt = (enemies: Enemy[], label: string): Enemy | undefined =>
-  enemies.find((e) => !e.defeated && key(e.hex) === label);
+  enemies.find((e) => !e.defeated && !e.dormant && key(e.hex) === label);
 
 /**
  * Populate the board.
@@ -265,14 +269,39 @@ export function monsterCount(kind: "mob" | "midboss", party: number): number {
  *
  * Mobs are left alone: they are meant to be a bump, they already scale in *number*
  * (`monsterCount`), and a 2-health bandit is not a fight.
+ *
+ * **The dragon is the exception, and takes the full slope and then some.** Half a
+ * slope was measured for the ogres and it is right for them; for the dragon it meant
+ * that four players who shouted for each other killed the game's ending **in a single
+ * round** - a 25-health dragon against four people rolling three dice each is not a
+ * fight, it is a formality, and it was reported from the table before the sim ever
+ * caught it. `DRAGON_HEALTH_PER_PLAYER` is the number that fixes it: the dragon has
+ * that much health for every player at the table, so a full party needs three or four
+ * rounds and pays a health each for every round they fall short. Bringing everybody is
+ * still right; it is no longer free.
  */
 export function bossHealth(kind: EnemyKind, party: number, rng: Rng): number {
+  if (kind === "finalboss") {
+    return rng.int(...DRAGON_HEALTH_PER_PLAYER) * Math.max(1, party);
+  }
   const rolled = rng.int(...ENEMIES[kind].health);
-  if (kind !== "midboss" && kind !== "finalboss") return rolled;
+  if (kind !== "midboss") return rolled;
   const full = 5;
   const share = Math.min(party, full) / full;
   return Math.max(4, Math.round(rolled * (0.5 + 0.5 * share)));
 }
+
+/**
+ * Dragon health per player at the table, rolled once for the whole beast.
+ *
+ * Three dice average five, and a mid-game player adds a weapon on top, so a fighter is
+ * worth roughly six or seven a round: fifteen a head is three rounds against any size
+ * of party, which is two failed rolls and two health off everybody who turned up. That
+ * is a fight a party can lose and can win, which is what the ending of the evening
+ * has to be. `ENEMIES.finalboss.health` is left at its rulebook band and is what a
+ * lone hero would have faced.
+ */
+export const DRAGON_HEALTH_PER_PLAYER: [number, number] = [9, 13];
 
 export function placeEnemies(rng: Rng, players: Player[]): Enemy[] {
   const centre = { q: 0, r: 0 };
@@ -307,4 +336,68 @@ export function spawnThieves(rng: Rng, hazards: { kind: string; hex: Hex }[]): E
     const home = hazards.find((h) => h.kind === kind);
     return home ? [spawn(kind, home.hex, 1, rng.int(...ENEMIES[kind].health))] : [];
   });
+}
+
+/**
+ * The turn the dragon comes home.
+ *
+ * For the opening it is somewhere else: not on the board, not sensed, no smoke, and
+ * the middle of the map is an ordinary mountain you can walk over. Five quiet turns
+ * exist so the party meets the bandits **first** - the whole progression of this game
+ * is that you arrive at the ending carrying what the middle of the game gave you, and
+ * a dragon that is findable on turn two lets a lucky party skip that and a hasty one
+ * throw the evening away in one roll.
+ *
+ * It is also the loudest beat in the game when it lands, which is worth having.
+ */
+export const DRAGON_WAKES_ON = 6;
+
+/**
+ * How likely a fresh bandit is to wander in at the top of a turn, and it climbs.
+ *
+ * The board is laid out once and then only ever empties: by the back half the party
+ * has beaten what it found, searched what it walked over, and is spending turns
+ * walking. Monsters arriving - more of them the longer it goes on - is what keeps the
+ * late game worth a turn, and it is the other half of the dragon sleeping in: there
+ * has to be something to fight in the meantime, and it has to keep coming.
+ *
+ * Only bandits. An ogre wandering in would be a boss appearing out of nowhere, which
+ * is a different and much less fair thing.
+ */
+export const mobArrivalChance = (turn: number, turnLimit: number): number =>
+  0.15 + 0.5 * Math.min(1, turn / Math.max(1, turnLimit));
+
+/**
+ * Maybe put one more bandit on the board, somewhere nobody is looking.
+ *
+ * Never next to anybody - a monster appearing on the tile you are standing on is not
+ * an ambush, it is the game hitting you - and never on ground that has already fallen.
+ */
+export function wanderIn(state: GameState, rng: Rng): GameState {
+  if (rng.next() >= mobArrivalChance(state.turn, state.turnLimit)) return state;
+
+  const busy = new Set(state.enemies.filter((e) => !e.defeated).map((e) => key(e.hex)));
+  const room = allHexes().filter(
+    (h) =>
+      standing(state, h) &&
+      !busy.has(key(h)) &&
+      state.players.every((p) => p.dead || distance(p.hex, h) > 1),
+  );
+  if (room.length === 0) return state;
+
+  // Named by the turn they turned up on, not by how many are standing. Counting the
+  // living would hand a fresh bandit the id of one the rim swallowed, and two enemies
+  // with one id is a fight that picks the wrong monster.
+  const mob = {
+    ...spawn("mob", rng.pick(room), 0, rng.int(...ENEMIES.mob.health)),
+    id: `mob-turn${state.turn}`,
+  };
+  return {
+    ...state,
+    enemies: [...state.enemies, mob],
+    log: [
+      ...state.log,
+      { turn: state.turn, text: "Somebody else is out there. You can hear them moving." },
+    ],
+  };
 }

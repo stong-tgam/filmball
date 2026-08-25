@@ -4,9 +4,19 @@ import { createInitialState } from "../src/game/setup";
 import { distance } from "../src/game/hex";
 import type { GameState } from "../src/game/types";
 
+/**
+ * The dragon on the board rather than asleep somewhere else. It sleeps through the
+ * opening (`DRAGON_WAKES_ON`) and neither smokes nor senses while it does; these tests
+ * are about what smoke tells you, not about when it starts.
+ */
+const awake = (state: GameState): GameState => ({
+  ...state,
+  enemies: state.enemies.map((e) => ({ ...e, dormant: false })),
+});
+
 /** A game with the knight standing on a named hex and everyone else out of the way. */
 function standing(at: { q: number; r: number }, seed = 4471): GameState {
-  const base = createInitialState(seed);
+  const base = awake(createInitialState(seed));
   return {
     ...base,
     activePlayerIndex: 0,
@@ -33,7 +43,7 @@ describe("what you can feel from where you stand", () => {
   });
 
   it("feels the dragon two moves out, because it smokes", () => {
-    const base = createInitialState(4471);
+    const base = awake(createInitialState(4471));
     const dragon = base.enemies.find((e) => e.kind === "finalboss")!;
     // Two tiles due south of it. In this pointy-top layout raising r alone slides
     // east as well, so the q offset is what makes it a straight north-south line.

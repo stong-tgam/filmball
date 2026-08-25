@@ -4,10 +4,10 @@ Hotseat (one device, passed around) digital version of the Hex RPG tabletop game
 Built to `reference/hex-rpg-rulebook.md`, with `reference/webapp-spec.md` as the build
 plan.
 
-**This build is v0.23.** Every system the spec asks for is in, every placeholder from
+**This build is v0.24.** Every system the spec asks for is in, every placeholder from
 the early builds has been replaced with what the rulebook actually says, and the two
 rules the rulebook leans on hardest — the hidden board and the group fight — are both
-built. **The goal: kill the dragon before turn 32.**
+built. **The goal: kill the dragon before the board falls out from under you.**
 
 The version is `v0.<milestone>`, and it stays below 1 on purpose: `v1.0` is reserved
 for the first build worth handing to somebody outside the family, and that is a
@@ -28,13 +28,14 @@ npx vite-node tools/sim.ts 800   # bot playtest: how do 800 games end?
 ## The game, in one paragraph
 
 Two to five players — knight, rogue, scout, doctor, fisher, chosen at the table — start
-on **3 health and $2** on the corners of a 61-tile board **they cannot see**. Each round
+on **3 health and $2** on the corners of a 61-tile board **they cannot see** — a board
+that loses its outermost ring every quarter of the game. Each round
 a poker card turns over and a high one brings an event, more often the later it gets.
 Then everyone moves a tile at a time (the scout gets two) and takes one action: search
 the ground, fish a river, trade in a city, hand something to whoever they are standing
 with, or fight what they walked into. Nobody fights a boss alone if they can help it —
 you shout, your friends run in, and all the dice count. Four hazards wander the board.
-Bandits, ogres and one dragon stand between the party and turn 32, and how many of each
+Bandits, ogres and one dragon stand between the party and turn 16, and how many of each
 depends on how many of you sat down.
 
 ## What the rulebook changed
@@ -451,6 +452,70 @@ for the owner rather than a knob to turn quietly mid-playtest, and it is now the
 item under "Still open". Worth holding on to while deciding: the bot is still worse than
 a family, so these remain a floor.
 
+## v0.24: the ground gives way
+
+Reported from the table: *"if a player invites all four others with little gear, it is
+really easy to kill the final boss."* True, and worse than it sounds — a 25-health
+dragon against four people rolling three dice each is not a fight, it is a formality,
+and it was the ending of the whole evening. Four changes, and they turned out to be one
+change.
+
+**The dragon carries 9-13 health for every player at the table.** Mid bosses keep the
+half-slope they were tuned to; the dragon takes the full one and then some, so a full
+party needs three or four rounds and pays a health each for every round they fall short.
+Bringing everybody is still right. It is no longer free.
+
+**The dragon sleeps through the opening** and lands on the middle of the map on turn 6.
+Until then there is no smoke, no blip, and nothing to walk into — the middle is an
+ordinary mountain. The point is the order of the evening: you should arrive at the
+ending carrying what the middle of the game gave you, and a dragon findable on turn two
+lets a lucky party skip that and a hasty one throw the game away in one roll.
+
+**Bandits keep arriving**, more often the later it gets. The board used to be laid out
+once and then only ever empty out; by turn ten the ground was searched, the gear bought,
+and a turn was walking.
+
+**And the rim falls in.** Every quarter of the game the outermost ring of the board
+drops away — turns 4, 8 and 12 of a sixteen-turn game — and the board goes 61 tiles, 37,
+19, 7. Anybody still standing on the ring when it goes is **out of the game for good**.
+
+That last one is the one that changes how the evening feels, so it is fenced carefully:
+
+- **A full turn's warning**, shouted on the banner, and the doomed ring is drawn cracked
+  on the ground itself. One step always gets you clear, so falling in is a mistake
+  rather than bad luck. The sharp case is a player who is *down* when the warning comes
+  — they need the doctor or the fisherman's hook, and that is meant to be sharp.
+- **It tells you where the middle is**, which the hidden board otherwise refuses to. A
+  deliberate trade: a game that ends in a fight has to let the party *find* the fight,
+  and a crumbling edge says "the middle is that way" without printing a map. **"We never
+  found the dragon" is gone as a way to lose.**
+- **It stops at seven tiles**, the dragon's mountain and the ring around it, rather than
+  at one. The last tile standing would be the dragon's own, and a tile with the dragon
+  on it is not somewhere a player can stand.
+- Monsters and hazards on the ring go over with it. The dragon **backs up a tile**
+  instead, because an ending that falls down a hole is not one.
+
+**The board is 61 tiles again** (it was cut to 37 in v0.22 to shorten the evening). The
+collapse is a better version of that lever: it shortens the game by closing the distance
+rather than by never having had any. And the board's furniture — cities, woods, chests —
+is now **counted off the tile count** instead of written down, because the hand-tuned
+numbers went stale the moment `RADIUS` moved, twice.
+
+**The action bar moved under the map.** It was in the top corner of the sidebar, which
+is a diagonal across the whole screen from the hex a child has just tapped.
+
+| Players | Win | Out of time | Wiped | Rounds | Individual goes |
+|---|---|---|---|---|---|
+| 2 | 45% | 20% | 36% | 10.2 | 20 |
+| 3 | 44% | 27% | 29% | 10.7 | 32 |
+| 4 | 41% | 34% | 25% | 11.6 | 46 |
+| 5 | 48% | 35% | 17% | 11.5 | 58 |
+
+800 games each. Every size inside a 41-48% band, which is the tightest this has been —
+and back inside the brief after v0.23 drifted to 85%. Timeouts are now parties who
+*found* the dragon and could not finish it, which is a different and much better way to
+run out of time.
+
 ## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.
 - **Four event cards** that need effects lasting beyond the moment they are read:
@@ -472,15 +537,13 @@ a family, so these remain a floor.
 - **The bot never spends its money**, so the sim's purse line is gross earnings, not
   savings. It says money is reaching the party; it says nothing about whether the
   shop is worth walking to.
-- **Two-player games are the hardest by some way** — 25% wipes against 2% at five. A
+- **Two-player games are the hardest by some way** — 36% wipes against 17% at five. A
   pair *should* struggle, so this may be right rather than wrong; it is the number to
-  watch if the kids play in twos. Note that the gap widened once the bot started
-  eating: a big party finds more food, so the fix helped five players more than two.
-- **The game is too easy, and the sizes no longer share a band.** 85% wins at five
-  players against a design brief of roughly a third each way, and a 29-point spread
-  from two players to five. Most of that is not the game changing — see v0.23 — but it
-  is now the number most in need of a decision. The dials are `bossHealth`, the turn
-  limit, and `monsterCount`.
+  watch if the kids play in twos.
+- **A dragon fought thirteen times.** At five players the sim picks a fight with the
+  dragon about thirteen times a game: the arena delivers the party to it, and a bot
+  flees at one health. Damage accumulates across attempts, so the siege works — but
+  watch whether it *reads* as a siege at the table or as the same fight on a loop.
 - **The group-fight UI is verified by construction, not by eye.** The rules underneath
   it have 20-odd tests and the owner has played it, but the invite and loot-handout
   buttons have never been driven in an automated browser run: the random-walking bot

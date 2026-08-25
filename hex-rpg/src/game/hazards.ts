@@ -16,6 +16,7 @@
  * beat is gone for good.
  */
 
+import { standing } from "./collapse";
 import { distance, hexesInRange, key, neighbours, type Hex } from "./hex";
 import { slotKey } from "./items";
 import { PALETTE } from "../palette";
@@ -140,7 +141,10 @@ export function placeHazards(
 
 /** One step, at random. Pirates take the river where there is one to take. */
 function step(hazard: Hazard, state: GameState, rng: Rng): Hex {
-  const options = neighbours(hazard.hex);
+  // Never off the edge of what is left: the rim falls in as the game goes on
+  // (`collapse.ts`), and a tornado that wanders into the abyss is a hazard the party
+  // can neither meet nor avoid.
+  const options = neighbours(hazard.hex).filter((h) => standing(state, h));
   if (options.length === 0) return hazard.hex;
   if (HAZARDS[hazard.kind].keepsToWater) {
     const wet = options.filter((h) => state.tiles[key(h)]?.river);

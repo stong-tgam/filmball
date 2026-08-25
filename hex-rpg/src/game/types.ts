@@ -97,6 +97,16 @@ export type Player = {
   /** Turn they died on, for the self-revive clock. */
   fellOn: number | null;
   /**
+   * Went into the abyss when the rim fell (`collapse.ts`), and is out of the game.
+   *
+   * Separate from `dead`, which is temporary by design - §7's compromise gets a downed
+   * player back up after a turn and a doctor gets them up at once, because a child
+   * with nothing to do for the rest of the evening is the failure that rule avoids.
+   * This one is permanent, so it needs its own flag: `fellOn: null` stops the clock
+   * and this stops the doctor.
+   */
+  gone: boolean;
+  /**
    * A second coat, on the knight's back and nobody else's.
    *
    * It does nothing for the person carrying it - no health, no armour, no weight. It
@@ -125,6 +135,16 @@ export type Enemy = {
   maxHealth: number;
   /** Damage accumulates across fights; the enemy dies when it reaches maxHealth. */
   damageTaken: number;
+  /**
+   * Asleep somewhere else, and not on the board yet.
+   *
+   * Only ever the dragon, and only for the first few turns (`DRAGON_WAKES_ON`). A
+   * dormant enemy cannot be walked into, cannot be sensed and does not smoke: the
+   * middle of the map is an ordinary mountain until it lands on it. The alternative -
+   * simply not putting it on the board - would let something else be placed on the
+   * middle tile and leave the game with nowhere to end.
+   */
+  dormant: boolean;
   /** Drawn on first encounter; empty until then. */
   features: Feature[];
   featuresRevealed: boolean;

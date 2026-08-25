@@ -22,6 +22,7 @@ import { compassName, type Sensed } from "../game/sense";
 import { sightOf, visibleFrom } from "../game/vision";
 import { hasFindings, searchKind } from "../game/actions";
 import { isDestroyed } from "../game/hazards";
+import { doomed, hasFallen } from "../game/collapse";
 import { ROLES } from "../game/players";
 import type { Player, Tile as TileData } from "../game/types";
 
@@ -46,6 +47,7 @@ export default function Compass({
   viewer,
   tiles,
   turn,
+  turnLimit,
   sensed,
   legalMoves,
   onMove,
@@ -53,6 +55,8 @@ export default function Compass({
   viewer: Player;
   tiles: Record<string, TileData>;
   turn: number;
+  /** Needed for the collapse clock: which ring goes, and when. See `collapse.ts`. */
+  turnLimit: number;
   sensed: Sensed[];
   legalMoves: Map<string, number>;
   onMove: (label: string) => void;
@@ -104,12 +108,19 @@ export default function Compass({
 
             // Off the board: the edge of the world, drawn as a hole rather than left
             // blank, or players cannot tell "nothing there" from "not drawn yet".
-            if (!tile) {
+            // Ground that has already fallen in reads the same way and says so - it
+            // was there last turn, and a child needs to see that it is not any more.
+            const abyss = tile !== undefined && hasFallen(hex, turn, turnLimit);
+            if (!tile || abyss) {
               return (
-                <g key={label} className="rose-edge" transform={`translate(${at.x} ${at.y})`}>
+                <g
+                  key={label}
+                  className={`rose-edge${abyss ? " rose-abyss" : ""}`}
+                  transform={`translate(${at.x} ${at.y})`}
+                >
                   <polygon points={hexPoints(SIZE)} />
                   <text y="5" textAnchor="middle">
-                    edge
+                    {abyss ? "gone" : "edge"}
                   </text>
                 </g>
               );
@@ -126,6 +137,7 @@ export default function Compass({
                 selected={mine}
                 legal={legalMoves.has(label)}
                 wrecked={isDestroyed(tile, turn)}
+                doomed={doomed(hex, turn, turnLimit)}
                 findings={hasFindings(tile) ? searchKind(tile) : null}
                 showLabel={false}
                 onSelect={(l) => legalMoves.has(l) && onMove(l)}
@@ -172,6 +184,12 @@ export default function Compass({
             {underfoot === "chest"
               ? "There is a chest in the water here."
               : "Nobody has searched this ground."}
+          </li>
+        )}
+        {doomed(viewer.hex, turn, turnLimit) && (
+          <li className="compass-doom">
+            <span className="blip-dot blip-doom" />
+            <strong>This ground goes when the turn ends.</strong> Step inwards.
           </li>
         )}
         {sensed.length === 0 ? (

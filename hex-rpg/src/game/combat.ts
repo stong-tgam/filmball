@@ -15,7 +15,8 @@
  */
 
 import { ENEMIES, healthLeft, nameWithArticle, verb } from "./enemies";
-import { distance, key, neighbours } from "./hex";
+import { distance, key, neighbours, type Hex } from "./hex";
+import { standing } from "./collapse";
 import { makeRng } from "./rng";
 import { canTake, equip, makeFine, randomFood } from "./items";
 import { ROLES, maxHealthOf, moveRange } from "./players";
@@ -470,10 +471,21 @@ export function attack(state: GameState): GameState {
   );
 }
 
+/**
+ * The tile a fight is backed out of, which is the one it was walked in from - unless
+ * that ground has since fallen into the abyss (`collapse.ts`), in which case there is
+ * no back and you stay where you are. Retreating onto a tile that no longer exists
+ * would put a player outside the board with the rim already past them.
+ */
+function wayBack(state: GameState, player: Player): Hex {
+  const from = state.tiles[state.combat?.from ?? ""]?.hex;
+  return from && standing(state, from) ? from : player.hex;
+}
+
 /** Rulebook §7: an exact tie. Nothing happens; you are back where you started. */
 function standoff(state: GameState, enemy: Enemy): GameState {
-  const back = state.combat!.from;
-  const home = state.tiles[back]?.hex;
+  const starter = state.players.find((p) => p.id === state.combat!.playerId);
+  const home = starter ? wayBack(state, starter) : undefined;
   return note(
     {
       ...state,
@@ -691,8 +703,7 @@ export function flee(state: GameState): GameState {
   const { player, enemy } = pair;
 
   const combat = state.combat;
-  const back = combat.from;
-  const home = state.tiles[back]?.hex ?? player.hex;
+  const home = wayBack(state, player);
   // Walking into a hidden monster is not a decision, so backing straight out of one
   // costs no action: only the move already spent. Once you have swung at it you have
   // chosen the fight, and leaving costs your action as usual.

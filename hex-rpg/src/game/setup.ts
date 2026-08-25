@@ -31,10 +31,24 @@ import { freshDeck } from "./cards";
 import { createEventDeck } from "./events";
 import { MAX_ELEMENTS, type Element, type GameState, type Role, type Tile } from "./types";
 
-export const CITY_COUNT = 3;
+/** Hexes on the board. A hexagon of radius R holds 3R(R+1)+1 of them. */
+export const TILE_COUNT = 3 * RADIUS * (RADIUS + 1) + 1;
+
+/**
+ * How much furniture the board carries - and all three are **counted off the board's
+ * size**, not written down.
+ *
+ * They used to be plain numbers, and every time `RADIUS` moved somebody had to
+ * remember to move them too. Nobody did: cutting the board to 37 tiles in v0.22 came
+ * with a hand-tuned drop from 5 cities to 3, and putting the ring back in v0.24 would
+ * have left a 61-tile board with a small board's worth of shops, woods and chests on
+ * it - a map that is mostly plain grass, which is a map that says nothing. The
+ * divisors reproduce every hand-tuned number this file has ever had, at both sizes.
+ */
+export const CITY_COUNT = Math.round(TILE_COUNT / 12);
 /** Cities must be this far apart, so no two are a single step from each other. */
 export const CITY_MIN_DISTANCE = 2;
-export const FOREST_CLUSTERS = 4;
+export const FOREST_CLUSTERS = Math.round(TILE_COUNT / 9);
 /** Woods are seeded this far apart, so they spread over the board instead of massing
  *  in one corner and leaving whole rows as empty grass. */
 export const FOREST_MIN_DISTANCE = 3;
@@ -139,7 +153,7 @@ function carveRiver(board: Draft, rng: Rng): void {
  * past - and put a chest mark on a dozen hexes, which is a map that says nothing.
  * Four is few enough that seeing one is worth changing course for.
  */
-export const CHESTS_IN_THE_RIVER = 2;
+export const CHESTS_IN_THE_RIVER = Math.round(TILE_COUNT / 15);
 
 /** Sink the chests, once the river knows where it runs. */
 function sinkChests(board: Draft, rng: Rng): void {
@@ -379,4 +393,3 @@ export function countTerrain(tiles: Record<string, Tile>) {
   return counts;
 }
 
-export const TILE_COUNT = 3 * RADIUS * (RADIUS + 1) + 1;

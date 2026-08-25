@@ -91,13 +91,13 @@ you have not published.
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 362 tests
+npm test           # 382 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html, plus the artifact fragment
 npx vite-node tools/sim.ts 800 5 # bot playtest: how do 800 five-player games end?
 ```
 
-## Current state: v0.23
+## Current state: v0.24
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -161,7 +161,7 @@ Key rules, so nothing gets "improved" back to a guess:
   the same tile. `HazardLayer` skips them (`EnemyLayer` draws them) and `sense` skips
   them in the enemy loop (the hazard loop reports them). Miss either and the board
   grows a second crew of pirates that nobody can find.
-- **Chests are rare** (`CHESTS_IN_THE_RIVER`, four). Every river tile used to hold one,
+- **Chests are rare** (`CHESTS_IN_THE_RIVER`, `TILE_COUNT / 15`). Every river tile used to hold one,
   which made the best odds in the game something you tripped over on the way past and
   put a chest mark on a dozen hexes. Rare and worth the walk beats common and ignored —
   and because they are rare, a chest no longer has a dud outcome: a black number pays
@@ -172,15 +172,48 @@ Key rules, so nothing gets "improved" back to a guess:
   half of a game is where a quiet turn is just a turn spent walking. Three bands: jack
   and up, then ten and up, then nine and up (31% / 38% / 46%). The ace counts
   throughout, which §4 quietly excluded.
-- **The board is 37 tiles (`RADIUS` 3), and the turn limit is 16.** Both were cut in
-  v0.22 to get an evening under twenty minutes. The old 61-tile board measured **20
-  rounds and 94 individual turns** — well over an hour on one device, with each child
-  watching four fifths of it. Only 10% of turns were empty, so the board was never
-  boring, just too far across. It is now **26 turns at three players and 48 at five**.
-  Everything sized against the board scales off `RADIUS`: monster counts, cities,
-  forests, chests, hazard spacing. **Cut one without the other and the ending becomes
-  "we never found the dragon"** — the limit only survives the cut because the board
-  shrank with it.
+- **The board is 61 tiles (`RADIUS` 4) again, and the turn limit is 16** — but the
+  board **falls in as the game runs** (`src/game/collapse.ts`), so what the party
+  actually plays on is 61 tiles, then 37, then 19, then 7. v0.22 had cut the ring off
+  to get an evening under twenty minutes; v0.24 puts it back because the collapse is a
+  better version of the same lever - it shortens the game by **closing the distance**
+  rather than by never having had any. Measured at five players: **11.5 rounds, 58
+  individual goes**.
+- **The rim falls in every quarter of the game** (`COLLAPSE_MARKS`, `collapseRim`), and
+  anybody standing on it is **out of the game for good** (`Player.gone`). This is the
+  one permanent loss in a design that otherwise refuses them, so it is fenced:
+  a full turn's warning on the banner, the doomed ring drawn cracked, and one step is
+  always enough to get clear — falling in is a mistake, never bad luck. The exception
+  is a player who is *down* when the warning comes, who needs the doctor or the hook;
+  that is the sharpest thing in the game and it is meant to be.
+  - **It tells you where the middle is**, which the hidden board otherwise withholds.
+    Deliberate: a game that ends in a fight has to let the party find the fight, and a
+    crumbling edge is the one honest way to say "the middle is that way" without
+    printing a map. It also ended "we never found the dragon" as a way to lose.
+  - **`LAST_RING` is 1, not 0.** The last tile standing would be the dragon's own, and
+    a tile with the dragon on it is not somewhere a player can stand — walking onto it
+    starts a fight, and only one fight runs at a time. Seven tiles is the arena.
+  - Monsters and hazards on the ring go with it; the **dragon backs up a tile instead**,
+    because an ending that falls down a hole is not one.
+- **The dragon sleeps through the opening** (`DRAGON_WAKES_ON`, turn 6): `Enemy.dormant`
+  means no smoke, no blip, nothing to walk into, and the middle is an ordinary mountain
+  until it lands on it. It is left on the board rather than held back, so nothing else
+  can be placed on the middle tile. The opening exists so the party meets the bandits
+  **first** — you should arrive at the ending carrying what the middle of the game gave
+  you.
+- **Bandits keep arriving, more often the later it gets** (`mobArrivalChance`,
+  `wanderIn`). The board used to be laid out once and then only ever empty out. Only
+  bandits: an ogre appearing out of nowhere is a boss nobody could have planned for.
+- **The dragon carries `DRAGON_HEALTH_PER_PLAYER` (9-13) for every player at the
+  table**, which is the full slope and then some, while mid bosses keep the half slope.
+  Reported from the table: four players who shouted for each other killed the game's
+  ending **in a single round**. A dragon is now three or four rounds against any size of
+  party, and every round they fall short costs each of them a health. Bringing everybody
+  is still right; it is no longer free.
+- **Board furniture is counted off `TILE_COUNT`**, not written down: cities /12, forests
+  /9, chests /15. Those divisors reproduce every hand-tuned number this file has ever
+  had at both board sizes, which is the point — the hand-tuned ones went stale the
+  moment `RADIUS` moved, twice.
 - **Visual feedback is deliberate and short** (`styles.css`, "things happening"). Every
   button presses in; a modal that matters washes the screen behind it while a quiet
   turn card does not; the turn banner replays its entrance because it is keyed on the
@@ -416,14 +449,18 @@ how they end; the second argument is the party size, and every size wants its ow
 enough to invent an improvement that is not there. That happened: v0.17 read 20% on 200
 games and 25% on 800.
 
-At v0.23, five players: **85% wins, 12% out of time, 3% wipes** — and two players win
-58%. Both of those are **outside the band this file asks for**, and the sizes no longer
-share one; see "Still open" in the README. Almost none of that is the game getting
-easier. The bot had never eaten, in twenty-two versions, and not eating is exactly what
-kills you: teaching it to eat moved five players from 40/34/26 to 74/21/5 on its own,
-with nothing about the rules changed. Treat every wipe number printed before v0.23 as
-fiction. The dials, when somebody decides to turn them, are `bossHealth`, the turn limit
-and `monsterCount` — and each one wants a fresh 800-game run per party size.
+At v0.24, five players: **48% wins, 35% out of time, 17% wipes**, and every party size
+from two to five lands in a **41-48% win band** — the tightest it has been. The per-size
+table is in the README. v0.23 had drifted to 85% wins after the sim bot was taught to
+eat (which was a measurement fix, not a game change, and which made every wipe figure
+printed before it fiction); v0.24's harder dragon, sleeping opening and collapsing board
+are what brought it back.
+
+Two numbers that come with it: the dragon is **fought about thirteen times a game** at
+five players, because the arena delivers the party to it over and over and a bot flees
+at one health — damage accumulates across those attempts, which is what makes the siege
+work. And **"we never found the dragon" is gone** as an ending; timeouts are now parties
+who found it and could not finish it.
 
 How it got here, because the shape of the story is the useful part:
 
@@ -436,6 +473,7 @@ How it got here, because the shape of the story is the useful part:
 | v0.22 | 40% | 34% | 26% | half the board, half the turns - length changed, difficulty did not |
 | v0.23 | 74% | 21% | 5% | **the bot learned to eat** - a sim fix, not a game change |
 | v0.23 | 85% | 12% | 3% | the party starting in pairs |
+| v0.24 | 48% | 35% | 17% | **a dragon that scales per player**, a board that falls in, and the dragon sleeping through the opening |
 
 Two things worth keeping in mind before you trust a number here:
 

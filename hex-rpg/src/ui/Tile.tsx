@@ -39,6 +39,14 @@ type Props = {
   /** Ground the tornado has just been through. */
   wrecked: boolean;
   /**
+   * Ground that falls into the abyss when this turn ends (`collapse.ts`).
+   *
+   * Drawn cracked and named in the label, because it is the only thing on the board a
+   * player is *required* to react to. On a map nobody can see, this is also the only
+   * thing that says which way the middle is - and that is a trade made on purpose.
+   */
+  doomed?: boolean;
+  /**
    * A mark for ground that has not been turned over yet, or null once it has.
    *
    * The one thing the tile itself is allowed to promise. Everything else about a hex
@@ -302,6 +310,7 @@ function TileView({
   selected,
   legal,
   wrecked,
+  doomed = false,
   findings = null,
   showLabel = true,
   onSelect,
@@ -317,11 +326,11 @@ function TileView({
   return (
     <g
       transform={`translate(${x.toFixed(2)} ${y.toFixed(2)})`}
-      className={`tile tile-${tile.base}${selected ? " is-selected" : ""}${legal ? " is-legal" : ""}${wrecked ? " is-wrecked" : ""}`}
+      className={`tile tile-${tile.base}${selected ? " is-selected" : ""}${legal ? " is-legal" : ""}${wrecked ? " is-wrecked" : ""}${doomed ? " is-doomed" : ""}`}
       onClick={() => onSelect(label)}
       role="button"
       tabIndex={0}
-      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}${wrecked ? ", wrecked by the tornado" : ""}${findings === "chest" ? ", a chest in the water" : findings === "ground" ? ", not searched yet" : ""}${legal ? ", you can move here" : ""}`}
+      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}${wrecked ? ", wrecked by the tornado" : ""}${doomed ? ", crumbling — it falls when this turn ends" : ""}${findings === "chest" ? ", a chest in the water" : findings === "ground" ? ", not searched yet" : ""}${legal ? ", you can move here" : ""}`}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -349,6 +358,17 @@ function TileView({
       {findings && <Findings kind={findings} size={size} />}
 
       {wrecked && <polygon points={hexPoints(size)} className="tile-wrecked" />}
+      {doomed && (
+        <g className="tile-doomed" pointerEvents="none">
+          <polygon points={hexPoints(size)} className="doomed-wash" />
+          {/* A crack across it. Drawn rather than washed, because a colour on its own
+              is one more colour on a board that already has several. */}
+          <path
+            className="doomed-crack"
+            d={`M ${-size * 0.72} ${-size * 0.18} l ${size * 0.4} ${size * 0.16} l ${size * 0.3} ${-size * 0.22} l ${size * 0.42} ${size * 0.26} l ${size * 0.36} ${-size * 0.14}`}
+          />
+        </g>
+      )}
       {legal && (
         <g className="legal" pointerEvents="none">
           <polygon points={hexPoints(size)} className="tile-legal" />

@@ -11,7 +11,15 @@ import {
   rollDice,
   startCombat,
 } from "../src/game/combat";
-import { ENEMIES, enemyAt, healthLeft, placeEnemies, safeRadiusFor } from "../src/game/enemies";
+import {
+  DRAGON_HEALTH_PER_PLAYER,
+  ENEMIES,
+  enemyAt,
+  healthLeft,
+  placeEnemies,
+  safeRadiusFor,
+} from "../src/game/enemies";
+import { TURN_ORDER } from "../src/game/players";
 import { createInitialState } from "../src/game/setup";
 import { legalMoves, movePlayer, endTurn, activePlayer } from "../src/game/turn";
 import { makeRng } from "../src/game/rng";
@@ -56,11 +64,15 @@ function facing(
     if (!spot) continue;
     const state: GameState = {
       ...base,
+      // The dragon sleeps through the opening (`DRAGON_WAKES_ON`) and cannot be walked
+      // into while it does. These tests are about the fight, not about the calendar,
+      // so they start the day it has landed.
+      enemies: base.enemies.map((e) => ({ ...e, dormant: false })),
       players: base.players.map((p, i) =>
         i === 0 ? { ...p, hex: spot } : { ...p, hex: { q: 0, r: -4 }, dead: true },
       ),
     };
-    return { state, enemy };
+    return { state, enemy: { ...enemy, dormant: false } };
   }
   throw new Error(`no seed near ${seed} leaves a free tile beside a ${kind}`);
 }
@@ -107,12 +119,21 @@ describe("placing enemies", () => {
       expect(key(dragon[0].hex)).toBe(label({ q: 0, r: 0 }));
       expect(enemies.filter((e) => e.kind === "midboss")).toHaveLength(ENEMIES.midboss.count);
       expect(enemies.filter((e) => e.kind === "mob")).toHaveLength(ENEMIES.mob.count);
-      // Rulebook §7: health is rolled inside a band, not fixed.
+      // Rulebook §7: health is rolled inside a band, not fixed. The dragon is the one
+      // that does not read its band straight off the table - it carries
+      // `DRAGON_HEALTH_PER_PLAYER` for every player at the table, because four people
+      // shouting for each other were killing it in a single round.
       for (const e of enemies) {
-        const [low, high] = ENEMIES[e.kind].health;
-        expect(e.maxHealth).toBeGreaterThanOrEqual(low);
-        expect(e.maxHealth).toBeLessThanOrEqual(high);
+        const [low, high] =
+          e.kind === "finalboss"
+            ? (DRAGON_HEALTH_PER_PLAYER.map((n) => n * TURN_ORDER.length) as [number, number])
+            : ENEMIES[e.kind].health;
+        expect(e.maxHealth, e.kind).toBeGreaterThanOrEqual(low);
+        expect(e.maxHealth, e.kind).toBeLessThanOrEqual(high);
       }
+      // A dragon that scales must still be beatable by the party it scaled to: three
+      // dice a head averages five, so a full party is worth about thirty a round.
+      expect(dragon[0].maxHealth).toBeLessThanOrEqual(18 * TURN_ORDER.length);
     }
   });
 
