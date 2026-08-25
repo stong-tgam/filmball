@@ -17,6 +17,7 @@ import { howLongAgo } from "../game/save";
 import { allHexes } from "../game/hex";
 import { DEFAULT_TURN_LIMIT } from "../game/setup";
 import RoleToken from "./RoleToken";
+import CrayonDefs from "./art/CrayonDefs";
 import type { Role } from "../game/types";
 
 export default function TitleScreen({
@@ -44,6 +45,11 @@ export default function TitleScreen({
 
   return (
     <div className="title">
+      {/* The wobble filters the drawings point into. App mounts these too, but the
+          title screen returns before it gets there — and an SVG element referencing a
+          filter that does not exist is not drawn at all, so the picker would be five
+          bare discs. */}
+      <CrayonDefs />
       <div className="title-card">
         <h1 className="title-name">Hex RPG</h1>
         <p className="title-blurb">
