@@ -839,17 +839,9 @@ button { transition: transform 90ms ease, background-color 120ms ease, border-co
 
 .title-role:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.title-pip {
-  flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  border: 2px solid #141a1f;
-}
+/* The piece they will actually look for on the board, at picker size. */
+.role-token { flex: 0 0 auto; display: block; }
+.title-role.is-picked .role-token { filter: drop-shadow(0 0 6px var(--who)); }
 
 .title-role-text { display: grid; gap: 2px; }
 .title-role-text em { font-style: normal; font-size: 13px; color: var(--ink-muted); }

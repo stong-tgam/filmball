@@ -14,7 +14,9 @@
 import { useState } from "react";
 import { MAX_PARTY, MIN_PARTY, ROLES, TURN_ORDER } from "../game/players";
 import { howLongAgo } from "../game/save";
-import { inkOn } from "../palette";
+import { allHexes } from "../game/hex";
+import { DEFAULT_TURN_LIMIT } from "../game/setup";
+import RoleToken from "./RoleToken";
 import type { Role } from "../game/types";
 
 export default function TitleScreen({
@@ -45,8 +47,10 @@ export default function TitleScreen({
       <div className="title-card">
         <h1 className="title-name">Hex RPG</h1>
         <p className="title-blurb">
-          Sixty-one tiles nobody can see, one device passed round the table, and a
-          dragon in the middle of it. Kill it before turn 32.
+          {/* Counted and read off the board rather than written out: the last two
+              numbers here went stale the moment the board shrank in v0.22. */}
+          {allHexes().length} tiles nobody can see, one device passed round the table,
+          and a dragon in the middle of it. Kill it before turn {DEFAULT_TURN_LIMIT}.
         </p>
 
         {saved !== null && (
@@ -79,12 +83,7 @@ export default function TitleScreen({
                   aria-pressed={chosen}
                   style={{ ["--who" as string]: ROLES[role].colour }}
                 >
-                  <span
-                    className="title-pip"
-                    style={{ background: ROLES[role].colour, color: inkOn(role) }}
-                  >
-                    {chosen ? at + 1 : ""}
-                  </span>
+                  <RoleToken role={role} size={46} order={chosen ? at + 1 : undefined} />
                   <span className="title-role-text">
                     <strong>{ROLES[role].name}</strong>
                     <em>{ROLES[role].blurb}</em>
