@@ -182,7 +182,9 @@ export function endTurn(state: GameState): GameState {
   if (state.phase === "gameOver" || state.ending !== null || state.combat) return state;
 
   const player = activePlayer(state);
-  let next = state;
+  // Whatever the last search turned up belongs to the turn it happened on. Leaving it
+  // set would pop the card up again behind the next player's event card.
+  let next: GameState = state.find ? { ...state, find: null } : state;
   if (!hasMoved(player) && !player.dead) {
     next = note(next, `${player.name} held position.`);
   }

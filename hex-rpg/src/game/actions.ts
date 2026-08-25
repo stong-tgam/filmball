@@ -27,7 +27,7 @@ import {
 import { ROLES, withMaxHealth } from "./players";
 import { makeRng } from "./rng";
 import { activePlayer } from "./turn";
-import type { Card, GameState, Item, LogEntry, Player, Terrain, Tile } from "./types";
+import type { Card, Find, GameState, Item, LogEntry, Player, Terrain, Tile } from "./types";
 
 /** "a Sword", but "an Axe". The log gets read aloud. */
 const an = (name: string): string => `${/^[aeiou]/i.test(name) ? "an" : "a"} ${name}`;
@@ -43,6 +43,24 @@ const withPlayer = (state: GameState, updated: Player): GameState => ({
   ...state,
   players: state.players.map((p) => (p.id === updated.id ? updated : p)),
 });
+
+/**
+ * Put coins in somebody's pocket and say so.
+ *
+ * Takes the player by id off the state it is handed rather than trusting the copy
+ * passed in, because the callers have usually just given that player an item and are
+ * holding a stale one. `text` is the story; the money line is always the same, so it
+ * is the same shape in the log whether the coins came off a body or out of a chest.
+ */
+function paid(state: GameState, who: Player, amount: number, text?: string): GameState {
+  const said = text ? note(state, text) : state;
+  const current = said.players.find((p) => p.id === who.id);
+  if (!current || amount <= 0) return said;
+  return note(
+    withPlayer(said, { ...current, money: current.money + amount }),
+    `$${amount} for ${current.name}.`,
+  );
+}
 
 /** Nothing is available mid-fight, after your action, or once the game is over. */
 const busy = (state: GameState, player: Player): boolean =>
@@ -64,11 +82,21 @@ const busy = (state: GameState, player: Player): boolean =>
  *   extra. It is also where the wire strung across an alley lives; see `MISHAPS`.
  */
 export function canSearch(state: GameState, player: Player): boolean {
-  if (busy(state, player)) return false;
-  const tile = tileUnder(state, player);
-  if (tile.searched) return false;
-  return tile.river || tile.base === "field" || tile.base === "forest" || tile.base === "city";
+  return !busy(state, player) && hasFindings(tileUnder(state, player));
 }
+
+/**
+ * Is there still anything to be had off this tile?
+ *
+ * Split out of `canSearch` because the map needs to answer it about a tile nobody is
+ * standing on: the ground you *could* step onto is drawn with a mark when it has not
+ * been turned over yet (see `Tile.tsx`), and that mark is this function. It knows
+ * nothing about whose turn it is or whether they have already acted - only whether
+ * the ground itself is spent.
+ */
+export const hasFindings = (tile: Tile): boolean =>
+  !tile.searched &&
+  (tile.river || tile.base === "field" || tile.base === "forest" || tile.base === "city");
 
 /**
  * Turning over a field is not the same as fishing something out of the water.
@@ -90,6 +118,28 @@ export type SearchResult = "found" | "nothing" | "thief";
 export const readSearchCard = (card: Card): SearchResult =>
   isJoker(card) ? "thief" : isRed(card) ? "found" : "nothing";
 
+/**
+ * Coins under the gear, when the red card was a picture card.
+ *
+ * §10 wanted money to come only from selling, and the first build followed it:
+ * searching found gear, gear became money at a shop. That reads fine and plays badly,
+ * because the shop is in a city, and a child two rings out in the woods has no way to
+ * turn a good afternoon into anything at all. So a red *picture* card pays a purse as
+ * well - jack a dollar, queen two, king three - and every other card is untouched.
+ *
+ * On top of the gear rather than instead of it, for two reasons. The rule stays one
+ * sentence a seven-year-old can hold ("red finds something, and a picture card finds
+ * money too") instead of two that contradict each other. And gear is the only thing
+ * that makes a party stronger: paying red faces in coin instead cost the bot a quarter
+ * of its gear finds and five points of win rate, which is a nerf to the game dressed
+ * up as an economy.
+ *
+ * Capped at three - one more than `GEAR_PRICE` - so a purse is a good afternoon and
+ * never an alternative to the sword you were actually looking for.
+ */
+export const coinsFound = (card: Card): number =>
+  !isRed(card) || !isFace(card) ? 0 : card.rank === "K" ? 3 : card.rank === "Q" ? 2 : 1;
+
 
 /**
  * What is in the chest, by the card drawn.
@@ -108,6 +158,15 @@ export type ChestResult = "armour" | "haul" | "empty" | "trap";
  * that is what makes a river worth walking to instead of past.
  */
 export const FINE_CHEST_CHANCE = 0.5;
+
+/**
+ * Coins in the bottom of a chest that had anything in it at all.
+ *
+ * Three, and it rides along with the gear rather than replacing it - the river is
+ * meant to be the best thing you can walk to, and a chest that paid in either gear
+ * or money would be worse than a mid boss half the time.
+ */
+export const CHEST_COINS = 3;
 
 export const readChestCard = (card: Card): ChestResult =>
   isJoker(card) ? "trap" : isFace(card) ? "armour" : isRed(card) ? "haul" : "empty";
@@ -137,9 +196,13 @@ function openChest(state: GameState, player: Player, card: Card): GameState {
       const [armour, rest] = pullFromPile(state.itemPile, "armor");
       if (!armour) return note(state, `The chest holds a suit of armour ${player.name} already owns.`);
       const kit = graded(armour);
-      return note(
-        give({ ...state, itemPile: rest, rngState: condition.state() }, player, kit),
-        `The chest was full of armour - ${player.name} took ${gearLabel(kit)}!`,
+      return paid(
+        note(
+          give({ ...state, itemPile: rest, rngState: condition.state() }, player, kit),
+          `The chest was full of armour - ${player.name} took ${gearLabel(kit)}!`,
+        ),
+        player,
+        CHEST_COINS,
       );
     }
     case "haul": {
@@ -154,8 +217,13 @@ function openChest(state: GameState, player: Player, card: Card): GameState {
         holder = next.players.find((p) => p.id === holder.id) ?? holder;
         taken.push(gearLabel(kit));
       }
-      if (taken.length === 0) return note(next, "The chest is open and there is nothing left to put in it.");
-      return note(next, `${player.name} hauled the chest out: ${taken.join(" and ")}!`);
+      if (taken.length === 0) {
+        // Nothing left in the item pile to hand over, so the chest pays in coin. A
+        // late-game chest that gave literally nothing would make the river dead
+        // ground for the last third of the evening.
+        return paid(next, player, CHEST_COINS, `${player.name} found the chest picked clean, bar the coins.`);
+      }
+      return paid(next, player, CHEST_COINS, `${player.name} hauled the chest out: ${taken.join(" and ")}!`);
     }
     case "trap": {
       const hurt = { ...player, health: Math.max(0, player.health - 1) };
@@ -203,6 +271,19 @@ export const MISHAPS: Record<Terrain, Mishap[]> = {
     { text: "Straight into a wasps' nest", cost: "health" },
     { text: "The mud took hold and would not give the boots back", cost: "boots" },
   ],
+};
+
+/**
+ * Where the money was, by the ground it was under.
+ *
+ * One line each rather than "you find some coins", for the same reason `MISHAPS` has
+ * one per terrain: the log is read aloud, and a child wants to hear what happened,
+ * not what changed.
+ */
+export const COIN_FINDS: Record<Terrain, string> = {
+  forest: "A purse under the roots, and whoever buried it never came back for it.",
+  city: "Somebody's takings, down the back of a market stall.",
+  field: "A tin box in the furrow, and coins in the tin box.",
 };
 
 /** A black face card is a mishap. Everything else black is simply nothing. */
@@ -258,34 +339,127 @@ export function search(state: GameState): GameState {
   };
   const acted = { ...player, actedThisTurn: true };
   next = withPlayer(next, acted);
-  next = note(next, `${player.name} ${searchKind(tile) === "chest" ? "fished a chest out of the water" : "searched the ground here"} and drew ${cardName(pull.card)}.`);
+  const from = searchKind(tile);
+  next = note(next, `${player.name} ${from === "chest" ? "fished a chest out of the water" : "searched the ground here"} and drew ${cardName(pull.card)}.`);
 
-  if (searchKind(tile) === "chest") return openChest(next, acted, pull.card);
+  const after = resolveSearch(next, acted, pull.card, from);
+  return { ...after, find: whatTurnedUp(next, after, acted, pull.card, from) };
+}
 
-  switch (readSearchCard(pull.card)) {
+function resolveSearch(state: GameState, player: Player, card: Card, from: "chest" | "ground"): GameState {
+  if (from === "chest") return openChest(state, player, card);
+
+  switch (readSearchCard(card)) {
     case "found":
-      return findSomething(next, acted);
+      return findSomething(state, player, card);
     case "thief":
-      return robbedWhileSearching(next, acted);
+      return robbedWhileSearching(state, player);
     default:
-      return isMishap(pull.card)
-        ? somethingWentWrong(next, acted, pull.card)
-        : note(next, `${player.name} found nothing.`);
+      return isMishap(card)
+        ? somethingWentWrong(state, player, card)
+        : note(state, `${player.name} found nothing.`);
   }
 }
 
-function findSomething(state: GameState, player: Player): GameState {
+/** Everything a player is carrying, in one list, for working out what changed. */
+const holdings = (player: Player): Item[] =>
+  [player.weapon, player.armor, player.boots, ...player.supply].filter((i): i is Item => i !== null);
+
+/**
+ * Read the search back off the state it produced.
+ *
+ * Derived rather than declared, on purpose. Every branch of a search already does
+ * exactly one honest thing to the state and writes one honest line to the log, and
+ * asking the two states what changed cannot disagree with them - where a summary
+ * written out by hand in each branch would, the first time somebody changed a branch
+ * and not its summary. It also means a new outcome gets a card for free.
+ */
+function whatTurnedUp(
+  before: GameState,
+  after: GameState,
+  player: Player,
+  card: Card,
+  from: "chest" | "ground",
+): Find {
+  const was = before.players.find((p) => p.id === player.id) ?? player;
+  const now = after.players.find((p) => p.id === player.id) ?? player;
+  const had = holdings(was);
+  const has = holdings(now);
+
+  const gained = has.filter((i) => !had.some((h) => h.id === i.id));
+  const lost = had.filter((i) => !has.some((h) => h.id === i.id));
+  const coins = now.money - was.money;
+  // Armour can raise the maximum and top a player up, so a gain is not a wound.
+  const hurt = Math.max(0, was.health - now.health);
+
+  // "There was something there and you could not take it" is not the same story as
+  // "there was nothing there", and a card that said "Nothing at all" over a log line
+  // about a carrot would be the app calling the player a liar. The card knows which
+  // it was, so ask it rather than sniffing the log.
+  const offered = from === "chest" ? readChestCard(card) !== "empty" : readSearchCard(card) === "found";
+
+  const kind: Find["kind"] = isJoker(card)
+    ? from === "chest"
+      ? "trap"
+      : "thief"
+    : gained.length > 0
+    ? "gear"
+    : coins > 0
+    ? "coins"
+    : hurt > 0 || lost.length > 0
+    ? "mishap"
+    : offered
+    ? "full"
+    : "nothing";
+
+  return {
+    card,
+    from,
+    kind,
+    gained,
+    lost,
+    coins: Math.max(0, coins),
+    hurt,
+    lines: after.log.slice(before.log.length).map((entry) => entry.text),
+  };
+}
+
+/** Put the search away once the table has looked at what came up. */
+export const clearFind = (state: GameState): GameState => ({ ...state, find: null });
+
+function findSomething(state: GameState, player: Player, card: Card): GameState {
+  const coins = coinsFound(card);
+  const ground = tileUnder(state, player).base;
+
   if (state.itemPile.length === 0) {
-    return note(state, `${player.name} turned the ground over, but there is nothing left to find.`);
+    // Everything on the board is already on somebody's back. Pay in coin instead of
+    // saying "nothing", or every search in the last third of the game is a dead turn.
+    return paid(
+      state,
+      player,
+      Math.max(coins, 1),
+      `${player.name} turned the ground over. No gear left anywhere, but there were coins in the dirt.`,
+    );
   }
+
   const [found, ...rest] = state.itemPile;
   const { player: carrying, returned } = equip(player, found);
   const next = withPlayer({ ...state, itemPile: returned ? [...rest, returned] : rest }, withMaxHealth(carrying));
-  return note(
-    next,
-    returned
-      ? `${player.name} found ${an(found.name)} but had no room for it.`
-      : `${player.name} found ${an(found.name)}!`,
+  return paid(
+    note(
+      next,
+      // `equip` hands the item straight back when the *pack* is full, and hands back
+      // the old piece when a gear slot is swapped. They are not the same story, and
+      // the old line told the swap as though nothing had been picked up.
+      returned === found
+        ? `${player.name} found ${an(found.name)} and had no room in the pack for it.`
+        : returned
+        ? `${player.name} found ${gearLabel(found)} and left ${gearLabel(returned)} behind.`
+        : `${player.name} found ${an(found.name)}!`,
+    ),
+    player,
+    coins,
+    coins > 0 ? (COIN_FINDS[ground] ?? COIN_FINDS.field) : undefined,
   );
 }
 

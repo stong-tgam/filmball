@@ -54,7 +54,8 @@ These are the tiebreakers when a design question comes up mid-task:
 src/game/     pure logic, no React - hex, rng, setup, turn, combat, actions,
               hazards, events, items, enemies, vision, sense, store
 src/ui/       Compass.tsx (what a player sees), Tile.tsx (one hex),
-              Board.tsx (the grown-up's map peek), art/ (the drawings)
+              Board.tsx (the grown-up's map peek), FindCard.tsx (what a
+              search turned up), art/ (the drawings)
 tools/        sim.ts (bot playtests), inline.mjs (single-file build)
 tests/        vitest, node environment, no rendering
 reference/    the rulebook, the build spec, and the token art prompt
@@ -62,13 +63,13 @@ reference/    the rulebook, the build spec, and the token art prompt
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 272 tests
+npm test           # 288 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html you can hand to somebody
 npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
 ```
 
-## Current state: v1.4
+## Current state: v1.5
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -93,6 +94,18 @@ Key rules, so nothing gets "improved" back to a guess:
   instead** (`searchKind`): face card = armour, red = two items, black = river water,
   joker = the lid on your fingers for 1 health. Better than the ground on average, and
   that is the point — the river should be worth a detour, not scenery.
+- **A red picture card pays as well as finds** (`coinsFound`): jack $1, queen $2, king
+  $3, on top of the gear, and a chest carries `CHEST_COINS` in the bottom. Coin **as
+  well as** gear, never instead of it — the version that paid red faces in coin rather
+  than gear cost the bot a quarter of its finds and five points of win rate, which is
+  a nerf to the game wearing an economy's hat. It also keeps the rule one sentence:
+  *red finds something, and a picture card finds money too.*
+- **Ground that has not been searched is marked on the map** (`hasFindings`, and
+  `Findings` in `Tile.tsx`): an X on land, a chest on the water, in the tile's top
+  corner so a player token standing on the middle of it does not cover it up. It is
+  the one thing about a tile you genuinely cannot see by looking at it. Note that
+  `hasFindings` is deliberately *not* `canSearch` — the map has to answer it about
+  tiles nobody is standing on.
 - **Gear grades**: ordinary gear is **+1**, fine gear is **+2**, and the name never
   changes between them — a Frying Pan +2 is still a Frying Pan, which is what keeps the
   artwork lookups working and keeps the names doing their job. Where +2 comes from *is*
@@ -119,6 +132,9 @@ Key rules, so nothing gets "improved" back to a guess:
   bends §10, which is items-only, on purpose. Keep the amounts under `GEAR_PRICE`:
   the moment a mob out-earns a sale, the shop stops mattering and so does the
   keep-it-or-sell-it decision the rule exists to protect. There is a test for it.
+  Money reaches the party three ways and no others — a body, the ground, and selling
+  what you do not need. `tools/sim.ts` reports the party's purse alongside the
+  endings; run it after touching any of the three.
 - **Winning (§14)**: kill the dragon before the turn limit. `GameState.ending`.
 
 What is left is listed under "Still open" in the README. The largest is **group fights
@@ -133,7 +149,8 @@ assumes four.
 - `items.ts` — the gear list, the pile, `equip`, `consume`. One pile for the whole
   game; food is the only unlimited thing.
 - `actions.ts` — `search`, `openShop`, `buy`, `eat`, `takeLoot`. One action a turn
-  and a fight counts as it; `eat` deliberately ignores whose turn it is.
+  and a fight counts as it; `eat` deliberately ignores whose turn it is. `search`
+  also leaves a `Find` in the state for the screen to show; see below.
 - `cards.ts` — two poker decks, drawn down and reshuffled. Events and searches never
   share a shuffle; the spec is explicit about that.
 - `events.ts` — the deck and every card's effect. Add new events here.
@@ -262,6 +279,31 @@ the drawings sit on their own little chits rather than the whole thing being one
 theme. And the hex tiles still use the original `Tile.tsx` SVG rather than the crayon
 `art/terrain.tsx`; both look fine, they are just two different hands. Moving the shell
 onto paper is the remaining art job.
+
+## The find card
+
+A search puts a `Find` in `GameState.find`, and `src/ui/FindCard.tsx` holds it on
+screen until the table has looked at it — the item's own `Token`, or a purse of coins,
+or a card that says the ground was empty. It clears on the button, and `endTurn` clears
+it too so a search on one turn is never the first thing the next player sees.
+
+Two things about it that are load-bearing:
+
+- **The `Find` is derived, not declared.** `whatTurnedUp` reads the search back off the
+  state before and the state after — what the player is holding now that they were not,
+  what it displaced, the money, the health, and the log lines the search wrote. No
+  branch of `search` describes itself. A hand-written summary per branch would go stale
+  the first time somebody changed a branch and not its summary, and the card would then
+  quietly lie about the rules. Add an outcome and it gets a card for free.
+- **An empty search still gets a card.** Same reason `EventCard` shows a quiet draw: a
+  seven-year-old who presses Search and sees nothing at all concludes the button is
+  broken. `EMPTY_HANDED` picks its line from the card that came up, so a seed tells the
+  same story twice.
+
+The animations are decoration on top of information that is already on the card, and
+every one of them is off under `prefers-reduced-motion`. Nothing runs longer than about
+a second: this fires on every search, and an animation you sit through forty times an
+evening is a tax, not a moment.
 
 ## Conventions worth keeping
 

@@ -44,8 +44,8 @@ arrived, and most of the guesses were wrong:
 | Enemies | 6 mobs, 2 ogres | **15 mobs, 4 ogres**, health rolled in bands |
 | Features | Bosses only, generic +1 | **Every monster**, five specific effects |
 | Search | Card ranks | **Red finds, black does not, joker is a thief** |
-| Loot | Coins | **Items only** — 2/4/6 dropped, 1/2/3 kept |
-| Income | Enemy purses | **Selling what you do not need** |
+| Loot | Coins | **Items and a small purse** — 2/4/6 dropped, 1/2/3 kept |
+| Income | Enemy purses | **Selling, plus purses off bodies and out of the ground** |
 | Armour | Damage reduction | **+1 max health** |
 | Tornado | Wrecks its own tile | **Wrecks the six around it** |
 | Thieves | Mug you as they pass | **Mid-boss fights you can pay off** |
@@ -183,6 +183,33 @@ something the four of you do out loud, with the notebook in the sidebar.
 `npx vite-node tools/sim.ts 200` plays a couple of hundred bot games and reports how
 they end. Right now: 23% wins, 56% out of time, 21% wipes.
 
+## v1.5: money in the ground, and a moment for finding it
+
+Two ways to get paid, both open to somebody nowhere near a shop:
+
+- **Bodies carry purses** — $1 off a bandit, $2 off an ogre, $5 off the dragon. This
+  was already true and is now written down where the rest of the rules are.
+- **Red picture cards pay as well as find.** A search that turns up a jack, queen or
+  king of hearts or diamonds hands over the gear *and* a purse worth $1, $2 or $3.
+  Every other card is untouched, so it costs the gear finds nothing — the alternative,
+  paying red faces in coin *instead* of gear, cost the bot a quarter of its finds and
+  five points of win rate.
+- **Chests have coins in the bottom** — $3, alongside whatever gear was in them, and
+  a chest with no gear left to give pays the $3 anyway.
+- **Ground that has not been turned over is marked on the map** — an X on land, a
+  chest on the water, up in the corner of the tile so it survives a token being stood
+  on top of it. It is the one thing about a tile you cannot see by looking at it, and
+  without it a child searches the same square twice.
+- **A search stops the table for a moment.** The card turns over, and then what came
+  out of the ground lands on top of it: the item's own token if you found something,
+  a purse of coins if it paid, and a card that says so if it did not. Empty ground
+  gets its own line — *"A very good hole. Nothing in it."* — because a search that
+  showed nothing at all reads as a broken button.
+
+The endings do not move: 20% wins, 55% out of time, 26% wipes, the same games as
+before. Money per player at the end goes $2.5 to $4.3, which `tools/sim.ts` now
+reports alongside the endings.
+
 ## Still open
 
 - **Group fights (§8)** — inviting nearby players into a boss fight. Every fight is
@@ -198,6 +225,9 @@ they end. Right now: 23% wins, 56% out of time, 21% wipes.
 - **Must mid bosses die first? (§15)** — nothing stops a party running at the dragon
   on turn one. The dice make that a bad idea, but no rule forbids it.
 - Autosave and undo are unbuilt. The seed is already visible and typeable in the header.
+- **The bot never spends its money**, so the sim's purse line is gross earnings, not
+  savings. It says money is reaching the party; it says nothing about whether the
+  shop is worth walking to.
 - **Too many games run out of time** (55% in the bot sim). More turns barely helps —
   about +1% win per two turns — because the clock is not what binds. What binds is one
   player at 3 health grinding down a 20–30 health dragon alone. Group fights are the fix.

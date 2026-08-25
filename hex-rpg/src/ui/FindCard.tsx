@@ -1,0 +1,116 @@
+/**
+ * What the ground gave up, held on screen for a moment.
+ *
+ * Searching is one of the four or five things in this game worth stopping for, and
+ * until now it was a line in the sidebar log that scrolled past while somebody was
+ * still looking at the board. The find is one of the exciting moments, so it gets the
+ * treatment the others get: the card turns over, and then the thing you found lands on
+ * top of it.
+ *
+ * **A find with nothing in it still gets a card.** A quiet card is information too -
+ * the same reason `EventCard` shows the turn's draw even when nothing happens - and a
+ * seven-year-old who searched and got no card at all would reasonably think the button
+ * was broken. Empty ground gets its own line, its own animation, and its own way out.
+ */
+
+import { PlayingCard } from "./EventCard";
+import Token from "./Token";
+import ItemArt from "./art/items";
+import { MARKER } from "./art/crayon";
+import { gearLabel } from "../game/items";
+import type { Find } from "../game/types";
+
+/** The headline, the way you would say it out loud, and the button that closes it. */
+const HEADLINE: Record<Find["kind"], { title: string; close: string }> = {
+  gear: { title: "Look what was down there!", close: "Take it" },
+  coins: { title: "Money!", close: "Pocket it" },
+  full: { title: "No room for it.", close: "A shame" },
+  nothing: { title: "Nothing at all.", close: "Never mind" },
+  mishap: { title: "That went badly.", close: "Ow" },
+  thief: { title: "Somebody was waiting.", close: "Rotten luck" },
+  trap: { title: "The lid came down.", close: "Ow" },
+};
+
+/**
+ * What an empty search says. Four of them, picked by the card that came up rather
+ * than at random, so the same seed tells the same story twice - and so the fourth
+ * empty field in a row is not word for word the third.
+ */
+const EMPTY_HANDED = [
+  "Stones, roots and a bottle top.",
+  "Somebody has been here already.",
+  "A very good hole. Nothing in it.",
+  "Half a worm, and it did not want to be found.",
+];
+
+export default function FindCard({ find, onClose }: { find: Find; onClose: () => void }) {
+  const { kind, gained, lost, coins, hurt } = find;
+  const said = HEADLINE[kind];
+  const empty = EMPTY_HANDED[find.card.rank.charCodeAt(0) % EMPTY_HANDED.length];
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="What the search turned up">
+      <div className={`modal modal-narrow find find-${kind}`}>
+        <p className="draw-turn">{find.from === "chest" ? "Out of the water" : "Under the ground"}</p>
+
+        {/* The card turns over first; everything below it is held back until it has. */}
+        <div className="find-turn">
+          <PlayingCard draw={{ card: find.card, event: null }} />
+        </div>
+
+        <h2 className="find-title">{said.title}</h2>
+
+        {gained.length > 0 && (
+          <ul className="find-haul">
+            {gained.map((item, i) => (
+              // Each token lands a beat after the one before it, so a two-item haul
+              // reads as two things arriving rather than one wide picture appearing.
+              <li key={item.id} className="find-token" style={{ animationDelay: `${0.45 + i * 0.18}s` }}>
+                <Token
+                  slot={`item:${item.name}`}
+                  label={item.name}
+                  size={116}
+                  labelColour={item.slot === "supply" ? MARKER.strawberry : MARKER.cocoa}
+                >
+                  <ItemArt name={item.name} seedName={item.id} />
+                </Token>
+                <span className="find-token-note">{gearLabel(item)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {coins > 0 && (
+          <p className="find-coins" aria-label={`${coins} dollars`}>
+            <span className="find-coin-stack" aria-hidden="true">
+              {Array.from({ length: Math.min(coins, 5) }, (_, i) => (
+                <span key={i} className="find-coin" style={{ animationDelay: `${0.5 + i * 0.12}s` }} />
+              ))}
+            </span>
+            <strong>${coins}</strong>
+          </p>
+        )}
+
+        {kind === "nothing" && <p className="find-empty">{empty}</p>}
+
+        {hurt > 0 && <p className="find-hurt">−{hurt} health</p>}
+        {lost.length > 0 && (
+          <p className="find-lost">
+            Gone: {lost.map((item) => gearLabel(item)).join(", ")}
+          </p>
+        )}
+
+        {/* The log's own words, so the card and the log never tell different stories. */}
+        <div className="find-lines">
+          {find.lines.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+
+        <button type="button" onClick={onClose}>
+          {said.close}
+        </button>
+      </div>
+    </div>
+  );
+}

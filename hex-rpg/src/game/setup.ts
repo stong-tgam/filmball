@@ -332,6 +332,7 @@ export function createInitialState(seed: number): GameState {
     pokerDeck: poker.deck,
     searchDeck: searches.deck,
     draw: null,
+    find: null,
     log: [
       { turn: 1, text: `New game, seed ${seed}.` },
       { turn: 1, text: "— Turn 1 —" },

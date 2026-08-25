@@ -20,6 +20,7 @@ import Tile from "./Tile";
 import { DIRS, add, allNeighbours, distance, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
 import { compassName, type Sensed } from "../game/sense";
 import { sightOf, visibleFrom } from "../game/vision";
+import { hasFindings, searchKind } from "../game/actions";
 import { isDestroyed } from "../game/hazards";
 import { ROLES } from "../game/players";
 import type { Player, Tile as TileData } from "../game/types";
@@ -64,6 +65,8 @@ export default function Compass({
   onMove: (label: string) => void;
 }) {
   const origin = hexToPixel(viewer.hex, SIZE);
+  const here = tiles[key(viewer.hex)];
+  const underfoot = here && hasFindings(here) ? searchKind(here) : null;
   const ground = visibleFrom(viewer);
   // `visibleFrom` walks the board, so it stops at the rim and the world just ends.
   // Draw the hexes past the rim as holes: a child needs to see that there is nothing
@@ -130,6 +133,7 @@ export default function Compass({
                 selected={mine}
                 legal={legalMoves.has(label)}
                 wrecked={isDestroyed(tile, turn)}
+                findings={hasFindings(tile) ? searchKind(tile) : null}
                 showLabel={false}
                 onSelect={(l) => legalMoves.has(l) && onMove(l)}
               />
@@ -167,6 +171,16 @@ export default function Compass({
           {tiles[key(viewer.hex)]?.river ? ", on the river" : ""}
           {tiles[key(viewer.hex)]?.rail ? ", by the railway" : ""}
         </li>
+        {/* Its own line rather than a tail on the one above, which capitalises every
+            word it is given and turned a sentence into a shop sign. */}
+        {underfoot && (
+          <li className="compass-findings">
+            <span className="blip-dot" style={{ background: "var(--accent)" }} />
+            {underfoot === "chest"
+              ? "There is a chest in the water here."
+              : "Nobody has searched this ground."}
+          </li>
+        )}
         {sensed.length === 0 ? (
           <li className="muted">Nothing else within two moves. Wherever this is, it is quiet.</li>
         ) : (

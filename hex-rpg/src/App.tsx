@@ -9,6 +9,7 @@ import CombatModal from "./ui/CombatModal";
 import ShopModal from "./ui/ShopModal";
 import GameOver from "./ui/GameOver";
 import EventCardModal from "./ui/EventCard";
+import FindCard from "./ui/FindCard";
 import {
   useActivePlayer,
   useCanDonate,
@@ -68,6 +69,7 @@ export default function App() {
   const closeShop = useGame((s) => s.closeShop);
   const buy = useGame((s) => s.buy);
   const clearDraw = useGame((s) => s.clearDraw);
+  const clearFind = useGame((s) => s.clearFind);
   const canSearch = useCanSearch();
   const canTrade = useCanTrade();
   const canDonate = useCanDonate();
@@ -110,7 +112,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v1.4 — drawn by the children</span>
+          <span className="version">v1.5 — drawn by the children</span>
         </div>
         <button
           type="button"
@@ -256,6 +258,12 @@ export default function App() {
 
       {game.draw && !game.combat && !game.ending && (
         <EventCardModal draw={game.draw} turn={game.turn} onClose={clearDraw} />
+      )}
+
+      {/* Behind the turn's card, so a search on the last turn is never what the next
+          player sees first. Nothing else can be open: a search is the turn's action. */}
+      {game.find && !game.draw && !game.combat && !game.ending && (
+        <FindCard find={game.find} onClose={clearFind} />
       )}
 
       {game.ending && (

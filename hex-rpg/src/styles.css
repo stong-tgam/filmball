@@ -169,6 +169,31 @@ button:active { transform: translateY(1px); }
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* The mark on ground nobody has searched yet. A note in the margin: same ink as the
+   tile outlines, on a pale disc so it survives being drawn over dark forest. It has
+   to stay legible with a player token and a monster chit stacked on the tile centre,
+   which is why it lives up in the corner and why the disc is there at all. */
+.tile-findings .findings-ring {
+  fill: #f3ead6;
+  fill-opacity: 0.82;
+  stroke: #1d2429;
+  stroke-opacity: 0.55;
+  stroke-width: 1.2;
+}
+
+.tile-findings .findings-mark {
+  fill: none;
+  stroke: #1d2429;
+  stroke-opacity: 0.75;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+/* A chest is a shape, not a scribble: it needs the lid band filled to read at 46px. */
+.tile-findings-chest .findings-mark rect { fill: #d8a13c; fill-opacity: 0.85; }
+
+.compass-findings { color: var(--accent); }
+
 /* ---------- sidebar ---------- */
 
 .sidebar {
@@ -611,6 +636,8 @@ button.ghost {
 .card-red { color: #c33a3a; }
 .card-face { box-shadow: 0 10px 30px rgba(240, 160, 44, 0.45); border-color: var(--accent); }
 .card-rank { font-size: 44px; font-weight: 700; line-height: 1; }
+/* Every other rank is one or two characters; "Joker" is a word and ran off the card. */
+.card-joker .card-rank { font-size: 26px; letter-spacing: 0.02em; }
 .card-pip { font-size: 32px; line-height: 1; }
 
 @keyframes deal {
@@ -625,6 +652,158 @@ button.ghost {
 .draw-event h2 { margin: 0 0 6px; font-size: 20px; color: var(--accent); }
 .draw-event p { margin: 0; color: var(--ink); }
 .draw-quiet { margin: 0; }
+
+/* ---------- what the search turned up ----------
+
+   One beat, then another. The card turns over on its own (`turnover`), and everything
+   under it is held back behind `find-rise` until it has: a find that appeared all at
+   once would be a screenshot, and the pause before you see what is in your hand is the
+   whole of the moment. Nothing here runs longer than a second - this happens on every
+   search, and an animation you have to sit through forty times an evening is a tax.   */
+
+.find { align-items: center; }
+
+.find-turn {
+  /* The card itself already deals in; this turns it face-up on top of that. */
+  animation: turnover 520ms cubic-bezier(0.3, 0.8, 0.3, 1) both;
+  transform-origin: 50% 60%;
+}
+
+@keyframes turnover {
+  0% { transform: rotateY(90deg) scale(0.9); }
+  60% { transform: rotateY(-8deg) scale(1.02); }
+  100% { transform: none; }
+}
+
+.find-title {
+  margin: 0;
+  font-size: 20px;
+  color: var(--accent);
+  animation: find-rise 320ms ease-out 0.34s both;
+}
+
+.find-nothing .find-title { color: var(--ink-muted); }
+.find-mishap .find-title,
+.find-thief .find-title,
+.find-trap .find-title { color: #e2574c; }
+
+.find-haul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+}
+
+/* The token drops in and settles, the way one does when it is put on a table. The
+   per-token delay is set inline, so a two-piece haul arrives one piece at a time. */
+.find-token {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  animation: find-land 460ms cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.find-token-note {
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes find-land {
+  0% { transform: translateY(-26px) rotate(-14deg) scale(0.6); opacity: 0; }
+  70% { transform: translateY(0) rotate(3deg) scale(1.04); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+
+.find-coins {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.find-coin-stack { display: inline-flex; gap: 3px; }
+
+/* A coin per dollar up to five, each one dropping a beat after the last. Counting
+   them is the point, so they are discs rather than a number with a coin next to it. */
+.find-coin {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 32%, #ffd776, #d8a13c 62%, #a9761f);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+  animation: find-drop 420ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+@keyframes find-drop {
+  0% { transform: translateY(-20px) scale(0.5); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+
+/* Empty ground gets a card too, and it shrugs rather than lands. */
+.find-empty {
+  margin: 0;
+  color: var(--ink-muted);
+  font-style: italic;
+  animation: find-shrug 520ms ease-out 0.4s both;
+}
+
+@keyframes find-shrug {
+  0% { transform: translateY(-6px); opacity: 0; }
+  50% { transform: translateY(2px) rotate(-1.2deg); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+
+.find-hurt {
+  margin: 0;
+  color: #e2574c;
+  font-weight: 700;
+  animation: find-knock 420ms ease-out 0.4s both;
+}
+
+@keyframes find-knock {
+  0%, 100% { transform: none; }
+  25% { transform: translateX(-5px); }
+  60% { transform: translateX(4px); }
+}
+
+.find-lost { margin: 0; font-size: 13px; color: var(--ink-muted); }
+
+.find-lines {
+  margin: 0;
+  display: grid;
+  gap: 3px;
+  font-size: 13px;
+  color: var(--ink-muted);
+  animation: find-rise 320ms ease-out 0.6s both;
+}
+
+.find-lines p { margin: 0; }
+
+@keyframes find-rise {
+  0% { transform: translateY(6px); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+
+/* Everything above is decoration on top of information that is already on the card.
+   Turned off, the card still reads - it just arrives all at once. */
+@media (prefers-reduced-motion: reduce) {
+  .find-turn,
+  .find-title,
+  .find-token,
+  .find-coin,
+  .find-empty,
+  .find-hurt,
+  .find-lines {
+    animation: none;
+  }
+}
 
 /* ---------- boss features ---------- */
 

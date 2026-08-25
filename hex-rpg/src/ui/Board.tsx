@@ -13,6 +13,7 @@ import EnemyLayer from "./EnemyLayer";
 import HazardLayer from "./HazardLayer";
 import FogTile from "./FogTile";
 import { DIRS, add, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
+import { hasFindings, searchKind } from "../game/actions";
 import { isDestroyed } from "../game/hazards";
 import { canSee, enemyVisible, playerVisible } from "../game/vision";
 import type { Enemy, Hazard, Player, Tile as TileData } from "../game/types";
@@ -139,6 +140,7 @@ export default function Board({
             selected={selected === label}
             legal={legalMoves.has(label)}
             wrecked={isDestroyed(tile, turn)}
+            findings={hasFindings(tile) ? searchKind(tile) : null}
             onSelect={onSelect}
           />
         ) : (

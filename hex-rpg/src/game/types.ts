@@ -159,6 +159,36 @@ export type Draw = {
   event: EventCard | null;
 };
 
+/**
+ * What a search turned up, kept in state so the table gets a moment for it.
+ *
+ * The log already said all of this, and the log is not enough: turning over the
+ * ground is one of the four or five things in the game worth stopping for, and a line
+ * of text scrolling past the sidebar is not a moment. This is what the card on screen
+ * is drawn from - the drawing of the thing you found, or a card that says you found
+ * nothing, which is information too.
+ *
+ * Every field is derived from what the search actually did to the state rather than
+ * declared by the branch that did it, so the card cannot drift out of step with the
+ * rules the way a hand-written summary would.
+ */
+export type Find = {
+  card: Card;
+  /** Which table was rolled on: the river gives up a chest, everywhere else ground. */
+  from: "chest" | "ground";
+  /** The headline, for the card's title and its animation. */
+  kind: "gear" | "coins" | "full" | "nothing" | "mishap" | "thief" | "trap";
+  /** What the player is holding now that they were not holding before. Drawn as tokens. */
+  gained: Item[];
+  /** What it displaced or cost them - a swapped piece, or one a mishap took. */
+  lost: Item[];
+  coins: number;
+  /** Health it cost. Never more than one. */
+  hurt: number;
+  /** The lines the search wrote to the log, in order. Read aloud. */
+  lines: string[];
+};
+
 export type LogEntry = {
   turn: number;
   text: string;
@@ -248,5 +278,7 @@ export type GameState = {
   searchDeck: Card[];
   /** This turn's card, waiting to be read. */
   draw: Draw | null;
+  /** What the last search turned up, until the table has looked at it. */
+  find: Find | null;
   log: LogEntry[];
 };

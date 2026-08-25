@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canSearch, readChestCard, search, searchKind } from "../src/game/actions";
+import { CHEST_COINS, canSearch, readChestCard, search, searchKind } from "../src/game/actions";
 import { createInitialState } from "../src/game/setup";
 import { key } from "../src/game/hex";
 import { JOKER } from "../src/game/cards";
@@ -70,6 +70,35 @@ describe("river chests", () => {
     const state = standingOn((t) => t.river);
     const after = search(state);
     expect(after.log.at(-2)?.text ?? after.log.at(-1)?.text).toMatch(/chest/i);
+  });
+
+  it("has coins in the bottom of it as well as gear", () => {
+    const state = standingOn((t) => t.river);
+    const hauled: GameState = { ...state, searchDeck: [card("7", "diamonds"), ...state.searchDeck] };
+    const after = search(hauled);
+    expect(after.players[0].money).toBe(state.players[0].money + CHEST_COINS);
+    // Coin *and* gear, not one or the other: the river has to stay the best thing
+    // you can walk to, and a chest that paid either way would be worse than an ogre
+    // half the time.
+    expect(after.itemPile.length).toBeLessThan(state.itemPile.length);
+  });
+
+  it("pays in coin alone once every piece of gear is spoken for", () => {
+    const state = standingOn((t) => t.river);
+    const bare: GameState = {
+      ...state,
+      itemPile: [],
+      searchDeck: [card("7", "diamonds"), ...state.searchDeck],
+    };
+    const after = search(bare);
+    expect(after.players[0].money).toBe(state.players[0].money + CHEST_COINS);
+  });
+
+  it("leaves an empty chest empty - a soaked box is meant to be a disappointment", () => {
+    const state = standingOn((t) => t.river);
+    const soaked: GameState = { ...state, searchDeck: [card("7", "clubs"), ...state.searchDeck] };
+    const after = search(soaked);
+    expect(after.players[0].money).toBe(state.players[0].money);
   });
 
   it("never takes a player below zero health when the lid comes down", () => {

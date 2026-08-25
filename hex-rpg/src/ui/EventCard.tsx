@@ -7,13 +7,17 @@
  * screen with what it did.
  */
 
-import { SUIT_PIP, isFace, isRed } from "../game/cards";
+import { SUIT_PIP, isFace, isJoker, isRed } from "../game/cards";
 import type { Draw } from "../game/types";
 
 export function PlayingCard({ draw }: { draw: Draw }) {
   const { card } = draw;
   return (
-    <div className={`card${isRed(card) ? " card-red" : ""}${isFace(card) ? " card-face" : ""}`}>
+    <div
+      className={`card${isRed(card) ? " card-red" : ""}${isFace(card) ? " card-face" : ""}${
+        isJoker(card) ? " card-joker" : ""
+      }`}
+    >
       <span className="card-rank">{card.rank}</span>
       <span className="card-pip">{SUIT_PIP[card.suit]}</span>
     </div>

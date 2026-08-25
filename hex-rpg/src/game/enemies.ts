@@ -4,8 +4,8 @@
  * Health is rolled per enemy inside a band, so no two games have quite the same
  * bandits. Loot counts come straight from §10: a mob drops two items and the winner
  * keeps one, a mid boss drops four and keeps two, the final boss drops six and keeps
- * three. Nothing drops money - money comes from selling what you do not need, which
- * is what makes §11's "money is scarce" true.
+ * three. On top of §10's items, every body carries a small `purse` - see the field
+ * for why that does not undo §11's "money is scarce".
  *
  * Robbers and pirates are placed as hazards rather than here, but they fight exactly
  * as mid bosses do (§5.5), so their numbers live in this table with the rest.

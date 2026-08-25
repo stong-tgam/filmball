@@ -39,6 +39,16 @@ type Props = {
   /** Ground the tornado has just been through. */
   wrecked: boolean;
   /**
+   * A mark for ground that has not been turned over yet, or null once it has.
+   *
+   * The one thing the tile itself is allowed to promise. Everything else about a hex
+   * you can see is terrain you read for yourself; this is a fact about the tile's
+   * state that there is no way to look at and know, and without it a child cannot
+   * tell "nobody has searched here" from "somebody already has" and searches the
+   * same square twice. `"chest"` on the water, `"ground"` everywhere else.
+   */
+  findings?: "chest" | "ground" | null;
+  /**
    * Print the tile's name on it. False in the close-up view, where there is no map and
    * a grid reference on a neighbouring hex would hand the party their own position.
    * The label is still used to seed the scenery, so tiles stay put between renders.
@@ -254,6 +264,36 @@ function Railway({ size, dirs }: { size: number; dirs: number[] }) {
   );
 }
 
+/**
+ * The mark on unsearched ground.
+ *
+ * Up in the tile's top corner, clear of the centre, because the centre is where the
+ * player tokens and the monsters go and this must stay readable underneath a stack of
+ * them. Two marks, because there are two kinds of search: an X on the ground, and a
+ * chest on the water. Both are drawn in the same ink as the tile outlines rather than
+ * in a signal colour - it is a note in the margin, not an alert.
+ */
+function Findings({ kind, size }: { kind: "chest" | "ground"; size: number }) {
+  const r = size * 0.19;
+  const arm = r * 0.52;
+  return (
+    <g className={`tile-findings tile-findings-${kind}`} transform={`translate(${size * 0.4} ${-size * 0.52})`} pointerEvents="none">
+      <circle className="findings-ring" r={r} />
+      {kind === "ground" ? (
+        <g className="findings-mark">
+          <line x1={-arm} y1={-arm} x2={arm} y2={arm} />
+          <line x1={-arm} y1={arm} x2={arm} y2={-arm} />
+        </g>
+      ) : (
+        <g className="findings-mark">
+          <rect x={-arm} y={-arm * 0.7} width={arm * 2} height={arm * 1.5} rx={arm * 0.25} />
+          <line x1={-arm} y1={0} x2={arm} y2={0} />
+        </g>
+      )}
+    </g>
+  );
+}
+
 function TileView({
   tile,
   label,
@@ -262,6 +302,7 @@ function TileView({
   selected,
   legal,
   wrecked,
+  findings = null,
   showLabel = true,
   onSelect,
 }: Props) {
@@ -280,7 +321,7 @@ function TileView({
       onClick={() => onSelect(label)}
       role="button"
       tabIndex={0}
-      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}${wrecked ? ", wrecked by the tornado" : ""}${legal ? ", you can move here" : ""}`}
+      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}${wrecked ? ", wrecked by the tornado" : ""}${findings === "chest" ? ", a chest in the water" : findings === "ground" ? ", not searched yet" : ""}${legal ? ", you can move here" : ""}`}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -304,6 +345,8 @@ function TileView({
       ))}
 
       {tile.rail && <Railway size={size} dirs={railDirs} />}
+
+      {findings && <Findings kind={findings} size={size} />}
 
       {wrecked && <polygon points={hexPoints(size)} className="tile-wrecked" />}
       {legal && (

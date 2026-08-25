@@ -74,11 +74,17 @@ function botTurn(state: GameState, roll: () => number): GameState {
   return next.combat ? next : endTurn(next);
 }
 
-function play(seed: number): GameState["ending"] {
+function play(seed: number): { ending: GameState["ending"]; purse: number } {
   const rng = makeRng(seed * 7919 + 13);
   let state = startGame(seed);
   for (let i = 0; i < 4000 && !state.ending; i++) state = botTurn(state, () => rng.next());
-  return state.ending ?? "outOfTime";
+  return {
+    ending: state.ending ?? "outOfTime",
+    // What the party is holding when the lights go up. The bot never shops, so this
+    // is gross earnings rather than savings - which is the number a change to the
+    // economy actually moves.
+    purse: state.players.reduce((sum, p) => sum + p.money, 0) / state.players.length,
+  };
 }
 
 if (process.env.DIAG) {
@@ -107,12 +113,16 @@ if (process.env.DIAG) {
 
 const games = Number(process.argv[2] ?? 200);
 const tally: Record<string, number> = {};
+let purse = 0;
 for (let seed = 1; seed <= games; seed++) {
-  const ending = play(seed) ?? "outOfTime";
+  const result = play(seed);
+  const ending = result.ending ?? "outOfTime";
   tally[ending] = (tally[ending] ?? 0) + 1;
+  purse += result.purse;
 }
 
 console.log(`${games} games:`);
 for (const [ending, n] of Object.entries(tally).sort((a, b) => b[1] - a[1])) {
   console.log(`  ${ending.padEnd(12)} ${String(n).padStart(4)}  ${((n / games) * 100).toFixed(0)}%`);
 }
+console.log(`  ${"purse".padEnd(12)} ${`$${(purse / games).toFixed(1)}`.padStart(4)}  per player at the end`);

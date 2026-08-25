@@ -13,6 +13,7 @@ import {
   canHeal,
   canSearch,
   canTrade,
+  clearFind,
   eat,
   heal,
   healTargets,
@@ -48,6 +49,8 @@ type Store = {
   takeLoot: (itemId: string) => void;
   /** Put the turn's card away once the table has read it. */
   clearDraw: () => void;
+  /** Put away what the last search turned up. */
+  clearFind: () => void;
   /** Close the fight, and pass the turn on now that it is spent. */
   closeCombat: () => void;
 };
@@ -75,6 +78,7 @@ export const useGame = create<Store>((set, get) => ({
   eat: (playerId, itemId) => set({ game: eat(get().game, playerId, itemId) }),
   takeLoot: (itemId) => set({ game: takeSpoil(get().game, itemId) }),
   clearDraw: () => set({ game: clearDraw(get().game) }),
+  clearFind: () => set({ game: clearFind(get().game) }),
 }));
 
 /** Selectors, so components subscribe to the narrowest slice they can. */

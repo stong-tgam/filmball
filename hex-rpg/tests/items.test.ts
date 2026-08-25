@@ -25,6 +25,8 @@ import {
   eat,
   heal,
   openShop,
+  coinsFound,
+  hasFindings,
   readSearchCard,
   search,
   sell,
@@ -216,10 +218,56 @@ describe("searching", () => {
 
   it("reads the card the rulebook's way: red finds, black does not, joker is a thief", () => {
     expect(readSearchCard({ suit: "hearts", rank: "3" })).toBe("found");
-    expect(readSearchCard({ suit: "diamonds", rank: "K" })).toBe("found");
     expect(readSearchCard({ suit: "spades", rank: "A" })).toBe("nothing");
     expect(readSearchCard({ suit: "clubs", rank: "7" })).toBe("nothing");
+    expect(readSearchCard({ suit: "diamonds", rank: "K" })).toBe("found");
     expect(readSearchCard({ suit: "joker", rank: "Joker" })).toBe("thief");
+  });
+
+  it("pays a purse worth the picture card, and nothing on any other card", () => {
+    expect(coinsFound({ suit: "hearts", rank: "J" })).toBe(1);
+    expect(coinsFound({ suit: "hearts", rank: "Q" })).toBe(2);
+    expect(coinsFound({ suit: "hearts", rank: "K" })).toBe(3);
+    expect(coinsFound({ suit: "hearts", rank: "9" })).toBe(0);
+    expect(coinsFound({ suit: "hearts", rank: "A" })).toBe(0);
+    // Black picture cards are the ground biting back; they never also pay.
+    expect(coinsFound({ suit: "spades", rank: "K" })).toBe(0);
+    // Never more than one dollar over what a piece of gear sells for, or a purse
+    // starts being a better outcome than the sword you were looking for.
+    expect(Math.max(...["J", "Q", "K"].map((rank) => coinsFound({ suit: "hearts", rank } as never))))
+      .toBeLessThanOrEqual(GEAR_PRICE + 1);
+  });
+
+  it("hands over the gear *and* the purse on a red picture card", () => {
+    const base = standing("forest");
+    const state: GameState = { ...base, searchDeck: [{ suit: "diamonds", rank: "Q" }] };
+    const after = search(state);
+    const me = activePlayer(after);
+    expect(me.money).toBe(activePlayer(base).money + 2);
+    // Coin on top of the find, never instead of it: gear is the only thing that makes
+    // a party stronger, and paying in coin instead is a nerf wearing an economy's hat.
+    expect(after.itemPile.length).toBe(state.itemPile.length - 1);
+    expect([me.weapon, me.armor, me.boots].filter(Boolean).length).toBe(1);
+  });
+
+  it("says where the money was, in the words of the ground it was under", () => {
+    const woods = search({ ...standing("forest"), searchDeck: [{ suit: "hearts", rank: "J" }] });
+    const streets = search({ ...standing("city"), searchDeck: [{ suit: "hearts", rank: "J" }] });
+    expect(woods.log.some((l) => l.text.includes("roots"))).toBe(true);
+    expect(streets.log.some((l) => l.text.includes("market stall"))).toBe(true);
+    expect(woods.log.at(-1)?.text).toContain("$1");
+  });
+
+  it("marks ground worth searching, and stops marking it once it is spent", () => {
+    const state = standing("forest");
+    const tile = state.tiles[key(activePlayer(state).hex)];
+    expect(hasFindings(tile)).toBe(true);
+    expect(hasFindings({ ...tile, searched: true })).toBe(false);
+
+    // The mark is about the tile, not about whose turn it is or what they have
+    // already done - the map draws it on ground nobody is standing on.
+    const spent = search(state);
+    expect(hasFindings(spent.tiles[key(activePlayer(spent).hex)])).toBe(false);
   });
 
   it("gives up a tile's findings once and once only", () => {
@@ -276,7 +324,9 @@ describe("searching", () => {
     expect(activePlayer(saved).supply).toEqual([]);
   });
 
-  it("says so when the world has run out of gear", () => {
+  it("pays in coin when the world has run out of gear", () => {
+    // Every piece is already on somebody's back. A search that said "nothing" here
+    // would make the last third of the game a run of dead turns.
     const empty: GameState = {
       ...standing("field"),
       itemPile: [],
@@ -285,6 +335,7 @@ describe("searching", () => {
     const after = search(empty);
     expect(after.itemPile).toEqual([]);
     expect(activePlayer(after).actedThisTurn).toBe(true);
+    expect(activePlayer(after).money).toBe(activePlayer(empty).money + 1);
   });
 });
 
