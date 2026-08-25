@@ -663,6 +663,38 @@ button.ghost {
 
 .find { align-items: center; }
 
+/* ---------- casting the line at a friend ---------- */
+
+.hook { align-items: stretch; }
+.hook-title { margin: 0; font-size: 19px; color: var(--accent); text-align: center; }
+
+.hook-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+/* Name on its own line, the two ways round underneath it. Side by side and the same
+   width, because neither is the recommended one - which way you want depends on who
+   is standing somewhere useful, and that is a conversation, not a default. */
+.hook-who {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff08;
+  text-align: left;
+}
+
+.hook-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hook-down { color: var(--ink-muted); font-size: 13px; }
+
+.hook-ways { display: flex; gap: 8px; }
+.hook-ways button { flex: 1; min-width: 0; }
+
 /* ---------- the two seconds before you know ----------
 
    The card comes up face down and says what is being done. Everything here is about

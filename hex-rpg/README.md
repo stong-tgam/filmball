@@ -13,7 +13,7 @@ rulebook actually says. **The goal is now a real goal: beat the dragon before tu
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 272 tests
+npm test           # 308 tests
 npm run build      # type-check + production build into dist/
 npm run build:play # one self-contained .html you can hand to somebody
 
@@ -210,6 +210,37 @@ Two ways to get paid, both open to somebody nowhere near a shop:
 The endings do not move: 20% wins, 55% out of time, 26% wipes, the same games as
 before. Money per player at the end goes $2.5 to $4.3, which `tools/sim.ts` now
 reports alongside the endings.
+
+## v1.6: the fisherman
+
+A fifth role, and the first one whose bonus is a **thing** rather than a number.
+
+- **Starts holding a Fishing Rod** — the only starting kit anybody has, and it adds
+  **nothing** to a roll. That is the trade: the worst fighter at the table, and the
+  only one who can feed it.
+- **Fishes any river tile.** Nearly every card is a fish (only the joker is a blank);
+  a picture card brings up treasure as well. Fish are ordinary food, +1 health.
+  Fishing is *not* once per tile the way a search is — a river restocks — but the
+  treasure comes off a stretch of water once.
+- **Three fish in, the rod is a proper rod**: +1 on every roll, and two fish a cast
+  from then on. The fisherman is the one character who earns their weapon by doing
+  their job instead of finding one.
+- **Casts at a friend one tile away** — reel them onto your tile, or haul yourself
+  onto theirs. This is the only thing in the game that puts two players on one square:
+  you still may not *walk* onto a friend, but a rope is not a walk. It works on a
+  downed friend too, and dragging one to the Doctor is the best thing it does.
+
+Adding a fifth body forced a placement fix. With five players and the old safe ring
+there were 20 legal tiles for 19 monsters, so the middle of the board became a solid
+wall and every tile round the dragon was occupied on every seed. The safe ring now
+gives ground to keep the scatter a scatter.
+
+The bot says **19% wins, 63% out of time, 19% wipes** against 20/55/26 before — fewer
+wipes for the extra body, more timeouts because that body is the *worst* fighter and
+spends its turns fishing. Both of the fisherman's payoffs (food, and pulling the party
+into one place) are things the bot cannot use: it never eats and never coordinates. So
+this is a floor, and an unusually pessimistic one. The honest read is that a support
+role does not pay off until §8 lets bodies join a fight.
 
 ## Still open
 

@@ -1,0 +1,308 @@
+/**
+ * The fisherman: the rod, the river, and the rope.
+ *
+ * The role is built on one trade - the worst fighter at the table, and the only one
+ * who can feed it or move somebody who is not themselves - so most of what is worth
+ * testing here is that the trade cannot be dodged in either direction.
+ */
+
+import { describe, expect, it } from "vitest";
+import {
+  canFish,
+  canHook,
+  fish,
+  fishPerCast,
+  hook,
+  hookTargets,
+  readFishCard,
+  search,
+} from "../src/game/actions";
+import { createInitialState } from "../src/game/setup";
+import { activePlayer } from "../src/game/turn";
+import { ROLES, TURN_ORDER } from "../src/game/players";
+import {
+  EQUIPMENT,
+  FISHING_ROD,
+  FISH,
+  FISH_TO_UPGRADE,
+  SUPPLY_CAP,
+  canTake,
+  equip,
+  makeItem,
+} from "../src/game/items";
+import { distance, key } from "../src/game/hex";
+import { JOKER } from "../src/game/cards";
+import type { Card, GameState, Player, Tile } from "../src/game/types";
+
+const card = (rank: string, suit: Card["suit"]): Card => ({ rank, suit } as Card);
+const fisherIndex = TURN_ORDER.indexOf("fisherman");
+
+/** A game with the fisherman active and standing on a tile of the given sort. */
+function fishing(pick: (t: Tile) => boolean, seed = 4471): GameState {
+  const base = createInitialState(seed);
+  const tile = Object.values(base.tiles).find(
+    (t) => pick(t) && !base.enemies.some((e) => key(e.hex) === key(t.hex)),
+  )!;
+  return {
+    ...base,
+    activePlayerIndex: fisherIndex,
+    players: base.players.map((p, i) => (i === fisherIndex ? { ...p, hex: tile.hex } : p)),
+  };
+}
+
+const drawing = (state: GameState, next: Card): GameState => ({ ...state, searchDeck: [next] });
+const fisher = (state: GameState): Player => state.players[fisherIndex];
+
+describe("the rod", () => {
+  it("is the one thing anybody starts holding, and it adds nothing", () => {
+    const party = createInitialState(4471).players;
+    const rods = party.filter((p) => p.weapon?.name === FISHING_ROD);
+    expect(rods).toHaveLength(1);
+    expect(rods[0].role).toBe("fisherman");
+    expect(rods[0].weapon?.value).toBe(0);
+    // Everybody else is empty-handed, so the rod is a role and not a head start.
+    expect(party.filter((p) => p.weapon !== null)).toHaveLength(1);
+  });
+
+  it("cannot be swapped away, by a search or by anything else", () => {
+    const sword = makeItem(EQUIPMENT.find((e) => e.slot === "weapon")!, "a-real-weapon");
+    const rodder = fisher(createInitialState(4471));
+
+    // A ground search equips what it finds without asking. Without the guard the role
+    // evaporates on a lucky card and a child has no idea why they can no longer fish.
+    expect(canTake(rodder, sword)).toBe(false);
+    const { player: after, returned } = equip(rodder, sword);
+    expect(after.weapon?.name).toBe(FISHING_ROD);
+    expect(returned).toBe(sword);
+  });
+
+  it("is only the fisherman's to use", () => {
+    for (const role of TURN_ORDER) {
+      expect(ROLES[role].canFish).toBe(role === "fisherman");
+    }
+  });
+});
+
+describe("fishing", () => {
+  it("needs the river, the rod and the role", () => {
+    const onWater = fishing((t) => t.river);
+    expect(canFish(onWater, fisher(onWater))).toBe(true);
+
+    const onLand = fishing((t) => !t.river && t.base === "field");
+    expect(canFish(onLand, fisher(onLand))).toBe(false);
+
+    // The knight standing in the same river cannot.
+    const knight = { ...onWater, activePlayerIndex: 0, players: onWater.players.map((p, i) =>
+      i === 0 ? { ...p, hex: fisher(onWater).hex } : p) };
+    expect(canFish(knight, activePlayer(knight))).toBe(false);
+
+    const barehanded = { ...onWater, players: onWater.players.map((p, i) =>
+      i === fisherIndex ? { ...p, weapon: null } : p) };
+    expect(canFish(barehanded, fisher(barehanded))).toBe(false);
+  });
+
+  it("reads the card: nearly always a fish, a picture card is more than dinner", () => {
+    expect(readFishCard(card("2", "clubs"))).toBe("fish");
+    expect(readFishCard(card("10", "hearts"))).toBe("fish");
+    expect(readFishCard(card("A", "spades"))).toBe("fish");
+    expect(readFishCard(card("K", "hearts"))).toBe("treasure");
+    expect(readFishCard(JOKER)).toBe("snag");
+  });
+
+  it("lands a fish that heals like any other food", () => {
+    const state = drawing(fishing((t) => t.river), card("7", "clubs"));
+    const after = fish(state);
+    const caught = fisher(after).supply.filter((i) => i.name === FISH);
+    expect(caught).toHaveLength(1);
+    expect(caught[0].value).toBe(1);
+    expect(caught[0].slot).toBe("supply");
+    expect(fisher(after).fishCaught).toBe(1);
+    expect(fisher(after).actedThisTurn).toBe(true);
+  });
+
+  it("comes up empty on the joker, and that is the only way it does", () => {
+    const after = fish(drawing(fishing((t) => t.river), JOKER));
+    expect(fisher(after).supply).toEqual([]);
+    expect(after.find?.kind).toBe("nothing");
+    // The one that got away costs a turn, never a health. Fishing must not hurt.
+    expect(fisher(after).health).toBe(fisher(fishing((t) => t.river)).health);
+  });
+
+  it("is not once per tile the way a search is - a river restocks", () => {
+    let state = drawing(fishing((t) => t.river), card("7", "clubs"));
+    const spot = key(fisher(state).hex);
+    state = fish(state);
+    state = {
+      ...state,
+      searchDeck: [card("8", "clubs")],
+      players: state.players.map((p, i) => (i === fisherIndex ? { ...p, actedThisTurn: false } : p)),
+    };
+    expect(canFish(state, fisher(state))).toBe(true);
+    const twice = fish(state);
+    expect(fisher(twice).supply.filter((i) => i.name === FISH)).toHaveLength(2);
+    expect(key(fisher(twice).hex)).toBe(spot);
+  });
+
+  it("gives up its treasure once, and only once", () => {
+    const water = fishing((t) => t.river);
+    const first = fish(drawing(water, card("K", "hearts")));
+    expect(first.tiles[key(fisher(first).hex)].searched).toBe(true);
+    expect(fisher(first).money).toBeGreaterThan(fisher(water).money);
+
+    const again = fish({
+      ...first,
+      searchDeck: [card("Q", "hearts")],
+      players: first.players.map((p, i) => (i === fisherIndex ? { ...p, actedThisTurn: false } : p)),
+    });
+    // Still a fish. No second payday.
+    expect(fisher(again).money).toBe(fisher(first).money);
+    expect(fisher(again).fishCaught).toBeGreaterThan(fisher(first).fishCaught);
+  });
+
+  it("upgrades the rod on the third fish, once, and then brings up two", () => {
+    let state = fishing((t) => t.river);
+    expect(fishPerCast(fisher(state))).toBe(1);
+
+    for (let i = 0; i < FISH_TO_UPGRADE; i++) {
+      state = fish({
+        ...state,
+        searchDeck: [card("7", "clubs")],
+        players: state.players.map((p, j) =>
+          // Keep the pack clear so the cap is never what stops the count.
+          j === fisherIndex ? { ...p, actedThisTurn: false, supply: [] } : p,
+        ),
+      });
+    }
+
+    const rod = fisher(state).weapon!;
+    expect(rod.name).toBe(FISHING_ROD);
+    expect(rod.value).toBe(1);
+    expect(fishPerCast(fisher(state))).toBe(2);
+    expect(state.log.some((l) => l.text.includes("proper rod"))).toBe(true);
+
+    // It happens on crossing the line, not on being over it.
+    const later = fish({
+      ...state,
+      searchDeck: [card("7", "clubs")],
+      players: state.players.map((p, j) => (j === fisherIndex ? { ...p, actedThisTurn: false, supply: [] } : p)),
+    });
+    expect(fisher(later).weapon?.value).toBe(1);
+    expect(fisher(later).supply.filter((i) => i.name === FISH)).toHaveLength(2);
+  });
+
+  it("puts nothing back that there is no room for", () => {
+    const water = fishing((t) => t.river);
+    const stuffed: GameState = {
+      ...drawing(water, card("7", "clubs")),
+      players: water.players.map((p, i) =>
+        i === fisherIndex
+          ? { ...p, supply: Array.from({ length: SUPPLY_CAP }, (_, n) => makeItem(EQUIPMENT[0], `x${n}`)) }
+          : p,
+      ),
+    };
+    const after = fish(stuffed);
+    expect(fisher(after).supply).toHaveLength(SUPPLY_CAP);
+    expect(after.log.at(-1)?.text).toContain("nowhere to put it");
+  });
+});
+
+describe("the hook", () => {
+  /** The fisherman and the knight standing next to each other. */
+  function paired(seed = 4471): GameState {
+    const base = createInitialState(seed);
+    const rod = base.players[fisherIndex];
+    const spot = [...Array(6).keys()]
+      .map((i) => [{ q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }, { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }][i])
+      .map((d) => ({ q: rod.hex.q + d.q, r: rod.hex.r + d.r }))
+      .find((h) => base.tiles[key(h)] && !base.enemies.some((e) => key(e.hex) === key(h)))!;
+    return {
+      ...base,
+      activePlayerIndex: fisherIndex,
+      players: base.players.map((p, i) => (i === 0 ? { ...p, hex: spot } : p)),
+    };
+  }
+
+  it("reaches exactly one tile, and only for the fisherman", () => {
+    const state = paired();
+    const targets = hookTargets(state, fisher(state));
+    expect(targets.map((p) => p.id)).toEqual(["knight"]);
+    for (const t of targets) expect(distance(t.hex, fisher(state).hex)).toBe(1);
+
+    // Nobody else has a rope, whatever they are holding.
+    expect(hookTargets(state, state.players[0])).toEqual([]);
+    expect(canHook({ ...state, activePlayerIndex: 0 }, state.players[0])).toBe(false);
+  });
+
+  it("reels a friend onto your tile - which walking may not do", () => {
+    const state = paired();
+    const before = key(fisher(state).hex);
+    const after = hook(state, "knight", "pull");
+
+    expect(key(after.players[0].hex)).toBe(before);
+    expect(key(fisher(after).hex)).toBe(before);
+    // Two players, one tile. `legalMoves` still forbids *walking* onto a friend; a
+    // rope is not a walk, and this is how the party gets into one place.
+    expect(fisher(after).actedThisTurn).toBe(true);
+  });
+
+  it("hauls you across to them instead, if that is the way round you want", () => {
+    const state = paired();
+    const knightSpot = key(state.players[0].hex);
+    const after = hook(state, "knight", "cross");
+
+    expect(key(fisher(after).hex)).toBe(knightSpot);
+    expect(key(after.players[0].hex)).toBe(knightSpot);
+    expect(fisher(after).actedThisTurn).toBe(true);
+  });
+
+  it("drags a fallen friend, which is the best thing it does", () => {
+    const state = paired();
+    const fallen = state.players[0];
+    const down: GameState = {
+      ...state,
+      players: state.players.map((p) =>
+        p.id === fallen.id ? { ...p, dead: true, health: 0, fellAt: p.hex, fellOn: 1 } : p,
+      ),
+    };
+    expect(hookTargets(down, fisher(down)).map((p) => p.id)).toEqual(["knight"]);
+
+    const hauled = hook(down, "knight", "pull");
+    const moved = hauled.players[0];
+    // The body and the spot the doctor has to reach move together, or a revive would
+    // put them back where they fell.
+    expect(key(moved.hex)).toBe(key(fisher(hauled).hex));
+    expect(key(moved.fellAt!)).toBe(key(fisher(hauled).hex));
+  });
+
+  it("costs the action, so it is the turn's one thing", () => {
+    const state = paired();
+    const after = hook(state, "knight", "pull");
+    expect(canHook(after, fisher(after))).toBe(false);
+    expect(hook(after, "knight", "cross")).toBe(after);
+  });
+
+  it("will not reach somebody who is not next to you", () => {
+    const state = paired();
+    const far: GameState = {
+      ...state,
+      players: state.players.map((p, i) => (i === 0 ? { ...p, hex: { q: 0, r: 0 } } : p)),
+    };
+    expect(hookTargets(far, fisher(far))).toEqual([]);
+    expect(hook(far, "knight", "pull")).toBe(far);
+  });
+});
+
+describe("the trade the role is built on", () => {
+  it("leaves the fisherman searching like anybody else on dry land", () => {
+    const state = fishing((t) => !t.river && t.base === "forest");
+    const after = search({ ...state, searchDeck: [card("9", "clubs")] });
+    expect(after.find?.from).toBe("ground");
+  });
+
+  it("marks a cast as its own kind of find, so the card knows what to say", () => {
+    const after = fish(drawing(fishing((t) => t.river), card("7", "clubs")));
+    expect(after.find?.from).toBe("line");
+    expect(after.find?.kind).toBe("fish");
+    expect(after.find?.gained.map((i) => i.name)).toEqual([FISH]);
+  });
+});

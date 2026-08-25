@@ -20,11 +20,17 @@ type Props = {
    * the whole reason to walk to one is invisible.
    */
   searchKind: "chest" | "ground";
+  canFish: boolean;
+  /** Whether this water still has anything in it beyond the fish. */
+  freshWater: boolean;
+  canHook: boolean;
   canTrade: boolean;
   canDonate: boolean;
   canHeal: boolean;
   canPayOff: boolean;
   onSearch: () => void;
+  onFish: () => void;
+  onHook: () => void;
   onTrade: () => void;
   onDonate: () => void;
   onHeal: () => void;
@@ -39,11 +45,16 @@ export default function ActionBar({
   acted,
   canSearch,
   searchKind,
+  canFish,
+  freshWater,
+  canHook,
   canTrade,
   canDonate,
   canHeal,
   canPayOff,
   onSearch,
+  onFish,
+  onHook,
   onTrade,
   onDonate,
   onHeal,
@@ -87,6 +98,10 @@ export default function ActionBar({
     ? "A thief is blocking the way. Fight, or hand it all over."
     : canDonate
     ? "Someone here could use a hand."
+    : canFish
+    ? freshWater
+      ? "Good water. Nobody has fished this bend."
+      : "You can always fish here. The treasure is long gone."
     : canSearch
     ? searchKind === "chest"
       ? "Something is caught in the water here."
@@ -104,7 +119,7 @@ export default function ActionBar({
   return (
     <div className="actionbar">
       <p className="actionbar-ask">{prompt}</p>
-      {(canSearch || canTrade || canDonate || canHeal || canPayOff) && (
+      {(canSearch || canFish || canHook || canTrade || canDonate || canHeal || canPayOff) && (
         <div className="actionbar-buttons">
           {canPayOff && (
             <button type="button" className="ghost" onClick={onPayOff}>
@@ -119,6 +134,16 @@ export default function ActionBar({
           {canDonate && (
             <button type="button" className="ghost" onClick={onDonate}>
               Give $2
+            </button>
+          )}
+          {canFish && (
+            <button type="button" className="ghost" onClick={onFish}>
+              Cast the line
+            </button>
+          )}
+          {canHook && (
+            <button type="button" className="ghost" onClick={onHook}>
+              Cast at a friend
             </button>
           )}
           {canSearch && (

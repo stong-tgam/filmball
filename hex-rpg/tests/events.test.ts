@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TURN_ORDER } from "../src/game/players";
 import {
   RANKS,
   SUITS,
@@ -100,7 +101,9 @@ describe("the turn's draw", () => {
   it("draws once per turn of the whole party, not once per player", () => {
     let state = game();
     const startingDeck = state.pokerDeck.length;
-    for (let i = 0; i < 3; i++) state = endTurn(clearDraw(state));
+    // Everybody but the last player: the card comes when the turn rolls over, not
+    // when a player finishes.
+    for (let i = 0; i < TURN_ORDER.length - 1; i++) state = endTurn(clearDraw(state));
 
     expect(state.turn).toBe(1);
     expect(state.pokerDeck).toHaveLength(startingDeck);

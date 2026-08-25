@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TURN_ORDER } from "../src/game/players";
 import {
   CITY_COUNT,
   CITY_MIN_DISTANCE,
@@ -249,7 +250,7 @@ describe("createInitialState", () => {
     expect(state.phase).toBe("playerMove");
     expect(state.activePlayerIndex).toBe(0);
     expect(Object.keys(state.tiles)).toHaveLength(TILE_COUNT);
-    expect(state.players).toHaveLength(4);
+    expect(state.players).toHaveLength(TURN_ORDER.length);
     // Rulebook §2/§15: fifteen mobs, four mid bosses and the dragon, plus the robber
     // and the pirates, who are monsters as well as hazards.
     expect(state.enemies).toHaveLength(22);

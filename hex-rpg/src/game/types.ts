@@ -41,7 +41,7 @@ export type Tile = {
   searched: boolean;
 };
 
-export type Role = "knight" | "rogue" | "scout" | "doctor";
+export type Role = "knight" | "rogue" | "scout" | "doctor" | "fisherman";
 
 export type ItemSlot = "weapon" | "armor" | "boots" | "supply";
 
@@ -90,6 +90,11 @@ export type Player = {
   fellOn: number | null;
   /** Homeless-person donation: extra dice on the next fight only. */
   bonusDiceNextFight: number;
+  /**
+   * Fish landed so far, all game. The fisherman's rod is upgraded at `FISH_TO_UPGRADE`
+   * and the count keeps going up after that; nothing else reads it.
+   */
+  fishCaught: number;
   joinedFightThisRound: boolean;
 };
 
@@ -174,10 +179,13 @@ export type Draw = {
  */
 export type Find = {
   card: Card;
-  /** Which table was rolled on: the river gives up a chest, everywhere else ground. */
-  from: "chest" | "ground";
+  /**
+   * Which table was rolled on: the river gives up a chest, everywhere else ground,
+   * and `"line"` is the fisherman casting rather than either.
+   */
+  from: "chest" | "ground" | "line";
   /** The headline, for the card's title and its animation. */
-  kind: "gear" | "coins" | "full" | "nothing" | "mishap" | "thief" | "trap";
+  kind: "gear" | "fish" | "coins" | "full" | "nothing" | "mishap" | "thief" | "trap";
   /** What the player is holding now that they were not holding before. Drawn as tokens. */
   gained: Item[];
   /** What it displaced or cost them - a swapped piece, or one a mishap took. */

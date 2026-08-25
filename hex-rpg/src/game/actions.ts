@@ -11,9 +11,13 @@ import { cardName, draw as drawCard, isFace, isJoker, isRed } from "./cards";
 import { distance, key } from "./hex";
 import {
   BONE,
+  FISH_TEMPLATE,
+  FISH_TO_UPGRADE,
   FOOD_PRICE,
   GEAR_PRICE,
+  SUPPLY_CAP,
   canTake,
+  isRod,
   carriedGear,
   consume,
   equip,
@@ -24,7 +28,9 @@ import {
   gearLabel,
   slotKey,
 } from "./items";
+import { meet } from "./hazards";
 import { ROLES, withMaxHealth } from "./players";
+import { bearingBetween, compassName } from "./sense";
 import { makeRng } from "./rng";
 import { activePlayer } from "./turn";
 import type { Card, Find, GameState, Item, LogEntry, Player, Terrain, Tile } from "./types";
@@ -379,7 +385,7 @@ function whatTurnedUp(
   after: GameState,
   player: Player,
   card: Card,
-  from: "chest" | "ground",
+  from: Find["from"],
 ): Find {
   const was = before.players.find((p) => p.id === player.id) ?? player;
   const now = after.players.find((p) => p.id === player.id) ?? player;
@@ -396,14 +402,25 @@ function whatTurnedUp(
   // "there was nothing there", and a card that said "Nothing at all" over a log line
   // about a carrot would be the app calling the player a liar. The card knows which
   // it was, so ask it rather than sniffing the log.
-  const offered = from === "chest" ? readChestCard(card) !== "empty" : readSearchCard(card) === "found";
+  const offered =
+    from === "line"
+      ? readFishCard(card) !== "snag"
+      : from === "chest"
+      ? readChestCard(card) !== "empty"
+      : readSearchCard(card) === "found";
 
-  const kind: Find["kind"] = isJoker(card)
+  // A joker means a different thing on each table: somebody in the undergrowth, the
+  // lid of the chest, or - on the line - the big one getting away with your bait.
+  const kind: Find["kind"] = isJoker(card) && from !== "line"
     ? from === "chest"
       ? "trap"
       : "thief"
     : gained.length > 0
-    ? "gear"
+    ? // A cast that brought up nothing but supper is its own headline. A cast that
+      // also brought up gear is a find, and the gear is the part worth shouting about.
+      from === "line" && gained.every((i) => i.slot === "supply")
+      ? "fish"
+      : "gear"
     : coins > 0
     ? "coins"
     : hurt > 0 || lost.length > 0
@@ -426,6 +443,212 @@ function whatTurnedUp(
 
 /** Put the search away once the table has looked at what came up. */
 export const clearFind = (state: GameState): GameState => ({ ...state, find: null });
+
+/* ------------------------------------------------------------------- fishing */
+
+/**
+ * The fisherman on a river, with the rod still in their hands.
+ *
+ * Unlike a search this is **not** once per tile: a river restocks, and a role whose
+ * whole job could be done four times a game is not a role. What stops it becoming
+ * camping is that it costs the turn's action and the dragon clock keeps running -
+ * an evening spent fishing one bend is an evening spent not walking to the middle.
+ * The *treasure* is the once-only part; see `fish`.
+ */
+export function canFish(state: GameState, player: Player): boolean {
+  if (busy(state, player)) return false;
+  if (!ROLES[player.role].canFish || !isRod(player.weapon)) return false;
+  return tileUnder(state, player).river;
+}
+
+/** A snag, a fish, or a fish and whatever else was down there. */
+export type FishResult = "snag" | "fish" | "treasure";
+
+/**
+ * High chance of a fish, as asked. Only the joker is a blank - two cards in
+ * fifty-four - because a role that eats has to actually eat; the interesting question
+ * on a cast is not *whether* but *what else*.
+ */
+export const readFishCard = (card: Card): FishResult =>
+  isJoker(card) ? "snag" : isFace(card) ? "treasure" : "fish";
+
+/** A fine rod brings up two at a time. That is the whole of the upgrade's fishing half. */
+export const fishPerCast = (player: Player): number => ((player.weapon?.value ?? 0) > 0 ? 2 : 1);
+
+export function fish(state: GameState): GameState {
+  const player = activePlayer(state);
+  if (!canFish(state, player)) return state;
+
+  const tile = tileUnder(state, player);
+  const pull = drawCard(state.searchDeck, state.rngState, true);
+  let next: GameState = { ...state, rngState: pull.rngState, searchDeck: pull.deck };
+
+  const acted = { ...player, actedThisTurn: true };
+  next = withPlayer(next, acted);
+  next = note(next, `${player.name} cast the line and drew ${cardName(pull.card)}.`);
+
+  const before = next;
+  const result = readFishCard(pull.card);
+  next = result === "snag" ? theOneThatGotAway(next, acted) : landFish(next, acted, pull.card);
+
+  // Treasure comes off a stretch of water once. The fish do not - that is the split
+  // that lets the fisherman always eat without letting them farm a single tile.
+  if (result === "treasure") {
+    next = tile.searched
+      ? note(next, "Nothing else down there. This water has been fished out already.")
+      : pullUpTreasure(
+          { ...next, tiles: { ...next.tiles, [key(player.hex)]: { ...tile, searched: true } } },
+          acted,
+        );
+  }
+
+  return { ...next, find: whatTurnedUp(before, next, acted, pull.card, "line") };
+}
+
+function theOneThatGotAway(state: GameState, player: Player): GameState {
+  return note(state, `Something big took the bait and went. ${player.name} has an empty hook.`);
+}
+
+/** The catch, and the rod getting better at its job on the third one. */
+function landFish(state: GameState, player: Player, card: Card): GameState {
+  let next = state;
+  let holder = player;
+  let landed = 0;
+
+  for (let i = 0; i < fishPerCast(player); i++) {
+    if (holder.supply.length >= SUPPLY_CAP) break;
+    const caught = makeItem(FISH_TEMPLATE, `fish-${card.suit}-${card.rank}-${state.log.length}-${i}`);
+    const { player: carrying } = equip(holder, caught);
+    holder = { ...carrying, fishCaught: carrying.fishCaught + 1 };
+    next = withPlayer(next, holder);
+    landed++;
+  }
+
+  if (landed === 0) {
+    return note(next, `${player.name} landed one and had nowhere to put it. Back in the water.`);
+  }
+  next = note(next, landed === 1 ? `${player.name} landed a fish.` : `${player.name} landed ${landed} fish.`);
+  return upgradeRod(next, holder);
+}
+
+/**
+ * Three fish in, and the rod is a proper rod: +1 on every roll, and two fish a cast
+ * from then on. The fisherman is the one character who earns their weapon by doing
+ * their job instead of by finding one, and it happens once - the check is on crossing
+ * the line, not on being over it.
+ */
+function upgradeRod(state: GameState, player: Player): GameState {
+  if (!isRod(player.weapon) || (player.weapon?.value ?? 0) > 0) return state;
+  if (player.fishCaught < FISH_TO_UPGRADE) return state;
+  // +1, not `makeFine`'s +2. Fine is what the best chest in the game pays out, and a
+  // rod that got there by catching three fish would make the fisherman the hardest
+  // hitter at the table - which is the exact opposite of the trade the role is.
+  const proper = { ...player.weapon!, value: 1 };
+  return note(
+    withPlayer(state, withMaxHealth({ ...player, weapon: proper })),
+    `${FISH_TO_UPGRADE} fish in, and ${player.name}'s rod is a proper rod now: +1, and two at a time.`,
+  );
+}
+
+/** A face card brings up more than dinner. Same payout as a chest, minus the armour. */
+function pullUpTreasure(state: GameState, player: Player): GameState {
+  const condition = makeRng(state.rngState);
+  const [found, ...rest] = state.itemPile;
+  if (!found) {
+    return paid(state, player, CHEST_COINS, "Something heavy on the line - a strongbox, and only coins left in it.");
+  }
+  const kit = condition.next() < FINE_CHEST_CHANCE ? makeFine(found) : found;
+  const holder = state.players.find((p) => p.id === player.id) ?? player;
+  const { player: carrying, returned } = equip(holder, kit);
+  const landed: GameState = withPlayer(
+    {
+      ...state,
+      rngState: condition.state(),
+      itemPile: returned ? [...rest, returned] : rest,
+    },
+    withMaxHealth(carrying),
+  );
+  return paid(
+    landed,
+    player,
+    CHEST_COINS,
+    returned === kit
+      ? `Something heavy on the line - ${gearLabel(kit)}, and no way to carry it.`
+      : `Something heavy on the line: ${gearLabel(kit)}!`,
+  );
+}
+
+/* ---------------------------------------------------------------------- hook */
+
+/** The rod reaches one tile. Far enough to matter, short enough to need walking to. */
+export const HOOK_RANGE = 1;
+
+/**
+ * Who is within a cast.
+ *
+ * The fallen count, and dragging one to the doctor is the best thing the hook does -
+ * so a downed player is measured from where they fell rather than from where they
+ * are standing, the same way `healTargets` does it.
+ */
+export function hookTargets(state: GameState, fisher: Player): Player[] {
+  if (!ROLES[fisher.role].canFish || !isRod(fisher.weapon)) return [];
+  return state.players.filter((p) => {
+    if (p.id === fisher.id) return false;
+    const spot = p.dead ? p.fellAt : p.hex;
+    return spot !== null && distance(spot, fisher.hex) === HOOK_RANGE;
+  });
+}
+
+export const canHook = (state: GameState, player: Player): boolean =>
+  !busy(state, player) && hookTargets(state, player).length > 0;
+
+/**
+ * Cast the line at a friend and pull - or let it pull you.
+ *
+ * The two ways round are genuinely different because **the hook may land two players
+ * on one tile**, which walking may not. `legalMoves` blocks moving onto a friend, and
+ * that rule stands: it exists so nobody gets boxed in by their own family. A rope is
+ * not a walk. Being hauled onto somebody's square is the fisherman's whole trick, and
+ * it is how the party gets assembled in one place.
+ *
+ * Whoever ends up moving arrives properly - a hazard on the tile they land on goes off
+ * under them, exactly as if they had walked there.
+ */
+export function hook(state: GameState, targetId: string, how: "pull" | "cross"): GameState {
+  const fisher = activePlayer(state);
+  if (!canHook(state, fisher)) return state;
+  const target = hookTargets(state, fisher).find((p) => p.id === targetId);
+  if (!target) return state;
+
+  const moving = how === "pull" ? target : fisher;
+  const landing = how === "pull" ? fisher.hex : (target.dead ? target.fellAt ?? target.hex : target.hex);
+  const bearing = compassName(bearingBetween(moving.hex, landing));
+
+  let next: GameState = {
+    ...state,
+    players: state.players.map((p) => {
+      if (p.id === fisher.id && how === "cross") return { ...p, hex: landing, actedThisTurn: true };
+      if (p.id === fisher.id) return { ...p, actedThisTurn: true };
+      if (p.id === target.id && how === "pull") {
+        return { ...p, hex: landing, fellAt: p.dead ? landing : p.fellAt };
+      }
+      return p;
+    }),
+  };
+
+  next = note(
+    next,
+    how === "pull"
+      ? `${fisher.name} cast the line and reeled ${target.name} in from the ${bearing}.`
+      : `${fisher.name} hooked on to ${target.name} and hauled themselves across.`,
+  );
+
+  // Landing on a hazard sets it off, the same as walking into it does.
+  for (const hazard of next.hazards) {
+    if (key(hazard.hex) === key(landing)) next = meet(next, hazard.kind, moving.id);
+  }
+  return next;
+}
 
 function findSomething(state: GameState, player: Player, card: Card): GameState {
   const coins = coinsFound(card);

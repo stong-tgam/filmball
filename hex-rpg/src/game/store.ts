@@ -11,10 +11,15 @@ import { attack, combatants, endCombat, flee, takeSpoil } from "./combat";
 import {
   buy,
   canHeal,
+  canFish,
+  canHook,
   canSearch,
   canTrade,
   clearFind,
   eat,
+  fish,
+  hook,
+  hookTargets,
   heal,
   healTargets,
   openShop,
@@ -36,6 +41,8 @@ type Store = {
   attack: () => void;
   flee: () => void;
   search: () => void;
+  fish: () => void;
+  hook: (targetId: string, how: "pull" | "cross") => void;
   donate: () => void;
   /** Shops are a panel, not a phase: opening one spends the turn's action. */
   shopOpen: boolean;
@@ -67,6 +74,8 @@ export const useGame = create<Store>((set, get) => ({
   flee: () => set({ game: flee(get().game) }),
   closeCombat: () => set({ game: endTurn(endCombat(get().game)), selected: null }),
   search: () => set({ game: search(get().game) }),
+  fish: () => set({ game: fish(get().game) }),
+  hook: (targetId, how) => set({ game: hook(get().game, targetId, how), selected: null }),
   donate: () => set({ game: donate(get().game) }),
   shopOpen: false,
   openShop: () => set({ game: openShop(get().game), shopOpen: true }),
@@ -88,6 +97,12 @@ export const useLegalMoves = (): Map<string, number> =>
 
 export const useCanSearch = (): boolean =>
   useGame((s) => canSearch(s.game, activePlayer(s.game)));
+export const useCanFish = (): boolean =>
+  useGame((s) => canFish(s.game, activePlayer(s.game)));
+export const useCanHook = (): boolean =>
+  useGame((s) => canHook(s.game, activePlayer(s.game)));
+export const useHookTargets = (): Player[] =>
+  useGame((s) => hookTargets(s.game, activePlayer(s.game)));
 export const useCanTrade = (): boolean =>
   useGame((s) => canTrade(s.game, activePlayer(s.game)));
 export const useCanDonate = (): boolean =>

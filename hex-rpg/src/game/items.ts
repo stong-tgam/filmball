@@ -41,6 +41,40 @@ export const EQUIPMENT: ItemTemplate[] = [
   ...BOOTS.map((name) => ({ name, slot: "boots" as const, cost: GEAR_PRICE, value: 1 })),
 ];
 
+/**
+ * The fisherman's rod. Not in `EQUIPMENT`, so it is never in the pile, never in a
+ * shop, and never dropped by anything - there is exactly one in the game and one
+ * person holds it.
+ *
+ * It sits in the weapon slot and adds **nothing** to a roll, which is the trade the
+ * whole role is built on: the fisherman is the worst fighter at the table and the
+ * only one who can feed it. `FISH_TO_UPGRADE` fish in and it becomes a **+1** - an
+ * ordinary weapon, not a fine one, because `FINE_VALUE` is what the best chest in the
+ * game pays out and three fish should not beat that. So the fisherman is the one
+ * character who earns their weapon by doing their job rather than by finding one.
+ */
+export const FISHING_ROD = "Fishing Rod";
+export const ROD_TEMPLATE: ItemTemplate = {
+  name: FISHING_ROD,
+  slot: "weapon",
+  cost: GEAR_PRICE,
+  value: 0,
+};
+
+/** A caught fish. Ordinary food - one health - and the river never runs out. */
+export const FISH = "Fish";
+export const FISH_TEMPLATE: ItemTemplate = {
+  name: FISH,
+  slot: "supply",
+  cost: FOOD_PRICE,
+  value: 1,
+};
+
+/** How many fish it takes before the rod is a proper rod. */
+export const FISH_TO_UPGRADE = 3;
+
+export const isRod = (item: Item | null): boolean => item?.name === FISHING_ROD;
+
 /** Cake heals two, the bone heals nothing, everything else heals one. */
 export const CAKE = "Birthday Cake";
 export const BONE = "Bone";
@@ -79,9 +113,15 @@ export const isFine = (item: Item): boolean => item.slot !== "supply" && item.va
 export const makeFine = (item: Item): Item =>
   item.slot === "supply" ? item : { ...item, value: FINE_VALUE };
 
-/** "Frying Pan +2". Numbers are never handwritten, so the UI reads this, not the name. */
+/**
+ * "Frying Pan +2". Numbers are never handwritten, so the UI reads this, not the name.
+ *
+ * A "+0" is not a grade, it is a piece of gear that does nothing, and printing it
+ * invites a child to hunt for the +1 version of a thing that has none. Only the
+ * fisherman's rod is ever worth nothing, and it is worth nothing on purpose.
+ */
 export const gearLabel = (item: Item): string =>
-  item.slot === "supply" ? item.name : `${item.name} +${item.value}`;
+  item.slot === "supply" || item.value === 0 ? item.name : `${item.name} +${item.value}`;
 
 let counter = 0;
 export const makeItem = (template: ItemTemplate, id?: string): Item => ({
@@ -128,6 +168,10 @@ export function equip(player: Player, item: Item): { player: Player; returned: I
     if (player.supply.length >= SUPPLY_CAP) return { player, returned: item };
     return { player: { ...player, supply: [...player.supply, item] }, returned: null };
   }
+  // The rod is not swappable. A ground search equips what it finds without asking,
+  // so without this the fisherman loses the whole role to a lucky card and a child
+  // has no idea why they can no longer fish.
+  if (item.slot === "weapon" && isRod(player.weapon)) return { player, returned: item };
 
   const returned = equipped(player, item.slot);
   return { player: { ...player, [slotKey(item.slot)]: item }, returned };
@@ -135,7 +179,9 @@ export function equip(player: Player, item: Item): { player: Player; returned: I
 
 /** Whether taking this would actually do anything for the player. */
 export const canTake = (player: Player, item: Item): boolean =>
-  item.slot !== "supply" || player.supply.length < SUPPLY_CAP;
+  item.slot === "supply"
+    ? player.supply.length < SUPPLY_CAP
+    : !(item.slot === "weapon" && isRod(player.weapon));
 
 /**
  * Eat something. Heals up to the player's maximum and leaves the pack. The bone heals

@@ -28,8 +28,11 @@ import { gearLabel } from "../game/items";
 import type { Find } from "../game/types";
 
 /** The headline, the way you would say it out loud, and the button that closes it. */
-const HEADLINE: Record<Find["kind"], { title: string; close: string }> = {
+const HEADLINE: Record<Find["kind"] | "gearOnTheLine", { title: string; close: string }> = {
   gear: { title: "Look what was down there!", close: "Take it" },
+  // Same outcome, different place - "down there" is a hole, and this came out of a river.
+  gearOnTheLine: { title: "Something on the end of it!", close: "Take it" },
+  fish: { title: "Fish on!", close: "In the bag" },
   coins: { title: "Money!", close: "Pocket it" },
   full: { title: "No room for it.", close: "A shame" },
   nothing: { title: "Nothing at all.", close: "Never mind" },
@@ -39,24 +42,54 @@ const HEADLINE: Record<Find["kind"], { title: string; close: string }> = {
 };
 
 /**
- * What an empty search says. Four of them, picked by the card that came up rather
- * than at random, so the same seed tells the same story twice - and so the fourth
- * empty field in a row is not word for word the third.
+ * What coming up empty says, in the words of what you were doing.
+ *
+ * Four each, picked by the card that came up rather than at random, so the same seed
+ * tells the same story twice and the fourth empty field in a row is not word for word
+ * the third. Split by source because "a very good hole" over a fishing rod is the app
+ * not paying attention, and a child notices that faster than an adult does.
  */
-const EMPTY_HANDED = [
-  "Stones, roots and a bottle top.",
-  "Somebody has been here already.",
-  "A very good hole. Nothing in it.",
-  "Half a worm, and it did not want to be found.",
-];
+const EMPTY_HANDED: Record<Find["from"], string[]> = {
+  ground: [
+    "Stones, roots and a bottle top.",
+    "Somebody has been here already.",
+    "A very good hole. Nothing in it.",
+    "Half a worm, and it did not want to be found.",
+  ],
+  chest: [
+    "River water, and a great deal of it.",
+    "Weed, mostly. Some of it moving.",
+    "An empty box with a very good lock on it.",
+    "Somebody got here first and left the lid open.",
+  ],
+  line: [
+    "A bite, a splash, and an empty hook.",
+    "Whatever that was, it is still out there.",
+    "The line went tight and then it went slack.",
+    "One boot. Not even a matching one.",
+  ],
+};
+
+/** Where this came from, and what the face-down card says while you wait for it. */
+const WHERE: Record<Find["from"], string> = {
+  ground: "Under the ground",
+  chest: "Out of the water",
+  line: "On the end of the line",
+};
+const DOING: Record<Find["from"], string> = {
+  ground: "Searching",
+  chest: "Opening",
+  line: "Fishing",
+};
 
 /** How long the card stays face down before it turns over. */
 export const SUSPENSE_MS = 2000;
 
 export default function FindCard({ find, onClose }: { find: Find; onClose: () => void }) {
   const { kind, gained, lost, coins, hurt } = find;
-  const said = HEADLINE[kind];
-  const empty = EMPTY_HANDED[find.card.rank.charCodeAt(0) % EMPTY_HANDED.length];
+  const said = HEADLINE[kind === "gear" && find.from === "line" ? "gearOnTheLine" : kind];
+  const lines = EMPTY_HANDED[find.from];
+  const empty = lines[find.card.rank.charCodeAt(0) % lines.length];
 
   const [turned, setTurned] = useState(false);
   useEffect(() => {
@@ -73,7 +106,7 @@ export default function FindCard({ find, onClose }: { find: Find; onClose: () =>
         className="modal-backdrop"
         role="dialog"
         aria-modal="true"
-        aria-label={find.from === "chest" ? "Opening the chest" : "Searching the ground"}
+        aria-label={`${DOING[find.from]} — ${WHERE[find.from]}`}
       >
         {/*
           Tap to skip. Two seconds is right the first ten times and a toll the fortieth,
@@ -86,10 +119,10 @@ export default function FindCard({ find, onClose }: { find: Find; onClose: () =>
           onClick={() => setTurned(true)}
           role="presentation"
         >
-          <p className="draw-turn">{find.from === "chest" ? "Out of the water" : "Under the ground"}</p>
+          <p className="draw-turn">{WHERE[find.from]}</p>
           <div className="card card-down">
             <span className="card-down-word">
-              {find.from === "chest" ? "Opening" : "Searching"}
+              {DOING[find.from]}
               <span className="card-down-dots" aria-hidden="true">
                 <i />
                 <i />
@@ -106,7 +139,7 @@ export default function FindCard({ find, onClose }: { find: Find; onClose: () =>
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="What the search turned up">
       <div className={`modal modal-narrow find find-${kind}`}>
-        <p className="draw-turn">{find.from === "chest" ? "Out of the water" : "Under the ground"}</p>
+        <p className="draw-turn">{WHERE[find.from]}</p>
 
         {/* The card turns over first; everything below it is held back until it has. */}
         <div className="find-turn">
@@ -129,7 +162,10 @@ export default function FindCard({ find, onClose }: { find: Find; onClose: () =>
                 >
                   <ItemArt name={item.name} seedName={item.id} />
                 </Token>
-                <span className="find-token-note">{gearLabel(item)}</span>
+                {/* The token already has the name on it. Repeat only the grade. */}
+                {gearLabel(item) !== item.name && (
+                  <span className="find-token-note">{gearLabel(item)}</span>
+                )}
               </li>
             ))}
           </ul>

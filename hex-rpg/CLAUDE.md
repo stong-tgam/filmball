@@ -63,13 +63,13 @@ reference/    the rulebook, the build spec, and the token art prompt
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 288 tests
+npm test           # 308 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html you can hand to somebody
 npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
 ```
 
-## Current state: v1.5
+## Current state: v1.6
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -78,10 +78,34 @@ the whole game is legible to a child because it runs on single digits.
 
 Key rules, so nothing gets "improved" back to a guess:
 
-- **Roles (§3)**: knight +1 health, **rogue +1 attack**, **scout +1 movement and +1
-  sight**, doctor heals and revives. Everyone starts on 3 health and $2. The scout's
-  sight is the bonus that matters most now the board is hidden — one extra ring is
-  roughly triple what a turn tells you.
+- **Roles**: knight +1 health, **rogue +1 attack**, **scout +1 movement and +1
+  sight**, doctor heals and revives, **fisherman fishes and hooks**. Everyone starts on
+  3 health and $2. The scout's sight is the bonus that matters most now the board is
+  hidden — one extra ring is roughly triple what a turn tells you. Four are rulebook
+  §3; the fisherman is this build's own, and the party is **five**, on five of the six
+  corners.
+- **The fisherman** is the odd role out on purpose: every other bonus is a number added
+  to a roll, theirs is a **thing they hold**. The rod is in the weapon slot at **+0**,
+  cannot be swapped away (`equip` refuses — a ground search equips what it finds
+  without asking, and the role would evaporate on a lucky card), and becomes **+1**
+  after `FISH_TO_UPGRADE` fish. **+1, not `makeFine`'s +2**: fine is what the best chest
+  in the game pays, and three fish must not beat that.
+  - **Fishing** (`canFish`, `fish`) needs a river and costs the action. Nearly every
+    card is a fish; only the joker is a blank. Unlike a search it is **not once per
+    tile** — a river restocks, and a role whose job can be done four times a game is
+    not a role. The **treasure** is the once-only half and it does consume
+    `tile.searched`; that split is what lets the fisherman always eat without letting
+    them farm one bend.
+  - **The hook** (`hookTargets`, `hook`) reaches one tile and either reels a friend
+    onto your tile or hauls you onto theirs. It is the one thing that may **put two
+    players on one tile** — `legalMoves` still forbids *walking* onto a friend, and
+    that rule stands, but a rope is not a walk. Dragging a downed friend to the doctor
+    is the best thing it does, so `fellAt` moves with the body.
+- **Monster placement adapts to party size** (`safeRadiusFor`). `SAFE_RADIUS` is still
+  2, but held at 2 with five players there were **20 legal tiles for 19 monsters** —
+  every legal tile got one and all six tiles round the dragon were a wall. The radius
+  now gives ground to keep at least `MIN_OPEN_PER_MONSTER` tiles free per monster, so
+  the board stays a scatter. There is a test on the packing ratio.
 - **Combat (§7)**: roll 3 dice + attack against the enemy's *remaining* health. Over
   it, beaten. Under it, the damage sticks and you lose **1 health, flat**. Exactly
   equal, **nothing happens and you go back where you started**.

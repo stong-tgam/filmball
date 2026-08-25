@@ -8,6 +8,7 @@
 
 import { ROLES } from "../game/players";
 import ItemArt from "./art/items";
+import { gearLabel } from "../game/items";
 import { moveRange, stepsLeft } from "../game/turn";
 import type { Player } from "../game/types";
 
@@ -111,7 +112,7 @@ export function PartyList({
                       <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">
                         <ItemArt name={item.name} seedName={item.id} />
                       </svg>
-                      {item.name} +{item.value}
+                      {gearLabel(item)}
                     </span>
                   ))}
               </span>
@@ -135,7 +136,7 @@ export function PartyList({
                     <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">
                       <ItemArt name={item.name} seedName={item.id} />
                     </svg>
-                    {item.name} +{item.value}
+                    {gearLabel(item)}
                   </button>
                 ))}
               </span>

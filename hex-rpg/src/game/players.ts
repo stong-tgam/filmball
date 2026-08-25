@@ -1,15 +1,23 @@
 /**
- * The four roles, from rulebook §3.
+ * The five roles. Four are rulebook §3; the fisherman is this build's own.
  *
  * Everyone starts on **3 health and $2**. The role bonuses are small and single:
  * the knight can take one more hit, the rogue hits one harder, the scout walks one
- * further, and the doctor is the only one who can put anybody back together.
+ * further, the doctor is the only one who can put anybody back together, and the
+ * fisherman is the only one who starts holding anything at all.
+ *
+ * The fisherman is the odd one out on purpose. Every other bonus is a number added to
+ * a roll; theirs is a **rod**, which is a thing you hold and can therefore be drawn,
+ * upgraded and pointed at. It makes them the worst fighter at the table - the rod adds
+ * nothing - in exchange for the only reliable food supply in the game and the only way
+ * to move somebody who is not you.
  *
  * Health is tiny on purpose - the whole game runs on 3 or 4 hit points, so a single
  * failed roll matters and a single piece of food is worth carrying.
  */
 
 import { boardCorners, type Hex } from "./hex";
+import { ROD_TEMPLATE, makeItem } from "./items";
 import type { Rng } from "./rng";
 import type { Player, Role } from "./types";
 
@@ -53,6 +61,8 @@ export type RoleProfile = {
   sightBonus: number;
   /** Doctors, and only doctors, can heal and revive. */
   canHeal: boolean;
+  /** Fishermen, and only fishermen, can fish a river and cast the hook. */
+  canFish: boolean;
   /**
    * Token colour. Picked to read against fields, forest and city alike, and to stay
    * clear of the board's orange selection ring.
@@ -69,6 +79,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     moveBonus: 0,
     sightBonus: 0,
     canHeal: false,
+    canFish: false,
     colour: "#d64545",
   },
   rogue: {
@@ -79,6 +90,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     moveBonus: 0,
     sightBonus: 0,
     canHeal: false,
+    canFish: false,
     colour: "#9b5de5",
   },
   scout: {
@@ -89,6 +101,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     moveBonus: 1,
     sightBonus: 1,
     canHeal: false,
+    canFish: false,
     colour: "#17b3c9",
   },
   doctor: {
@@ -99,12 +112,24 @@ export const ROLES: Record<Role, RoleProfile> = {
     moveBonus: 0,
     sightBonus: 0,
     canHeal: true,
+    canFish: false,
     colour: "#f0ece0",
+  },
+  fisherman: {
+    name: "Fisher",
+    blurb: "Fishes the river for food and treasure, and can hook a friend across.",
+    healthBonus: 0,
+    attackBonus: 0,
+    moveBonus: 0,
+    sightBonus: 0,
+    canHeal: false,
+    canFish: true,
+    colour: "#3f9e5a",
   },
 };
 
 /** Turn order, and the order roles are handed out. */
-export const TURN_ORDER: Role[] = ["knight", "rogue", "scout", "doctor"];
+export const TURN_ORDER: Role[] = ["knight", "rogue", "scout", "doctor", "fisherman"];
 
 /**
  * Full health for this player: the base, the role's bonus, and their armour, which
@@ -129,7 +154,8 @@ const spawn = (role: Role, hex: Hex): Player => {
     health: maxHealth,
     maxHealth,
     money: BASE_MONEY,
-    weapon: null,
+    // The only starting kit anybody has. It adds nothing to a roll; see ROD_TEMPLATE.
+    weapon: ROLES[role].canFish ? makeItem(ROD_TEMPLATE, "fishing-rod") : null,
     armor: null,
     boots: null,
     supply: [],
@@ -141,6 +167,7 @@ const spawn = (role: Role, hex: Hex): Player => {
     stunned: false,
     joinedFightThisRound: false,
     bonusDiceNextFight: 0,
+    fishCaught: 0,
   };
 };
 
@@ -149,8 +176,8 @@ const spawn = (role: Role, hex: Hex): Player => {
  *
  * Corners are always four tiles apart, so nobody starts next to anybody and everyone
  * is the same distance from the middle - which matters at a kitchen table, where
- * "you started closer" is an argument waiting to happen. Which four of the six
- * corners get used comes from the seed.
+ * "you started closer" is an argument waiting to happen. Which of the six corners get
+ * used comes from the seed; with five roles there is one corner spare.
  */
 export function createPlayers(rng: Rng): Player[] {
   const corners = rng.shuffle(boardCorners()).slice(0, TURN_ORDER.length);

@@ -424,9 +424,44 @@ const Cookie: Art = ({ seedName }) => (
   </g>
 );
 
+/* ------------------------------------------------------- rod and what it lands */
+
+/**
+ * The fisherman's rod. Drawn as the whole cast rather than as a stick: the pole
+ * corner to corner, the line hanging off it, and a hook on the end - because the two
+ * things it does are fishing and reaching a friend, and a bare pole says neither.
+ */
+const FishingRod: Art = ({ seedName }) => (
+  <g filter={wobbleFor(seedName)}>
+    <Marked d="M20 88 l6 -6 l52 -52 l-6 6 Z" fill={WOOD} />
+    <Marked d="M70 24 h14 v7 h-14 Z" fill={darken(WOOD, 0.3)} />
+    {/* Line off the tip, with the sag a line actually has. */}
+    <path d="M80 28 q10 22 2 38" fill="none" stroke={INK} strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M82 66 q-1 8 -8 8 q-6 0 -6 -6" fill="none" stroke={STEEL} strokeWidth="2.6" strokeLinecap="round" />
+    {/* The reel, so it reads as a rod and not a cane. */}
+    <Marked d="M34 68 a7 7 0 1 0 0.1 0 Z" fill={STEEL} stroke={darken(STEEL, 0.3)} />
+  </g>
+);
+
+/** Supper. Fat, striped and cheerful - the children's fish, not a diagram of one. */
+const CaughtFish: Art = ({ seedName }) => (
+  <g filter={wobbleFor(seedName)}>
+    <Marked d="M16 52 q22 -26 46 -0.5 q-24 26 -46 0.5 Z" fill={MARKER.river} />
+    <Marked d="M62 52 l20 -14 v28 Z" fill={darken(MARKER.river, 0.15)} />
+    <g stroke={darken(MARKER.river, 0.4)} strokeWidth="2.4" strokeLinecap="round" fill="none">
+      <path d="M34 36 v32" />
+      <path d="M46 39 v26" />
+    </g>
+    <circle cx="26" cy="48" r="3.4" fill="#F7F3E8" />
+    <circle cx="26" cy="48" r="1.7" fill={INK} />
+  </g>
+);
+
 /* ------------------------------------------------------------------ lookup */
 
 const ITEM_ART: Record<string, Art> = {
+  "Fishing Rod": FishingRod,
+  Fish: CaughtFish,
   "Wooden Sword": WoodenSword,
   "Frying Pan": FryingPan,
   Slingshot,

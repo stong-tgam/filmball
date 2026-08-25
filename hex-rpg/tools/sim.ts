@@ -15,7 +15,7 @@
 import { startGame } from "../src/game/setup";
 import { activePlayer, endTurn, legalMoves, movePlayer } from "../src/game/turn";
 import { attack, endCombat, flee } from "../src/game/combat";
-import { canSearch, search } from "../src/game/actions";
+import { canFish, canSearch, fish, search } from "../src/game/actions";
 import { clearDraw } from "../src/game/turn";
 import { distance, fromLabel } from "../src/game/hex";
 import { makeRng } from "../src/game/rng";
@@ -68,7 +68,11 @@ function botTurn(state: GameState, roll: () => number): GameState {
   if (next.ending) return next;
 
   const after = activePlayer(next);
-  if (!next.combat && canSearch(next, after)) next = search(next);
+  // Fish if you can, search otherwise. The bot still never eats what it catches, so
+  // the fisherman's food is worth nothing to it - this measures the role's effect on
+  // the board and the economy, not on survival.
+  if (!next.combat && canFish(next, after)) next = fish(next);
+  else if (!next.combat && canSearch(next, after)) next = search(next);
 
   if (next.combat && next.combat.outcome !== "ongoing") next = endCombat(next);
   return next.combat ? next : endTurn(next);

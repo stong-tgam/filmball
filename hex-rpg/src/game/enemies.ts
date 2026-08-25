@@ -137,6 +137,35 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
 export const SAFE_RADIUS = 2;
 
 /**
+ * Tiles that must stay open for every monster placed, or the "safe" ring is not worth
+ * what it costs.
+ *
+ * Two. Below that, placement stops being a scatter and becomes a filling-in: with the
+ * fifth player on the board and `SAFE_RADIUS` held at 2 there were 20 legal tiles for
+ * 19 monsters, so *every* legal tile got one and all six tiles round the dragon were
+ * a wall. That is the opposite of what the scatter is for - if the board is saturated
+ * then exploring tells you nothing again, only this time because everywhere is
+ * dangerous rather than because everywhere is the same.
+ */
+const MIN_OPEN_PER_MONSTER = 2;
+
+/**
+ * The biggest safe ring this board can afford around the party.
+ *
+ * Prefers `SAFE_RADIUS` and gives ground only when the party is big enough that
+ * keeping it would jam every monster into the middle. At four players it returns 2, as
+ * it always has; at five it returns 1, which still means nothing is adjacent at the
+ * start and nobody on one move a turn can reach a monster before turn two.
+ */
+export function safeRadiusFor(players: Player[], monsters: number): number {
+  for (let radius = SAFE_RADIUS; radius > 0; radius--) {
+    const open = allHexes().filter((h) => players.every((p) => distance(p.hex, h) > radius));
+    if (open.length >= monsters * MIN_OPEN_PER_MONSTER) return radius;
+  }
+  return 0;
+}
+
+/**
  * The two thieves that are both hazards and enemies. They are placed by
  * `placeHazards`, and `moveHazards` keeps the two records on the same tile.
  */
@@ -204,9 +233,11 @@ export function placeEnemies(rng: Rng, players: Player[]): Enemy[] {
     spawn("finalboss", centre, 1, rng.int(...ENEMIES.finalboss.health)),
   ];
 
+  const monsters = ENEMIES.midboss.count + ENEMIES.mob.count;
+  const radius = safeRadiusFor(players, monsters);
+
   const taken = (h: Hex) => placed.some((e) => e.hex.q === h.q && e.hex.r === h.r);
-  const free = (h: Hex) =>
-    !taken(h) && players.every((p) => distance(p.hex, h) > SAFE_RADIUS);
+  const free = (h: Hex) => !taken(h) && players.every((p) => distance(p.hex, h) > radius);
 
   const open = rng.shuffle(allHexes()).filter(free);
   let next = 0;

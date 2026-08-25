@@ -5,6 +5,7 @@ import { createInitialState } from "../src/game/setup";
 import { activePlayer, endTurn, legalMoves, movePlayer, moveRange } from "../src/game/turn";
 import { BASE_HEALTH, BASE_MONEY, ROLES, TURN_ORDER, createPlayers } from "../src/game/players";
 import { makeRng } from "../src/game/rng";
+import { FISHING_ROD } from "../src/game/items";
 import {
   boardCorners,
   distance,
@@ -24,10 +25,12 @@ const take = (state: GameState, destination?: string): GameState =>
   endTurn(destination ? movePlayer(state, destination) : state);
 
 describe("the party", () => {
-  it("puts four players on the board, one per role", () => {
+  it("puts one player on the board per role", () => {
     const state = game();
-    expect(state.players).toHaveLength(4);
+    expect(state.players).toHaveLength(TURN_ORDER.length);
     expect(state.players.map((p) => p.role)).toEqual(TURN_ORDER);
+    // Six corners, so the party has to keep fitting on them.
+    expect(TURN_ORDER.length).toBeLessThanOrEqual(boardCorners().length);
   });
 
   it("starts everyone on a corner, four tiles apart and equidistant from the middle", () => {
@@ -47,14 +50,24 @@ describe("the party", () => {
     }
   });
 
-  it("starts everyone alive, at full health, with nothing equipped", () => {
+  it("starts everyone alive, at full health, and empty-handed but for the rod", () => {
     for (const p of game().players) {
       expect(p.dead).toBe(false);
       expect(p.health).toBe(p.maxHealth);
       expect(p.health).toBe(BASE_HEALTH + ROLES[p.role].healthBonus);
-      expect([p.weapon, p.armor, p.boots]).toEqual([null, null, null]);
+      expect([p.armor, p.boots]).toEqual([null, null]);
       expect(p.supply).toEqual([]);
       expect(hasMoved(p)).toBe(false);
+      expect(p.fishCaught).toBe(0);
+
+      // The fisherman is the one exception, and the rod adds nothing to a roll -
+      // the whole role is paid for by being the worst fighter at the table.
+      if (ROLES[p.role].canFish) {
+        expect(p.weapon?.name).toBe(FISHING_ROD);
+        expect(p.weapon?.value).toBe(0);
+      } else {
+        expect(p.weapon).toBeNull();
+      }
     }
   });
 
@@ -215,7 +228,7 @@ describe("turn order", () => {
     expect(state.turn).toBe(1);
 
     const seen: string[] = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < TURN_ORDER.length; i++) {
       seen.push(activePlayer(state).id);
       state = endTurn(state);
     }
@@ -250,7 +263,8 @@ describe("turn order", () => {
 
   it("ends the game when the turn limit runs out", () => {
     let state: GameState = { ...game(), turnLimit: 2 };
-    for (let i = 0; i < 8 && state.phase !== "gameOver"; i++) state = endTurn(state);
+    const passes = TURN_ORDER.length * 3;
+    for (let i = 0; i < passes && state.phase !== "gameOver"; i++) state = endTurn(state);
 
     expect(state.phase).toBe("gameOver");
     expect(state.turn).toBe(2);

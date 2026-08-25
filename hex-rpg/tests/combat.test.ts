@@ -11,11 +11,11 @@ import {
   rollDice,
   startCombat,
 } from "../src/game/combat";
-import { ENEMIES, enemyAt, healthLeft, placeEnemies, SAFE_RADIUS } from "../src/game/enemies";
+import { ENEMIES, enemyAt, healthLeft, placeEnemies, safeRadiusFor } from "../src/game/enemies";
 import { createInitialState } from "../src/game/setup";
 import { legalMoves, movePlayer, endTurn, activePlayer } from "../src/game/turn";
 import { makeRng } from "../src/game/rng";
-import { distance, key, neighbours } from "../src/game/hex";
+import { allHexes, distance, key, neighbours } from "../src/game/hex";
 import type { Enemy, GameState } from "../src/game/types";
 
 /**
@@ -31,20 +31,34 @@ function fleeUntilAway(state: GameState, tries = 40): GameState {
 const SEEDS = [1, 7, 42, 4471, 90210];
 
 /** A game where the active player is standing next to the named kind of enemy. */
+/**
+ * A game with the knight standing next to the given monster and everybody else out of
+ * it, for testing one fight in isolation.
+ *
+ * Monsters are scattered at random, so on any given seed a monster can be hemmed in by
+ * other monsters with no free tile to stand on - the dragon at seed 4471 is exactly
+ * that. Rather than pin a seed that happens to work today, walk seeds until one gives
+ * a free neighbour. A fixture that breaks whenever placement shifts is a fixture that
+ * cries wolf.
+ */
 function facing(kind: Enemy["kind"], seed = 4471): { state: GameState; enemy: Enemy } {
-  const base = createInitialState(seed);
-  const enemy = base.enemies.find((e) => e.kind === kind)!;
-  // Put the knight on a neighbouring tile, and clear everyone else out of the way.
-  const spot = neighbours(enemy.hex).find(
-    (h) => !base.enemies.some((e) => key(e.hex) === key(h)),
-  )!;
-  const state: GameState = {
-    ...base,
-    players: base.players.map((p, i) =>
-      i === 0 ? { ...p, hex: spot } : { ...p, hex: { q: 0, r: -4 }, dead: true },
-    ),
-  };
-  return { state, enemy };
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const base = createInitialState(seed + attempt);
+    const enemy = base.enemies.find((e) => e.kind === kind);
+    if (!enemy) continue;
+    const spot = neighbours(enemy.hex).find(
+      (h) => !base.enemies.some((e) => key(e.hex) === key(h)),
+    );
+    if (!spot) continue;
+    const state: GameState = {
+      ...base,
+      players: base.players.map((p, i) =>
+        i === 0 ? { ...p, hex: spot } : { ...p, hex: { q: 0, r: -4 }, dead: true },
+      ),
+    };
+    return { state, enemy };
+  }
+  throw new Error(`no seed near ${seed} leaves a free tile beside a ${kind}`);
 }
 
 describe("dice", () => {
@@ -98,15 +112,35 @@ describe("placing enemies", () => {
     }
   });
 
-  it("never starts a fight on turn 1: no monster spawns near the party", () => {
+  it("never starts a fight on turn 1: no monster spawns beside the party", () => {
     for (const seed of SEEDS) {
       const { players, enemies } = createInitialState(seed);
+      const monsters = enemies.filter((e) => e.kind !== "robber" && e.kind !== "pirates");
+      // The ring the board can actually afford. It is `SAFE_RADIUS` when there is room
+      // and one less when the party is big enough that holding it would jam every
+      // monster into the middle - see `safeRadiusFor`.
+      const radius = safeRadiusFor(players, monsters.length - 1);
+      expect(radius).toBeGreaterThanOrEqual(1);
+
       // The thieves are placed as hazards, under §5.5's rules, not with the monsters.
-      for (const enemy of enemies.filter((e) => e.kind !== "robber" && e.kind !== "pirates")) {
+      for (const enemy of monsters) {
         for (const player of players) {
-          expect(distance(enemy.hex, player.hex)).toBeGreaterThan(SAFE_RADIUS);
+          expect(distance(enemy.hex, player.hex)).toBeGreaterThan(radius);
         }
       }
+    }
+  });
+
+  it("leaves the board scattered rather than packed, whatever the party size", () => {
+    // The point of the safe ring is that it costs tiles; the point of shrinking it is
+    // that a saturated board is not a scatter. If every legal tile has a monster on it
+    // then "explore and find out" means nothing, so hold the line at half.
+    for (const seed of SEEDS) {
+      const { players, enemies } = createInitialState(seed);
+      const monsters = enemies.filter((e) => e.kind !== "robber" && e.kind !== "pirates");
+      const radius = safeRadiusFor(players, monsters.length - 1);
+      const open = allHexes().filter((h) => players.every((p) => distance(p.hex, h) > radius));
+      expect(monsters.length / open.length).toBeLessThanOrEqual(0.5);
     }
   });
 
