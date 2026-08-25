@@ -122,10 +122,31 @@ export function canTrade(state: GameState, player: Player): boolean {
 }
 
 /** Rulebook §6: red finds something, black finds nothing, the joker is a thief. */
-export type SearchResult = "found" | "nothing" | "thief";
+export type SearchResult = "found" | "supply" | "nothing" | "thief";
+
+/**
+ * The low black cards are lunch.
+ *
+ * §6 makes every black card "nothing", and at the table that was two searches in five
+ * spent on a card that says no. A turn is a big thing to a child - it is most of what
+ * they get to do - and the honest reading of the playtest is that the ground was too
+ * often not worth turning over.
+ *
+ * So black **2 through 6** now turns up something to eat. It is the smallest win the
+ * game has, which is what makes it the right filler: food is one health, it is not
+ * gear, and it leaves the keep-it-or-sell-it decision §10 exists to protect alone.
+ * Roughly: gear 48%, food 19%, nothing 18%, a mishap 11%, a thief 4%.
+ */
+const SUPPLY_RANKS = ["2", "3", "4", "5", "6"];
 
 export const readSearchCard = (card: Card): SearchResult =>
-  isJoker(card) ? "thief" : isRed(card) ? "found" : "nothing";
+  isJoker(card)
+    ? "thief"
+    : isRed(card)
+    ? "found"
+    : SUPPLY_RANKS.includes(card.rank)
+    ? "supply"
+    : "nothing";
 
 /**
  * Coins under the gear, when the red card was a picture card.
@@ -241,8 +262,20 @@ function openChest(state: GameState, player: Player, card: Card): GameState {
         `The lid came down on ${player.name}'s fingers. One health.`,
       );
     }
-    default:
-      return note(state, `${player.name} dragged up a chest full of river water.`);
+    default: {
+      // The empty chest used to be nothing at all, which made the best-odds tile in
+      // the game a dud one time in four. It still holds no gear - the river's payout
+      // is meant to be gear or coins - but there is something in it worth eating.
+      const rng = makeRng(state.rngState);
+      const parcel = randomFood(rng, `chest-${state.log.length}`);
+      const holder = state.players.find((p) => p.id === player.id) ?? player;
+      const { player: carrying, returned } = equip(holder, parcel);
+      const soaked = note(
+        { ...state, rngState: rng.state() },
+        `${player.name} dragged up a chest full of river water — and ${an(parcel.name)} floating in it.`,
+      );
+      return returned ? soaked : withPlayer(soaked, carrying);
+    }
   }
 }
 
@@ -351,8 +384,37 @@ export function search(state: GameState): GameState {
   const from = searchKind(tile);
   next = note(next, `${player.name} ${from === "chest" ? "fished a chest out of the water" : "searched the ground here"} and drew ${cardName(pull.card)}.`);
 
-  const after = resolveSearch(next, acted, pull.card, from);
-  return { ...after, find: whatTurnedUp(next, after, acted, pull.card, from) };
+  // The scout's second look, on the ground they know. Drawn *before* resolving, so
+  // the card that gets read is the better of the two rather than the first one being
+  // resolved and then undone - state that has already changed cannot be taken back.
+  let card = pull.card;
+  if (worthASecondLook(acted, tile, card)) {
+    const again = drawCard(next.searchDeck, next.rngState, true);
+    next = { ...next, rngState: again.rngState, searchDeck: again.deck };
+    card = again.card;
+    next = note(next, `${player.name} knows these woods. Second look: ${cardName(card)}.`);
+  }
+
+  const after = resolveSearch(next, acted, card, from);
+  return { ...after, find: whatTurnedUp(next, after, acted, card, from) };
+}
+
+/**
+ * Does this player get another card for this search?
+ *
+ * The scout in a forest, and only when the first card was a blank. A bonus that fires
+ * everywhere is just a bigger number; one that fires *somewhere* is a reason to send a
+ * particular child to a particular tile, which is the party talking to each other -
+ * and talking to each other is the whole game.
+ *
+ * Only a blank is re-drawn. Re-drawing a mishap would make the role a shield against
+ * bad luck rather than a nose for good ground, and re-drawing a find would be taking
+ * something away from them.
+ */
+export function worthASecondLook(player: Player, tile: Tile, card: Card): boolean {
+  const home = ROLES[player.role].homeGround;
+  if (home === null || tile.river || tile.base !== home) return false;
+  return readSearchCard(card) === "nothing" && !isMishap(card);
 }
 
 function resolveSearch(state: GameState, player: Player, card: Card, from: "chest" | "ground"): GameState {
@@ -361,6 +423,8 @@ function resolveSearch(state: GameState, player: Player, card: Card, from: "ches
   switch (readSearchCard(card)) {
     case "found":
       return findSomething(state, player, card);
+    case "supply":
+      return foundSomethingToEat(state, player);
     case "thief":
       return robbedWhileSearching(state, player);
     default:
@@ -368,6 +432,24 @@ function resolveSearch(state: GameState, player: Player, card: Card, from: "ches
         ? somethingWentWrong(state, player, card)
         : note(state, `${player.name} found nothing.`);
   }
+}
+
+/** The small win. One piece of food, off the ground you are standing on. */
+function foundSomethingToEat(state: GameState, player: Player): GameState {
+  const rng = makeRng(state.rngState);
+  const bite = randomFood(rng, `forage-${state.log.length}`);
+  const holder = state.players.find((p) => p.id === player.id) ?? player;
+  const { player: carrying, returned } = equip(holder, bite);
+  if (returned) {
+    return note(
+      { ...state, rngState: rng.state() },
+      `${player.name} turned up ${an(bite.name)} and had no room in the pack for it.`,
+    );
+  }
+  return note(
+    withPlayer({ ...state, rngState: rng.state() }, carrying),
+    `${player.name} turned up ${an(bite.name)}.`,
+  );
 }
 
 /** Everything a player is carrying, in one list, for working out what changed. */

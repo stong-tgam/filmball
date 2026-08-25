@@ -13,7 +13,7 @@ rulebook actually says. **The goal is now a real goal: beat the dragon before tu
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 317 tests
+npm test           # 323 tests
 npm run build      # type-check + production build into dist/
 npm run build:play # one self-contained .html you can hand to somebody
 
@@ -258,6 +258,35 @@ role does not pay off until §8 lets bodies join a fight.
 
 The bot reads **20% wins, 56% out of time, 24% wipes**, up from 19/63/19 — it stopped
 getting boxed in by its own teammates on the way to the middle.
+
+## v0.18: the ground is worth turning over
+
+Playtest feedback, mostly about searches coming up empty too often.
+
+- **Black 2 to 6 now turns up something to eat.** Every black card used to be a
+  blank — two searches in five spent on a card that says no, and a turn is most of
+  what a child gets to do. Food is the smallest win in the game, which is exactly why
+  it is the right filler: it never competes with gear, so the keep-it-or-sell-it
+  decision is untouched. Roughly gear 48%, food 19%, nothing 18%, mishap 11%, thief 4%.
+- **Beaten monsters may be carrying food** (half the time), and an empty river chest
+  has something floating in it rather than being a flat dud.
+- **The Scout gets a second look in a wood** — one re-draw, and only when the first
+  card was a blank. Not on a mishap (that would make them a shield against bad luck
+  rather than a nose for good ground) and not on a find (that would be taking
+  something off them).
+- **The Rogue keeps one extra thing off a body.** They go through the pockets while
+  everyone else is catching their breath — their own bonus pointed at the aftermath
+  instead of the fight.
+
+**Balance, and one caveat.** Like for like at 800 games, the game changes take wins
+from **25% to 29%** (timeouts 53% → 50%). Then the bot itself was fixed: it had never
+once picked up loot, so every change to what monsters drop — and the Rogue's extra
+pick outright — was invisible to the sim, which could measure the fight and not the
+reward. With the bot taking loot the same build reads **32% wins, 49% out of time, 20%
+wipes**. That last jump is the instrument getting honest, not the game getting better.
+
+(The 20% quoted under v0.17 was a 200-game run; 800 games puts that build at 25%. Use
+800 for anything you intend to act on.)
 
 ## Still open
 

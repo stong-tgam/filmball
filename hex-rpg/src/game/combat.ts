@@ -17,8 +17,8 @@
 import { ENEMIES, healthLeft, nameWithArticle, verb } from "./enemies";
 import { key, neighbours } from "./hex";
 import { makeRng } from "./rng";
-import { canTake, equip, makeFine } from "./items";
-import { maxHealthOf, moveRange } from "./players";
+import { canTake, equip, makeFine, randomFood } from "./items";
+import { ROLES, maxHealthOf, moveRange } from "./players";
 import type { Combat, Enemy, Feature, GameState, Item, LogEntry, Player, Roll, Tile } from "./types";
 
 /** Rulebook §2: three faces of 1, two of 2, one of 3. Average 1.67 a die. */
@@ -285,6 +285,15 @@ function standoff(state: GameState, enemy: Enemy): GameState {
  * them; the rest go back in the pile. Money is not dropped - selling what you keep is
  * how the party gets paid.
  */
+/**
+ * How often a beaten monster is carrying something to eat.
+ *
+ * Half. Monsters have to eat too, and it gives a fight a small consolation on the
+ * rounds where the item pile hands over nothing anybody wants - which, late on, is
+ * most of them. Food never competes with gear, so this cannot unbalance §10.
+ */
+export const SUPPLY_DROP_CHANCE = 0.5;
+
 function beaten(state: GameState, enemy: Enemy): GameState {
   const profile = ENEMIES[enemy.kind];
   // Roll each drop for condition before it hits the ground. Mid bosses and the dragon
@@ -296,7 +305,21 @@ function beaten(state: GameState, enemy: Enemy): GameState {
   const rest = state.itemPile.slice(profile.drops);
   // A thief drops what it stole on top of its own haul.
   const stolen = state.enemies.find((e) => e.id === enemy.id)?.loot ?? [];
-  const spoils: Item[] = [...stolen, ...drops];
+
+  // Something in its pockets, half the time.
+  const rations: Item[] =
+    conditionRng.next() < SUPPLY_DROP_CHANCE
+      ? [randomFood(conditionRng, `pocket-${enemy.id}`)]
+      : [];
+
+  const spoils: Item[] = [...stolen, ...drops, ...rations];
+
+  // Rulebook §10 says how much the winner keeps. The rogue keeps one more: they go
+  // through the pockets while everybody else is catching their breath, which is the
+  // same character as "hits harder" pointed at the aftermath instead of the fight.
+  const winner = state.players.find((p) => p.id === state.combat!.playerId);
+  const robbing = winner !== undefined && ROLES[winner.role].robsTheBody;
+  const keeps = Math.min(profile.picks + (robbing ? 1 : 0), spoils.length);
 
   let next: GameState = {
     ...state,
@@ -309,20 +332,20 @@ function beaten(state: GameState, enemy: Enemy): GameState {
       ...state.combat!,
       outcome: "enemyDefeated",
       spoils,
-      picksLeft: Math.min(profile.picks, spoils.length),
+      picksLeft: keeps,
     },
   };
-  if (profile.purse > 0) {
-    const winner = next.players.find((p) => p.id === next.combat!.playerId);
-    if (winner) {
-      next = {
-        ...next,
-        players: next.players.map((p) =>
-          p.id === winner.id ? { ...p, money: p.money + profile.purse } : p,
-        ),
-      };
-      next = note(next, `${winner.name} took $${profile.purse} off the body.`);
-    }
+  if (profile.purse > 0 && winner) {
+    next = {
+      ...next,
+      players: next.players.map((p) =>
+        p.id === winner.id ? { ...p, money: p.money + profile.purse } : p,
+      ),
+    };
+    next = note(next, `${winner.name} took $${profile.purse} off the body.`);
+  }
+  if (robbing && winner) {
+    next = note(next, `${winner.name} went through its pockets as well. One extra thing to keep.`);
   }
   next = note(next, `${profile.name} ${verb(enemy.kind, "is", "are")} beaten!`);
 

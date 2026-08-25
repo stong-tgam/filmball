@@ -19,7 +19,7 @@
 import { boardCorners, type Hex } from "./hex";
 import { ROD_TEMPLATE, makeItem } from "./items";
 import type { Rng } from "./rng";
-import type { Player, Role } from "./types";
+import type { Player, Role, Terrain } from "./types";
 
 /** Rulebook §3: everyone starts here, before role bonuses. */
 export const BASE_HEALTH = 3;
@@ -64,6 +64,19 @@ export type RoleProfile = {
   /** Fishermen, and only fishermen, can fish a river and cast the hook. */
   canFish: boolean;
   /**
+   * Turned-over ground gives this role a second look, on the terrain they know.
+   *
+   * The scout's in the woods, and it is the only one - a role bonus that applies
+   * everywhere is just a bigger number, while one that applies *somewhere* is a reason
+   * to send a particular child to a particular tile, which is the party talking to
+   * each other. `null` for everybody else.
+   */
+  homeGround: Terrain | null;
+  /**
+   * Robs a beaten monster of one extra thing, over what §10 says it drops.
+   */
+  robsTheBody: boolean;
+  /**
    * Room for a second coat, for the knight alone.
    *
    * The knight's own bonus is that they can take one more hit, so the party's spare
@@ -89,11 +102,13 @@ export const ROLES: Record<Role, RoleProfile> = {
     canHeal: false,
     canFish: false,
     carriesSpare: true,
+    homeGround: null,
+    robsTheBody: false,
     colour: "#d64545",
   },
   rogue: {
     name: "Rogue",
-    blurb: "Hits harder. Every roll counts for one more.",
+    blurb: "Hits harder, and goes through pockets. Every roll counts for one more.",
     healthBonus: 0,
     attackBonus: 1,
     moveBonus: 0,
@@ -101,11 +116,13 @@ export const ROLES: Record<Role, RoleProfile> = {
     canHeal: false,
     canFish: false,
     carriesSpare: false,
+    homeGround: null,
+    robsTheBody: true,
     colour: "#9b5de5",
   },
   scout: {
     name: "Scout",
-    blurb: "Covers ground and sees further. Two tiles a turn, and sees two rings out.",
+    blurb: "Two tiles a turn, sees two rings out, and knows what to look for in a wood.",
     healthBonus: 0,
     attackBonus: 0,
     moveBonus: 1,
@@ -113,6 +130,8 @@ export const ROLES: Record<Role, RoleProfile> = {
     canHeal: false,
     canFish: false,
     carriesSpare: false,
+    homeGround: "forest",
+    robsTheBody: false,
     colour: "#17b3c9",
   },
   doctor: {
@@ -125,6 +144,8 @@ export const ROLES: Record<Role, RoleProfile> = {
     canHeal: true,
     canFish: false,
     carriesSpare: false,
+    homeGround: null,
+    robsTheBody: false,
     colour: "#f0ece0",
   },
   fisherman: {
@@ -137,6 +158,8 @@ export const ROLES: Record<Role, RoleProfile> = {
     canHeal: false,
     canFish: true,
     carriesSpare: false,
+    homeGround: null,
+    robsTheBody: false,
     colour: "#3f9e5a",
   },
 };

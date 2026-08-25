@@ -80,13 +80,13 @@ reference/    the rulebook, the build spec, and the token art prompt
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 317 tests
+npm test           # 323 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html you can hand to somebody
 npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
 ```
 
-## Current state: v0.17
+## Current state: v0.18
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -145,8 +145,19 @@ Key rules, so nothing gets "improved" back to a guess:
   Water = escape once on a river; railway = a health at the start; forest = −1 attack
   for everyone; field = +1 to the toll per player; city = $1 on a city tile, else a
   health.
-- **Search (§6)**: on field or forest, red finds gear, black finds nothing, the joker
-  is a thief who takes the bone if you have one. **On a river you pull up a chest
+- **Search (§6)**: on field or forest, red finds gear, **black 2-6 turns up something
+  to eat**, higher black finds nothing, the joker is a thief who takes the bone if you
+  have one. The food is this build's own addition to §6: every black card being a
+  blank meant two searches in five spent on a card that says no, and a turn is most of
+  what a child gets to do. Food is the smallest win in the game, which is what makes it
+  the right filler - it never competes with gear, so §10's keep-it-or-sell-it decision
+  is untouched. Roughly gear 48%, food 19%, nothing 18%, mishap 11%, thief 4%.
+- **The scout gets a second look in a wood** (`worthASecondLook`, `RoleProfile.homeGround`)
+  — one re-draw, and **only when the first card was a blank**. Not on a mishap, which
+  would make the role a shield against bad luck rather than a nose for good ground; not
+  on a find, which would be taking something off them. A bonus that fires everywhere is
+  just a bigger number; one that fires *somewhere* is a reason to send a particular
+  child to a particular tile, and that is the party talking to each other. **On a river you pull up a chest
   instead** (`searchKind`): face card = armour, red = two items, black = river water,
   joker = the lid on your fingers for 1 health. Better than the ground on average, and
   that is the point — the river should be worth a detour, not scenery.
@@ -184,6 +195,13 @@ Key rules, so nothing gets "improved" back to a guess:
 - **Cities are searchable** now, which the rulebook's §4 does not say. The shop and a
   rummage cost the same one action, so it is a choice rather than a free extra — and it
   is where the wire lives.
+- **The rogue keeps one more thing off a body** (`RoleProfile.robsTheBody`): §10's
+  `picks` plus one, capped by what actually dropped. Their own bonus said twice — "hits
+  harder" pointed at the aftermath instead of the fight.
+- **A beaten monster may be carrying food** (`SUPPLY_DROP_CHANCE`, half the time), and
+  an empty river chest has something floating in it. Both are consolation on the rounds
+  where the gear pile hands over nothing anybody wants, which late in a game is most of
+  them. Neither competes with gear, so neither can unbalance §10.
 - **Loot (§10)**: items, **plus a small purse** — $1 mob, $2 mid boss, $5 dragon. This
   bends §10, which is items-only, on purpose. Keep the amounts under `GEAR_PRICE`:
   the moment a mob out-earns a sale, the shop stops mattering and so does the

@@ -41,7 +41,7 @@ import { createInitialState } from "../src/game/setup";
 import { activePlayer, endTurn, moveRange, movePlayer } from "../src/game/turn";
 import { makeRng } from "../src/game/rng";
 import { distance, key, label } from "../src/game/hex";
-import type { GameState, Player, Terrain } from "../src/game/types";
+import type { GameState, Player, Role, Terrain } from "../src/game/types";
 
 const game = (seed = 4471) => createInitialState(seed);
 
@@ -505,13 +505,14 @@ describe("the doctor", () => {
 
 describe("loot", () => {
   /** Beat the first enemy of a kind and return the settled state. */
-  function beat(kind: "mob" | "midboss" | "finalboss") {
+  function beat(kind: "mob" | "midboss" | "finalboss", winner: Role = "knight") {
     const base = game();
     const enemy = base.enemies.find((e) => e.kind === kind)!;
+    const at = base.players.findIndex((p) => p.role === winner);
     const state: GameState = {
       ...base,
       players: base.players.map((p, i) =>
-        i === 0
+        i === at
           ? { ...p, hex: enemy.hex, health: 99, maxHealth: 99 }
           : { ...p, dead: true },
       ),
@@ -520,7 +521,7 @@ describe("loot", () => {
       ),
       combat: {
         enemyId: enemy.id,
-        playerId: base.players[0].id,
+        playerId: base.players[at].id,
         from: key(enemy.hex),
         round: 0,
         playerRoll: null,
@@ -534,12 +535,37 @@ describe("loot", () => {
     return { state: attack(state), enemyId: enemy.id };
   }
 
-  it("drops what §10 says and lets the winner keep what §10 says", () => {
+  it("drops what §10 says, plus at most something to eat", () => {
     for (const kind of ["mob", "midboss", "finalboss"] as const) {
       const { state } = beat(kind);
+      const spoils = state.combat!.spoils;
       expect(state.combat?.outcome).toBe("enemyDefeated");
-      expect(state.combat?.spoils.length).toBeLessThanOrEqual(ENEMIES[kind].drops);
+
+      // §10's gear count is unchanged. A monster may also be carrying one piece of
+      // food (`SUPPLY_DROP_CHANCE`), which never competes with gear and so cannot
+      // unbalance the rule it sits on top of.
+      const gear = spoils.filter((i) => i.slot !== "supply");
+      const rations = spoils.filter((i) => i.slot === "supply");
+      expect(gear.length).toBeLessThanOrEqual(ENEMIES[kind].drops);
+      expect(rations.length).toBeLessThanOrEqual(1);
+
+      // The knight is the winner in this fixture, so no rogue bonus applies.
       expect(state.combat?.picksLeft).toBeLessThanOrEqual(ENEMIES[kind].picks);
+    }
+  });
+
+  it("lets the rogue keep one more, because they go through the pockets", () => {
+    const asRogue = (kind: "mob" | "midboss") => {
+      const { state } = beat(kind, "rogue");
+      return state.combat!;
+    };
+    for (const kind of ["mob", "midboss"] as const) {
+      const looted = asRogue(kind);
+      const plain = beat(kind).state.combat!;
+      // One more than §10, capped by what actually dropped - a rogue cannot keep
+      // three things off a body that only had two on it.
+      expect(looted.picksLeft).toBe(Math.min(ENEMIES[kind].picks + 1, looted.spoils.length));
+      expect(looted.picksLeft).toBeGreaterThanOrEqual(plain.picksLeft);
     }
   });
 

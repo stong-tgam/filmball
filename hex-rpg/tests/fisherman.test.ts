@@ -18,7 +18,16 @@ import {
   search,
 } from "../src/game/actions";
 import { createInitialState } from "../src/game/setup";
-import { eat, give, giveTargets, heal, tileMates } from "../src/game/actions";
+import {
+  eat,
+  give,
+  giveTargets,
+  heal,
+  isMishap,
+  readSearchCard,
+  tileMates,
+  worthASecondLook,
+} from "../src/game/actions";
 import { activePlayer } from "../src/game/turn";
 import { ROLES, TURN_ORDER, withMaxHealth } from "../src/game/players";
 import {
@@ -452,5 +461,91 @@ describe("standing together", () => {
     const spare = makeItem(EQUIPMENT.find((e) => e.slot === "armor")!, "dead-weight");
     const carrying = withMaxHealth({ ...base.players[0], spareArmor: spare });
     expect(carrying.maxHealth).toBe(base.players[0].maxHealth);
+  });
+});
+
+describe("what the ground gives up", () => {
+  const on = (base: "forest" | "field", who: number, seed = 4471): GameState => {
+    const s = createInitialState(seed);
+    const tile = Object.values(s.tiles).find(
+      (t) => t.base === base && !t.river && !s.enemies.some((e) => key(e.hex) === key(t.hex)),
+    )!;
+    return {
+      ...s,
+      activePlayerIndex: who,
+      players: s.players.map((p, i) => (i === who ? { ...p, hex: tile.hex } : p)),
+    };
+  };
+
+  it("reads a low black card as something to eat, not as nothing", () => {
+    // §6 made every black card a blank, which was two searches in five spent on a
+    // card that says no. A turn is most of what a child gets to do.
+    for (const rank of ["2", "3", "4", "5", "6"]) {
+      expect(readSearchCard(card(rank, "clubs"))).toBe("supply");
+    }
+    for (const rank of ["7", "8", "9", "10", "A"]) {
+      expect(readSearchCard(card(rank, "spades"))).toBe("nothing");
+    }
+    // The rest of §6 is untouched: red still finds, pictures still bite, joker robs.
+    expect(readSearchCard(card("9", "hearts"))).toBe("found");
+    expect(readSearchCard(card("K", "spades"))).toBe("nothing");
+    expect(isMishap(card("K", "spades"))).toBe(true);
+  });
+
+  it("puts the food in the pack and leaves the gear pile alone", () => {
+    const state = { ...on("field", 0), searchDeck: [card("4", "clubs")] };
+    const after = search(state);
+    expect(after.players[0].supply).toHaveLength(1);
+    expect(after.players[0].supply[0].slot).toBe("supply");
+    expect(after.itemPile).toEqual(state.itemPile);
+    expect(after.find?.kind).toBe("gear");
+  });
+
+  it("gives the scout a second look in a wood, and only on a blank", () => {
+    const si = TURN_ORDER.indexOf("scout");
+    const woods = on("forest", si);
+    const tile = woods.tiles[key(woods.players[si].hex)];
+    const scout = woods.players[si];
+
+    expect(worthASecondLook(scout, tile, card("9", "spades"))).toBe(true);
+    // Not on a mishap - the role is a nose for good ground, not a shield from bad luck.
+    expect(worthASecondLook(scout, tile, card("K", "spades"))).toBe(false);
+    // Not on a find - that would be taking something away from them.
+    expect(worthASecondLook(scout, tile, card("9", "hearts"))).toBe(false);
+    expect(worthASecondLook(scout, tile, card("3", "clubs"))).toBe(false);
+
+    // Nobody else gets it, and not on ground that is not theirs.
+    const field = on("field", si);
+    expect(worthASecondLook(field.players[si], field.tiles[key(field.players[si].hex)], card("9", "spades"))).toBe(false);
+    const knight = on("forest", 0);
+    expect(worthASecondLook(knight.players[0], tile, card("9", "spades"))).toBe(false);
+  });
+
+  it("actually draws the second card, and resolves that one", () => {
+    const si = TURN_ORDER.indexOf("scout");
+    const woods = on("forest", si);
+    // A blank first, a find second. The scout should end up holding the gear.
+    const state: GameState = { ...woods, searchDeck: [card("9", "spades"), card("9", "hearts")] };
+    const after = search(state);
+    expect(after.searchDeck).toHaveLength(0);
+    expect(after.log.some((l) => l.text.includes("Second look"))).toBe(true);
+    expect(after.find?.kind).toBe("gear");
+    expect(after.itemPile.length).toBe(state.itemPile.length - 1);
+  });
+
+  it("leaves an empty chest with something floating in it", () => {
+    const river = Object.values(createInitialState(4471).tiles).find((t) => t.river)!;
+    const base = createInitialState(4471);
+    const state: GameState = {
+      ...base,
+      activePlayerIndex: 0,
+      players: base.players.map((p, i) => (i === 0 ? { ...p, hex: river.hex } : p)),
+      searchDeck: [card("7", "clubs")],
+    };
+    const after = search(state);
+    // No gear - the river pays in gear or coins, and this card is neither - but the
+    // best-odds tile in the game should not be a flat dud one time in four.
+    expect(after.itemPile).toEqual(state.itemPile);
+    expect(after.players[0].supply).toHaveLength(1);
   });
 });

@@ -14,7 +14,7 @@
 
 import { startGame } from "../src/game/setup";
 import { activePlayer, endTurn, legalMoves, movePlayer } from "../src/game/turn";
-import { attack, endCombat, flee } from "../src/game/combat";
+import { attack, endCombat, flee, takeSpoil } from "../src/game/combat";
 import { canFish, canSearch, fish, search } from "../src/game/actions";
 import { clearDraw } from "../src/game/turn";
 import { distance, fromLabel } from "../src/game/hex";
@@ -73,6 +73,16 @@ function botTurn(state: GameState, roll: () => number): GameState {
   // the board and the economy, not on survival.
   if (!next.combat && canFish(next, after)) next = fish(next);
   else if (!next.combat && canSearch(next, after)) next = search(next);
+
+  // Take the loot. The bot went without this for far too long, which meant every
+  // change to what monsters drop - and the rogue's extra pick outright - was invisible
+  // to the sim: it could measure the fight and not the reward.
+  let picks = 0;
+  while (next.combat && next.combat.picksLeft > 0 && next.combat.spoils.length > 0 && picks++ < 8) {
+    const before = next.combat.picksLeft;
+    next = takeSpoil(next, next.combat.spoils[0].id);
+    if ((next.combat?.picksLeft ?? 0) >= before) break;
+  }
 
   if (next.combat && next.combat.outcome !== "ongoing") next = endCombat(next);
   return next.combat ? next : endTurn(next);

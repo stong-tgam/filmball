@@ -129,7 +129,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.17 — drawn by the children</span>
+          <span className="version">v0.18 — drawn by the children</span>
         </div>
         <button
           type="button"
