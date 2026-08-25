@@ -34,6 +34,14 @@ export type Tile = {
    */
   sides: Element[];
   river: boolean;
+  /**
+   * A chest is sunk in the water here.
+   *
+   * Only a few stretches of the river have one. Every river tile used to, which made
+   * the best odds in the game something you tripped over rather than went looking for
+   * - and put a chest mark on a dozen tiles, which is a map that says nothing.
+   */
+  chest: boolean;
   rail: boolean;
   /** Turn number the tile recovers on; null when undamaged. Tornado damage. */
   destroyedUntil: number | null;

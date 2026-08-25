@@ -29,13 +29,6 @@ const SIZE = 46;
 /** Centre-to-centre distance between neighbours, which is where a one-move blip sits. */
 const STEP = Math.sqrt(3) * SIZE;
 
-const TONE: Record<Sensed["kind"], string> = {
-  dragon: "#e2574c",
-  monster: "#d98324",
-  hazard: "#f2b705",
-  player: "#57b7e8",
-};
-
 const point = (bearing: number, radius: number) => {
   const rad = ((bearing - 90) * Math.PI) / 180;
   return { x: Math.cos(rad) * radius, y: Math.sin(rad) * radius };
@@ -155,7 +148,7 @@ export default function Compass({
           return (
             <g key={thing.id} className={`rose-blip rose-blip-${thing.kind}`}>
               <title>{`${thing.name}, ${thing.steps} away, ${compassName(thing.bearing)}`}</title>
-              <circle cx={at.x} cy={at.y} r="13" fill={TONE[thing.kind]} />
+              <circle cx={at.x} cy={at.y} r="13" fill={thing.colour} />
               <text x={at.x} y={at.y + 5} textAnchor="middle">
                 {thing.steps}
               </text>
@@ -186,7 +179,7 @@ export default function Compass({
         ) : (
           sensed.map((thing) => (
             <li key={thing.id}>
-              <span className="blip-dot" style={{ background: TONE[thing.kind] }} />
+              <span className="blip-dot" style={{ background: thing.colour }} />
               <strong>{thing.name}</strong> — {thing.steps === 1 ? "one move" : "two moves"}{" "}
               {compassName(thing.bearing)}
             </li>

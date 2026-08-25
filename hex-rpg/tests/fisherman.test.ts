@@ -25,6 +25,7 @@ import {
   heal,
   isMishap,
   readSearchCard,
+  searchKind,
   tileMates,
   worthASecondLook,
 } from "../src/game/actions";
@@ -533,19 +534,20 @@ describe("what the ground gives up", () => {
     expect(after.itemPile.length).toBe(state.itemPile.length - 1);
   });
 
-  it("leaves an empty chest with something floating in it", () => {
-    const river = Object.values(createInitialState(4471).tiles).find((t) => t.river)!;
+  it("searches a chestless stretch of river like any other ground", () => {
     const base = createInitialState(4471);
+    const plain = Object.values(base.tiles).find((t) => t.river && !t.chest)!;
     const state: GameState = {
       ...base,
       activePlayerIndex: 0,
-      players: base.players.map((p, i) => (i === 0 ? { ...p, hex: river.hex } : p)),
-      searchDeck: [card("7", "clubs")],
+      players: base.players.map((p, i) => (i === 0 ? { ...p, hex: plain.hex } : p)),
+      searchDeck: [card("4", "clubs")],
     };
+    // Only a few stretches hold a chest. The rest are water you can fish and ground
+    // you can turn over, which is what stops the river being a conveyor belt.
+    expect(searchKind(plain)).toBe("ground");
     const after = search(state);
-    // No gear - the river pays in gear or coins, and this card is neither - but the
-    // best-odds tile in the game should not be a flat dud one time in four.
-    expect(after.itemPile).toEqual(state.itemPile);
+    expect(after.find?.from).toBe("ground");
     expect(after.players[0].supply).toHaveLength(1);
   });
 });

@@ -11,7 +11,9 @@
  */
 
 import { distance, hexToPixel, type Hex } from "./hex";
-import { ENEMIES } from "./enemies";
+import { ENEMIES, THIEVES } from "./enemies";
+import { ROLES } from "./players";
+import { PALETTE } from "../palette";
 import type { GameState, Hazard, Player } from "./types";
 
 /** Two tiles. The rulebook's unit of distance is a move, so this is "two moves out". */
@@ -27,6 +29,14 @@ export type Sensed = {
   name: string;
   /** Tiles away, 1 or 2. */
   steps: number;
+  /**
+   * The thing's own colour, straight off `src/palette.ts`.
+   *
+   * Carried on the blip rather than looked up by kind in the view, so the dot on the
+   * compass is the same colour as the token on the board without the two having to
+   * agree by hand. A child navigates by "the purple one is two moves east".
+   */
+  colour: string;
   /**
    * Compass bearing in degrees, 0 = north, clockwise. Continuous rather than snapped
    * to the six hex directions: at two tiles out a monster can sit between two of them,
@@ -65,10 +75,16 @@ export function sense(state: GameState, viewer: Player): Sensed[] {
     if (enemy.defeated || !near(enemy.hex)) continue;
     const dragon = enemy.kind === "finalboss";
     if (!dragon && !enemy.found) continue;
+    // The robber and the pirates are one thing wearing two hats: a hazard record and
+    // a monster record on the same tile. The hazard loop below already reports them,
+    // and reporting them here as well is what put "Pirates — two moves south-west"
+    // on the read-out twice and had the table hunting for a second crew.
+    if (THIEVES.includes(enemy.kind)) continue;
     found.push({
       id: enemy.id,
       kind: dragon ? "dragon" : "monster",
       name: dragon ? "Smoke on the wind" : ENEMIES[enemy.kind].name,
+      colour: dragon ? PALETTE.finalboss : PALETTE[enemy.kind as "mob" | "midboss"],
       steps: distance(viewer.hex, enemy.hex),
       bearing: bearingBetween(viewer.hex, enemy.hex),
     });
@@ -80,6 +96,7 @@ export function sense(state: GameState, viewer: Player): Sensed[] {
       id: `hazard-${hazard.kind}`,
       kind: "hazard",
       name: HAZARD_NAME[hazard.kind] ?? hazard.kind,
+      colour: PALETTE[hazard.kind],
       steps: distance(viewer.hex, hazard.hex),
       bearing: bearingBetween(viewer.hex, hazard.hex),
     });
@@ -91,6 +108,7 @@ export function sense(state: GameState, viewer: Player): Sensed[] {
       id: other.id,
       kind: "player",
       name: other.name,
+      colour: ROLES[other.role].colour,
       steps: distance(viewer.hex, other.hex),
       bearing: bearingBetween(viewer.hex, other.hex),
     });

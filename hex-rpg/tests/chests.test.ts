@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CHEST_COINS, canSearch, readChestCard, search, searchKind } from "../src/game/actions";
+import { CHESTS_IN_THE_RIVER } from "../src/game/setup";
 import { createInitialState } from "../src/game/setup";
 import { key } from "../src/game/hex";
 import { JOKER } from "../src/game/cards";
@@ -22,7 +23,7 @@ function standingOn(pick: (t: Tile) => boolean, seed = 4471): GameState {
 
 describe("river chests", () => {
   it("makes a river searchable, where it never used to be", () => {
-    const state = standingOn((t) => t.river);
+    const state = standingOn((t) => t.chest);
     expect(canSearch(state, state.players[0])).toBe(true);
     expect(searchKind(state.tiles[key(state.players[0].hex)])).toBe("chest");
   });
@@ -32,15 +33,30 @@ describe("river chests", () => {
     expect(searchKind(state.tiles[key(state.players[0].hex)])).toBe("ground");
   });
 
-  it("reads the card: face is armour, red is a haul, black is empty, joker bites", () => {
+  it("reads the card: face is armour, red is two, black is one, joker bites", () => {
     expect(readChestCard(card("K", "hearts"))).toBe("armour");
     expect(readChestCard(card("J", "spades"))).toBe("armour");
     expect(readChestCard(card("7", "diamonds"))).toBe("haul");
-    expect(readChestCard(card("7", "clubs"))).toBe("empty");
+    // A black number used to be a soaked and empty box. Chests are rare now
+    // (`CHESTS_IN_THE_RIVER`), and a wasted chest is a wasted walk.
+    expect(readChestCard(card("7", "clubs"))).toBe("single");
     expect(readChestCard(JOKER)).toBe("trap");
   });
 
+  it("puts only a few chests in the river, so finding one is worth a detour", () => {
+    for (const seed of [1, 42, 4471]) {
+      const board = Object.values(createInitialState(seed).tiles);
+      const water = board.filter((t) => t.river);
+      const chests = board.filter((t) => t.chest);
+      expect(chests).toHaveLength(CHESTS_IN_THE_RIVER);
+      // Every chest is in the water, and most of the water has none.
+      expect(chests.every((t) => t.river)).toBe(true);
+      expect(chests.length).toBeLessThan(water.length / 2);
+    }
+  });
+
   it("beats ground search on average - that is the whole reason to go to the river", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     // Ground: red finds one item, everything else finds nothing.
     // Chest: face finds armour, red finds two, black nothing, joker hurts.
     const suits = ["hearts", "diamonds", "clubs", "spades"] as const;
@@ -52,14 +68,14 @@ describe("river chests", () => {
         const c = card(rank, suit);
         if (suit === "hearts" || suit === "diamonds") ground += 1;
         const result = readChestCard(c);
-        chest += result === "armour" ? 1 : result === "haul" ? 2 : 0;
+        chest += result === "armour" ? 1 : result === "haul" ? 2 : result === "single" ? 1 : 0;
       }
     }
     expect(chest).toBeGreaterThan(ground);
   });
 
   it("costs the action and closes the tile, the same as any search", () => {
-    const state = standingOn((t) => t.river);
+    const state = standingOn((t) => t.chest);
     const after = search(state);
     expect(after.players[0].actedThisTurn).toBe(true);
     expect(after.tiles[key(state.players[0].hex)].searched).toBe(true);
@@ -67,13 +83,13 @@ describe("river chests", () => {
   });
 
   it("says 'chest' in the log so the table knows which table was rolled on", () => {
-    const state = standingOn((t) => t.river);
+    const state = standingOn((t) => t.chest);
     const after = search(state);
     expect(after.log.at(-2)?.text ?? after.log.at(-1)?.text).toMatch(/chest/i);
   });
 
   it("has coins in the bottom of it as well as gear", () => {
-    const state = standingOn((t) => t.river);
+    const state = standingOn((t) => t.chest);
     const hauled: GameState = { ...state, searchDeck: [card("7", "diamonds"), ...state.searchDeck] };
     const after = search(hauled);
     expect(after.players[0].money).toBe(state.players[0].money + CHEST_COINS);
@@ -84,7 +100,7 @@ describe("river chests", () => {
   });
 
   it("pays in coin alone once every piece of gear is spoken for", () => {
-    const state = standingOn((t) => t.river);
+    const state = standingOn((t) => t.chest);
     const bare: GameState = {
       ...state,
       itemPile: [],
@@ -94,15 +110,18 @@ describe("river chests", () => {
     expect(after.players[0].money).toBe(state.players[0].money + CHEST_COINS);
   });
 
-  it("leaves an empty chest empty - a soaked box is meant to be a disappointment", () => {
-    const state = standingOn((t) => t.river);
-    const soaked: GameState = { ...state, searchDeck: [card("7", "clubs"), ...state.searchDeck] };
-    const after = search(soaked);
-    expect(after.players[0].money).toBe(state.players[0].money);
+  it("pays out on a black number too, now that chests are rare", () => {
+    const state = standingOn((t) => t.chest);
+    const single: GameState = { ...state, searchDeck: [card("7", "clubs"), ...state.searchDeck] };
+    const after = search(single);
+    // One piece rather than the red card's two, but never nothing: with only four
+    // chests on the board a dud is a wasted walk, not a bit of texture.
+    expect(after.itemPile.length).toBe(state.itemPile.length - 1);
+    expect(after.players[0].money).toBe(state.players[0].money + CHEST_COINS);
   });
 
   it("never takes a player below zero health when the lid comes down", () => {
-    const state = standingOn((t) => t.river);
+    const state = standingOn((t) => t.chest);
     const frail: GameState = {
       ...state,
       players: state.players.map((p, i) => (i === 0 ? { ...p, health: 0 } : p)),

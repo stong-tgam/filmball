@@ -18,6 +18,7 @@
 
 import { distance, hexesInRange, key, neighbours, type Hex } from "./hex";
 import { slotKey } from "./items";
+import { PALETTE } from "../palette";
 import { withMaxHealth } from "./players";
 import { makeRng, type Rng } from "./rng";
 import type { GameState, Hazard, HazardKind, LogEntry, Player, Tile } from "./types";
@@ -35,28 +36,28 @@ export const HAZARDS: Record<HazardKind, HazardProfile> = {
   tornado: {
     name: "Tornado",
     blurb: "Wrecks the ground it crosses and knocks people flat.",
-    colour: "#9aa7b4",
+    colour: PALETTE.tornado,
     glyph: "🌀",
     keepsToWater: false,
   },
   homeless: {
     name: "Traveller",
     blurb: "Down on their luck. Give them something and they will wish you well.",
-    colour: "#c9a227",
+    colour: PALETTE.homeless,
     glyph: "☂",
     keepsToWater: false,
   },
   robber: {
     name: "Robber",
     blurb: "Takes your coins and keeps moving. Catch them to get it back.",
-    colour: "#b0894a",
+    colour: PALETTE.robber,
     glyph: "R",
     keepsToWater: false,
   },
   pirates: {
     name: "Pirates",
     blurb: "River thieves. They take your gear, not your money.",
-    colour: "#4a90b0",
+    colour: PALETTE.pirates,
     glyph: "P",
     keepsToWater: true,
   },

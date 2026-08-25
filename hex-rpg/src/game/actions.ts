@@ -103,19 +103,21 @@ export function canSearch(state: GameState, player: Player): boolean {
  * nothing about whose turn it is or whether they have already acted - only whether
  * the ground itself is spent.
  */
-export const hasFindings = (tile: Tile): boolean =>
-  !tile.searched &&
-  (tile.river || tile.base === "field" || tile.base === "forest" || tile.base === "city");
+export const hasFindings = (tile: Tile): boolean => !tile.searched;
 
 /**
- * Turning over a field is not the same as fishing something out of the water.
+ * Turning over a field is not the same as hauling a chest out of the water.
  *
- * A river tile gives up a **chest**, which is better than the ground on average and
- * occasionally bites: it is the one place worth going out of your way for, which is
- * the point - a river you can see from two tiles away should be a decision, not
- * scenery. Ground search is unchanged from the rulebook.
+ * A chest is the best thing you can search in the game, and **only a few stretches of
+ * the river have one** (`CHESTS_IN_THE_RIVER`). Every river tile used to, which made
+ * the best odds in the game something you tripped over on the way past rather than
+ * something you went looking for - and it put a chest mark on a dozen tiles, which is
+ * a map telling you nothing. Rare and worth the walk beats common and ignored.
+ *
+ * A river tile without a chest searches like any other ground; the water is still
+ * there for the fisherman.
  */
-export const searchKind = (tile: Tile): "chest" | "ground" => (tile.river ? "chest" : "ground");
+export const searchKind = (tile: Tile): "chest" | "ground" => (tile.chest ? "chest" : "ground");
 
 export function canTrade(state: GameState, player: Player): boolean {
   return !busy(state, player) && tileUnder(state, player).base === "city";
@@ -179,7 +181,7 @@ export const coinsFound = (card: Card): number =>
  * is the lid coming down on your fingers. Roughly: half the time something good,
  * a third of the time nothing, and a small chance of a hit.
  */
-export type ChestResult = "armour" | "haul" | "empty" | "trap";
+export type ChestResult = "armour" | "haul" | "single" | "trap";
 
 /**
  * How often what comes out of a chest is fine (+2).
@@ -198,8 +200,16 @@ export const FINE_CHEST_CHANCE = 0.5;
  */
 export const CHEST_COINS = 3;
 
+/**
+ * What is in the chest.
+ *
+ * A black number used to be a soaked and empty box - a quarter of the time the best
+ * tile in the game gave you nothing. Now that chests are rare rather than lining the
+ * whole river, that dud is not a cost worth paying: a black number is **one piece of
+ * gear**, and only the joker is bad news. Fewer chests, better chests.
+ */
 export const readChestCard = (card: Card): ChestResult =>
-  isJoker(card) ? "trap" : isFace(card) ? "armour" : isRed(card) ? "haul" : "empty";
+  isJoker(card) ? "trap" : isFace(card) ? "armour" : isRed(card) ? "haul" : "single";
 
 /** Pull the first item matching a slot out of the pile, or the first of anything. */
 function pullFromPile(pile: Item[], slot: "armor" | null): [Item | null, Item[]] {
@@ -235,11 +245,15 @@ function openChest(state: GameState, player: Player, card: Card): GameState {
         CHEST_COINS,
       );
     }
+    case "single":
     case "haul": {
       let next = state;
       let holder = player;
       const taken: string[] = [];
-      for (let i = 0; i < 2; i++) {
+      // A black number is one piece, a red one is two. The dud outcome is gone: with
+      // only `CHESTS_IN_THE_RIVER` on the board a wasted chest is a wasted walk.
+      const howMany = readChestCard(card) === "haul" ? 2 : 1;
+      for (let i = 0; i < howMany; i++) {
         const [item, rest] = pullFromPile(next.itemPile, null);
         if (!item) break;
         const kit = graded(item);
@@ -263,9 +277,8 @@ function openChest(state: GameState, player: Player, card: Card): GameState {
       );
     }
     default: {
-      // The empty chest used to be nothing at all, which made the best-odds tile in
-      // the game a dud one time in four. It still holds no gear - the river's payout
-      // is meant to be gear or coins - but there is something in it worth eating.
+      // No longer reachable from `readChestCard` - a black number pays in gear now -
+      // but kept as the floor so an outcome added later cannot silently give nothing.
       const rng = makeRng(state.rngState);
       const parcel = randomFood(rng, `chest-${state.log.length}`);
       const holder = state.players.find((p) => p.id === player.id) ?? player;
@@ -491,7 +504,7 @@ function whatTurnedUp(
     from === "line"
       ? readFishCard(card) !== "snag"
       : from === "chest"
-      ? readChestCard(card) !== "empty"
+      ? readChestCard(card) !== "trap"
       : readSearchCard(card) === "found";
 
   // A joker means a different thing on each table: somebody in the undergrowth, the

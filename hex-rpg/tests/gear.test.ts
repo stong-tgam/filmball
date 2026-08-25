@@ -131,7 +131,7 @@ describe("searches that go wrong", () => {
   });
 
   it("does not apply to a river, which gives up a chest instead", () => {
-    const state = standingOn((t) => t.river);
+    const state = standingOn((t) => t.chest);
     expect(searchKind(state.tiles[key(state.players[0].hex)])).toBe("chest");
     const after = search({ ...state, searchDeck: [card("K", "spades"), ...state.searchDeck] });
     expect(after.log.at(-1)?.text).not.toMatch(/snake|wasps|wire/i);

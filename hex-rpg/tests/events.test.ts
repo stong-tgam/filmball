@@ -156,8 +156,11 @@ describe("events", () => {
   it("hits only the players on the named terrain", () => {
     // Rulebook §13: a terrain card reaches everyone on that ground and nobody else.
     const before = base();
-    const forest = Object.values(before.tiles).find((t) => t.base === "forest")!;
-    const field = Object.values(before.tiles).find((t) => t.base === "field")!;
+    // Tiles are compositions: a field-*based* tile can still carry a wood along one
+    // edge, and `standingOn` reads the sides, not the base. So the bystanders need
+    // ground with no forest on it at all, or they are standing in the woods too.
+    const forest = Object.values(before.tiles).find((t) => t.sides.includes("forest"))!;
+    const field = Object.values(before.tiles).find((t) => !t.sides.includes("forest"))!;
     const staged: GameState = {
       ...before,
       players: before.players.map((p, i) => ({ ...p, hex: i === 0 ? forest.hex : field.hex })),

@@ -99,7 +99,7 @@ describe("what a search hands to the screen", () => {
   });
 
   it("counts the health a joker or a lid costs", () => {
-    const trapped = search({ ...standingOn((t) => t.river), searchDeck: [JOKER] }).find!;
+    const trapped = search({ ...standingOn((t) => t.chest), searchDeck: [JOKER] }).find!;
     expect(trapped.from).toBe("chest");
     expect(trapped.kind).toBe("trap");
     expect(trapped.hurt).toBe(1);

@@ -7,7 +7,7 @@
  * actions do not exist yet. The phases they slot into are already named in `Phase`.
  */
 
-import { draw as drawCard, isFace } from "./cards";
+import { draw as drawCard, isFace, rankValue } from "./cards";
 import { startCombat } from "./combat";
 import { enemyAt } from "./enemies";
 import { applyEvent, createEventDeck } from "./events";
@@ -16,7 +16,7 @@ import { fromLabel, key, reachable } from "./hex";
 import { hasMoved, stepsLeft } from "./players";
 import { bearingBetween, compassName } from "./sense";
 import { cardName } from "./cards";
-import type { EventCard, GameState, LogEntry, Player } from "./types";
+import type { Card, EventCard, GameState, LogEntry, Player } from "./types";
 
 export const activePlayer = (state: GameState): Player => state.players[state.activePlayerIndex];
 
@@ -116,6 +116,34 @@ export function movePlayer(state: GameState, destination: string): GameState {
  * event deck, and if it is a face card, an event with it. The card sits in
  * `state.draw` until the table has read it.
  */
+/**
+ * How high a card has to be to bring an event, and it drops as the game goes on.
+ *
+ * §4 says face cards, which is 23% of the deck and stays 23% from turn one to turn
+ * thirty-two. The back half of a game is where the party has gear, money and a plan,
+ * and where a quiet turn is just a turn spent walking - so the world should be getting
+ * louder, not staying flat.
+ *
+ * Three bands over the turn limit, and only the threshold moves:
+ *
+ * - first third  → jack and up (J Q K A), 31%
+ * - second third → ten and up, 38%
+ * - last third   → nine and up, 46%
+ *
+ * The ace counts throughout, which §4's "face cards" quietly excluded - the highest
+ * card in the deck doing nothing was always the odd one out.
+ */
+export function eventThreshold(turn: number, turnLimit: number): number {
+  const through = turn / Math.max(1, turnLimit);
+  if (through >= 2 / 3) return 9;
+  if (through >= 1 / 3) return 10;
+  return 11;
+}
+
+/** Does this card bring an event, this far into the game? */
+export const bringsEvent = (card: Card, turn: number, turnLimit: number): boolean =>
+  isFace(card) || rankValue(card) >= eventThreshold(turn, turnLimit);
+
 export function beginTurn(state: GameState): GameState {
   // Hazards move first. The spec is explicit about the order, and it matters: an
   // event that changes the ground has to land after the ground has been changed.
@@ -124,11 +152,12 @@ export function beginTurn(state: GameState): GameState {
   const pull = drawCard(stirred.pokerDeck, stirred.rngState);
   let next: GameState = { ...stirred, pokerDeck: pull.deck, rngState: pull.rngState };
 
-  if (!isFace(pull.card)) {
+  if (!bringsEvent(pull.card, next.turn, next.turnLimit)) {
     return note({ ...next, draw: { card: pull.card, event: null } }, `Drew ${cardName(pull.card)}. A quiet turn.`);
   }
 
-  // A face card brings an event. The deck reshuffles rather than running dry.
+  // A high card brings an event, and "high" gets lower as the game goes on. The deck
+  // reshuffles rather than running dry.
   const deck: EventCard[] = next.eventDeck.length > 0 ? next.eventDeck : createDeck(next);
   const [event, ...rest] = deck;
   next = note(next, `Drew ${cardName(pull.card)} — an event!`);

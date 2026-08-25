@@ -9,6 +9,7 @@
 
 import { hexToPixel, type Hex } from "../game/hex";
 import { ROLES } from "../game/players";
+import { inkOn } from "../palette";
 import type { Player } from "../game/types";
 
 type Props = {
@@ -83,7 +84,7 @@ function Token({
         y={r * 0.36}
         textAnchor="middle"
         fontSize={r * 1.05}
-        fill="#141a1f"
+        fill={inkOn(player.role)}
       >
         {player.name[0]}
       </text>

@@ -13,7 +13,7 @@ rulebook actually says. **The goal is now a real goal: beat the dragon before tu
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 337 tests
+npm test           # 345 tests
 npm run build      # type-check + production build into dist/
 npm run build:play # one self-contained .html you can hand to somebody
 
@@ -312,6 +312,35 @@ grinding it down alone, which is why over half of games ran out the clock.
 move the game has made, and it lands exactly where the docs kept predicting it would —
 on the timeout share. Wipes fell too, because fights now end before they grind.
 
+## v0.20: colour, chests, and a louder world
+
+- **One file owns every colour** (`src/palette.ts`). A child learns this game by colour
+  before they learn it by name, so a thing has to be the same colour on its token, in
+  the party list and on the compass blip. Knight pink, Rogue yellow, Scout dark green,
+  Doctor white, Fisher light blue, Pirates purple, Robber brown, Dragon red, Tornado
+  grey, Traveller light green. Bandits and ogres were not specified and took the two
+  hues nothing else was using — orange and teal.
+- **There was never a second crew of pirates.** They are one thing wearing two hats: a
+  hazard record and a monster record on the same tile. The board already drew them
+  once, but the compass read-out listed both, so the table went looking for a crew that
+  did not exist. Fixed at the source.
+- **Four chests in the river, not one per tile.** The best odds in the game had become
+  something you tripped over on the way past. Because they are rare now, they no longer
+  have a dud outcome — a black number pays a piece of gear where it used to be an empty
+  box. A chestless river tile searches as ordinary ground and still fishes.
+- **Events get more likely as the game goes on.** Face cards only was 23% of the deck
+  on turn one and 23% on turn thirty-two. Now it is jack-and-up, then ten-and-up, then
+  nine-and-up across the thirds of the game — 31%, 38%, 46%. The ace counts throughout,
+  which the old rule quietly excluded.
+
+**Balance: 40% wins, 34% out of time, 26% wipes**, from 38/45/17. Timeouts fell hard —
+that is the events. Wipes rose almost as hard, which is the same cause: a louder world
+hurts. Read the wipe figure as the most pessimistic of the three, because the bot never
+eats and a real family does.
+
+*(Hazards landing on a player already fired their event immediately — checked over 400
+hazard moves, 42 of 43 landings resolved on the spot. No change needed there.)*
+
 ## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.
 - **Four event cards** that need effects lasting beyond the moment they are read:
@@ -321,6 +350,13 @@ on the timeout share. Wipes fell too, because fights now end before they grind.
   the +1/+2 grades; this is the other half.
 - **Must mid bosses die first? (§15)** — nothing stops a party running at the dragon
   on turn one. The dice make that a bad idea, but no rule forbids it.
+- **Equipment depth.** Gear is one weapon, one coat, one pair of boots, at +1 or +2,
+  and a party saturates on it early — after that a find is a shrug. The direction asked
+  for: skills or gems on weapons so a fight is more than a dice roll, gear you keep
+  building on rather than finding once, and random skills on monsters late on so they
+  keep pace. The thing to watch is that it must not make the game *simpler* — right now
+  every number is single-digit and a seven-year-old can hold the whole thing in their
+  head, and that is the property most at risk from a depth system.
 - Autosave and undo are unbuilt. The seed is already visible and typeable in the header.
 - **The bot never spends its money**, so the sim's purse line is gross earnings, not
   savings. It says money is reaching the party; it says nothing about whether the

@@ -59,6 +59,7 @@ const blankBoard = (): Draft =>
         base: "field",
         sides: Array<Element>(6).fill("field"),
         river: false,
+        chest: false,
         rail: false,
         destroyedUntil: null,
         searched: false,
@@ -123,6 +124,24 @@ function carveRiver(board: Draft, rng: Rng): void {
 
   for (let i = 1; i < route.length; i++) {
     for (const h of hexLine(route[i - 1], route[i])) at(board, h).river = true;
+  }
+}
+
+/**
+ * Chests sunk in the river, board-wide.
+ *
+ * Four. The river runs a dozen tiles or more across the board, and a chest on every
+ * one of them made the best odds in the game something you tripped over on the way
+ * past - and put a chest mark on a dozen hexes, which is a map that says nothing.
+ * Four is few enough that seeing one is worth changing course for.
+ */
+export const CHESTS_IN_THE_RIVER = 4;
+
+/** Sink the chests, once the river knows where it runs. */
+function sinkChests(board: Draft, rng: Rng): void {
+  const water = [...board.values()].filter((t) => t.river);
+  for (const tile of rng.shuffle(water).slice(0, CHESTS_IN_THE_RIVER)) {
+    tile.chest = true;
   }
 }
 
@@ -284,6 +303,7 @@ export function generateBoard(seed: number): Record<string, Tile> {
   const board = blankBoard();
 
   carveRiver(board, rng);
+  sinkChests(board, rng);
   layRailway(board, rng);
   placeCities(board, rng);
   growForests(board, rng);

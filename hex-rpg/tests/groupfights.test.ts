@@ -19,7 +19,12 @@ import {
   takeSpoil,
 } from "../src/game/combat";
 import { createInitialState } from "../src/game/setup";
-import { endTurn } from "../src/game/turn";
+import { bringsEvent, endTurn, eventThreshold } from "../src/game/turn";
+import { sense } from "../src/game/sense";
+import { ROLES } from "../src/game/players";
+import { HAZARDS } from "../src/game/hazards";
+import { ENEMIES } from "../src/game/enemies";
+import { PALETTE } from "../src/palette";
 import { moveRange, TURN_ORDER } from "../src/game/players";
 import { EQUIPMENT, makeItem } from "../src/game/items";
 import { distance, key } from "../src/game/hex";
@@ -255,5 +260,92 @@ describe("sharing out the loot", () => {
       expect(after.players.find((p) => p.id === id)!.money).toBeGreaterThan(before[id]);
     }
     expect(after.players.find((p) => p.id === "doctor")!.money).toBe(before.doctor);
+  });
+});
+
+describe("the world gets louder", () => {
+  it("drops the bar for an event as the game goes on", () => {
+    // §4's "face cards" is 23% of the deck on turn one and 23% on turn thirty-two.
+    // The back half is where a quiet turn is just a turn spent walking.
+    expect(eventThreshold(1, 32)).toBe(11);
+    expect(eventThreshold(16, 32)).toBe(10);
+    expect(eventThreshold(30, 32)).toBe(9);
+  });
+
+  it("counts the ace throughout, which §4 quietly excluded", () => {
+    const ace = { suit: "spades", rank: "A" } as const;
+    expect(bringsEvent(ace, 1, 32)).toBe(true);
+    expect(bringsEvent({ suit: "spades", rank: "K" }, 1, 32)).toBe(true);
+    expect(bringsEvent({ suit: "spades", rank: "10" }, 1, 32)).toBe(false);
+  });
+
+  it("turns a late ten into an event and an early one into a quiet turn", () => {
+    const ten = { suit: "hearts", rank: "10" } as const;
+    expect(bringsEvent(ten, 2, 32)).toBe(false);
+    expect(bringsEvent(ten, 20, 32)).toBe(true);
+
+    const nine = { suit: "hearts", rank: "9" } as const;
+    expect(bringsEvent(nine, 20, 32)).toBe(false);
+    expect(bringsEvent(nine, 30, 32)).toBe(true);
+  });
+
+  it("never lets a face card go quiet, whatever the maths says", () => {
+    for (const rank of ["J", "Q", "K"] as const) {
+      for (const turn of [1, 10, 20, 32]) {
+        expect(bringsEvent({ suit: "clubs", rank }, turn, 32)).toBe(true);
+      }
+    }
+  });
+});
+
+describe("one crew of pirates, not two", () => {
+  it("reports a thief once, not once as a monster and once as a hazard", () => {
+    const base = createInitialState(4471);
+    const pirates = base.hazards.find((h) => h.kind === "pirates")!;
+    // Stand somebody a tile away so the crew is inside sensing range.
+    const near: GameState = {
+      ...base,
+      players: base.players.map((p, i) =>
+        i === 0 ? { ...p, hex: { q: pirates.hex.q + 1, r: pirates.hex.r } } : p,
+      ),
+    };
+    const blips = sense(near, near.players[0]).filter((s) => s.name === "Pirates");
+    // They are one thing wearing two hats - a hazard record and a monster record on
+    // one tile - and the read-out used to list both, which had the table hunting for
+    // a second crew that was never there.
+    expect(blips).toHaveLength(1);
+    expect(blips[0].kind).toBe("hazard");
+  });
+
+  it("gives every blip the colour its token has on the board", () => {
+    const base = createInitialState(4471);
+    const pirates = base.hazards.find((h) => h.kind === "pirates")!;
+    const near: GameState = {
+      ...base,
+      players: base.players.map((p, i) =>
+        i === 0 ? { ...p, hex: { q: pirates.hex.q + 1, r: pirates.hex.r } } : p,
+      ),
+    };
+    for (const blip of sense(near, near.players[0])) {
+      expect(blip.colour).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+    expect(sense(near, near.players[0]).find((s) => s.name === "Pirates")!.colour)
+      .toBe(PALETTE.pirates);
+  });
+
+  it("keeps every character and wanderer on its own colour", () => {
+    // A child learns the game by colour before they learn it by name. Two things
+    // sharing one is two things they cannot tell apart across the table.
+    const used = Object.values(PALETTE);
+    expect(new Set(used).size).toBe(used.length);
+    for (const role of TURN_ORDER) {
+      expect(ROLES[role].colour).toBe(PALETTE[role as keyof typeof PALETTE]);
+    }
+    for (const kind of ["tornado", "homeless", "robber", "pirates"] as const) {
+      expect(HAZARDS[kind].colour).toBe(PALETTE[kind]);
+    }
+    for (const kind of ["mob", "midboss", "finalboss", "robber", "pirates"] as const) {
+      expect(ENEMIES[kind].colour).toBe(PALETTE[kind]);
+    }
   });
 });

@@ -12,6 +12,7 @@
  */
 
 import { allHexes, distance, key, type Hex } from "./hex";
+import { PALETTE } from "../palette";
 import type { Rng } from "./rng";
 import type { Enemy, EnemyKind, Player } from "./types";
 
@@ -67,7 +68,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     purse: 1,
     fineChance: 0,
     features: 1,
-    colour: "#e8734a",
+    colour: PALETTE.mob,
     scale: 0.78,
     glyph: "B",
   },
@@ -81,7 +82,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     purse: 2,
     fineChance: 0.3,
     features: 1,
-    colour: "#c9436b",
+    colour: PALETTE.midboss,
     scale: 1,
     glyph: "O",
   },
@@ -95,7 +96,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     purse: 5,
     fineChance: 0.5,
     features: 2,
-    colour: "#a03bd6",
+    colour: PALETTE.finalboss,
     scale: 1.3,
     // A star, not a D: the doctor's token is already a D, and two of those on one
     // board is exactly the kind of thing that starts an argument.
@@ -112,7 +113,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     fineChance: 0,
     // Rulebook §5.5: the thieves draw no feature card.
     features: 0,
-    colour: "#b0894a",
+    colour: PALETTE.robber,
     scale: 0.9,
     glyph: "R",
   },
@@ -126,7 +127,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
     purse: 3,
     fineChance: 0.3,
     features: 0,
-    colour: "#4a90b0",
+    colour: PALETTE.pirates,
     scale: 0.95,
     glyph: "P",
     plural: true,

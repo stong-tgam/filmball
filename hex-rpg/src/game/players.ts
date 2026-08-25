@@ -17,6 +17,7 @@
  */
 
 import { boardCorners, type Hex } from "./hex";
+import { PALETTE } from "../palette";
 import { ROD_TEMPLATE, makeItem } from "./items";
 import type { Rng } from "./rng";
 import type { Player, Role, Terrain } from "./types";
@@ -84,10 +85,7 @@ export type RoleProfile = {
    * afford to be carrying something they are not wearing.
    */
   carriesSpare: boolean;
-  /**
-   * Token colour. Picked to read against fields, forest and city alike, and to stay
-   * clear of the board's orange selection ring.
-   */
+  /** Token colour. One source for every colour on the board: see `src/palette.ts`. */
   colour: string;
 };
 
@@ -104,7 +102,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     carriesSpare: true,
     homeGround: null,
     robsTheBody: false,
-    colour: "#d64545",
+    colour: PALETTE.knight,
   },
   rogue: {
     name: "Rogue",
@@ -118,7 +116,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     carriesSpare: false,
     homeGround: null,
     robsTheBody: true,
-    colour: "#9b5de5",
+    colour: PALETTE.rogue,
   },
   scout: {
     name: "Scout",
@@ -132,7 +130,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     carriesSpare: false,
     homeGround: "forest",
     robsTheBody: false,
-    colour: "#17b3c9",
+    colour: PALETTE.scout,
   },
   doctor: {
     name: "Doctor",
@@ -146,7 +144,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     carriesSpare: false,
     homeGround: null,
     robsTheBody: false,
-    colour: "#f0ece0",
+    colour: PALETTE.doctor,
   },
   fisherman: {
     name: "Fisher",
@@ -160,7 +158,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     carriesSpare: false,
     homeGround: null,
     robsTheBody: false,
-    colour: "#3f9e5a",
+    colour: PALETTE.fisherman,
   },
 };
 

@@ -68,6 +68,7 @@ milestone.
 ## Where things are
 
 ```
+src/palette.ts  every colour that names a character or an event, in one place
 src/game/     pure logic, no React - hex, rng, setup, turn, combat, actions,
               hazards, events, items, enemies, vision, sense, store
 src/ui/       Compass.tsx (what a player sees), Tile.tsx (one hex),
@@ -80,13 +81,13 @@ reference/    the rulebook, the build spec, and the token art prompt
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 337 tests
+npm test           # 345 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html you can hand to somebody
 npx vite-node tools/sim.ts 200   # bot playtest: how do 200 games end?
 ```
 
-## Current state: v0.19
+## Current state: v0.20
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -138,6 +139,29 @@ Key rules, so nothing gets "improved" back to a guess:
   every legal tile got one and all six tiles round the dragon were a wall. The radius
   now gives ground to keep at least `MIN_OPEN_PER_MONSTER` tiles free per monster, so
   the board stays a scatter. There is a test on the packing ratio.
+- **`src/palette.ts` owns every colour that names a thing.** A child learns this game
+  by colour before they learn it by name — "the pink one" is how a seven-year-old
+  refers to the knight for the first hour — so a thing's colour has to be identical on
+  its token, its chit, the party list and the compass blip. **Never hard-code a token
+  or blip colour anywhere else.** `Sensed.colour` is carried on the blip from the same
+  file, so the dot and the token cannot drift apart. `styles.css` still owns the
+  scenery (terrain fills, panel chrome, the accent) because none of that names a
+  character.
+- **A thief is one thing wearing two hats**: a hazard record and a monster record on
+  the same tile. `HazardLayer` skips them (`EnemyLayer` draws them) and `sense` skips
+  them in the enemy loop (the hazard loop reports them). Miss either and the board
+  grows a second crew of pirates that nobody can find.
+- **Chests are rare** (`CHESTS_IN_THE_RIVER`, four). Every river tile used to hold one,
+  which made the best odds in the game something you tripped over on the way past and
+  put a chest mark on a dozen hexes. Rare and worth the walk beats common and ignored —
+  and because they are rare, a chest no longer has a dud outcome: a black number pays
+  one piece of gear where it used to be a soaked empty box. A chestless river tile
+  searches as ordinary ground and still fishes.
+- **Events get more likely as the game goes on** (`eventThreshold`, `bringsEvent`).
+  §4's "face cards" is 23% of the deck on turn one and 23% on turn thirty-two; the back
+  half of a game is where a quiet turn is just a turn spent walking. Three bands: jack
+  and up, then ten and up, then nine and up (31% / 38% / 46%). The ace counts
+  throughout, which §4 quietly excluded.
 - **Group fights (§8) are in.** The starter of a fight may shout for anybody inside
   **their own** movement range (`inviteTargets`) — so a scout who picks the fight pulls
   from further away, which is a second reason to send them first. Invited players move
