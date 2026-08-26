@@ -12,7 +12,7 @@
  * found one, the same way the action bar only ever shows what you can actually do.
  */
 
-import { GEMS, SETTINGS, WORN, isSpent, powerOf } from "../game/gems";
+import { GEMS, LIMIT_LABEL, SETTINGS, WORN, isSpent, powerOf } from "../game/gems";
 import GemArt from "./art/gems";
 import type { Gem, GemSetting } from "../game/types";
 
@@ -56,7 +56,7 @@ export default function GemBar({
 }) {
   const stone = GEMS[gem.kind];
   const power = powerOf(gem);
-  const used = power.onceAGame && isSpent(gem);
+  const used = power.limit === "game" && isSpent(gem);
 
   return (
     <div className="gembar" style={{ ["--stone" as string]: stone.colour }}>
@@ -67,9 +67,9 @@ export default function GemBar({
       <div className="gembar-says">
         <p className="gembar-power">
           <strong>{power.title}</strong>
-          {power.onceAGame && (
+          {power.limit !== "always" && (
             <span className={`gembar-once${used ? " is-spent" : ""}`}>
-              {used ? "used up" : "once a game"}
+              {used ? "used up" : LIMIT_LABEL[power.limit]}
             </span>
           )}
         </p>

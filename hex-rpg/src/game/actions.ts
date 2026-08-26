@@ -36,8 +36,8 @@ import {
   GEM_FROM_A_CHEST,
   GEM_FROM_THE_GROUND,
   maybeAStone,
-  powerHere,
   spend,
+  stone,
 } from "./gems";
 import { ROLES, withMaxHealth } from "./players";
 import { bearingBetween, compassName } from "./sense";
@@ -112,7 +112,7 @@ export function canSearch(state: GameState, player: Player): boolean {
  * spends, so without this guard "dig again" is "open the treasure again".
  */
 export const canDigAgain = (player: Player, tile: Tile): boolean =>
-  tile.searched && searchKind(tile) === "ground" && powerHere(player, "boots") !== null;
+  tile.searched && searchKind(tile) === "ground" && stone(player, "green", "boots") !== null;
 
 /**
  * Is there still anything to be had off this tile?
@@ -959,9 +959,20 @@ export const sellable = (player: Player): Item[] => [...carriedGear(player), ...
 
 /* ------------------------------------------------------------------ handing over */
 
-/** Everybody else standing on this tile. Players stack; this is why. */
-export const tileMates = (state: GameState, player: Player): Player[] =>
-  state.players.filter((p) => p.id !== player.id && !p.dead && key(p.hex) === key(player.hex));
+/**
+ * Everybody this player can hand something to. Players stack; that is why the usual
+ * answer is "whoever is on your tile".
+ *
+ * Blue's boots reach one tile past that, which is the difference between the doctor's
+ * spare food getting to the knight this turn or next. Still not a *move*: nobody goes
+ * anywhere, the thing does.
+ */
+export const tileMates = (state: GameState, player: Player): Player[] => {
+  const reach = stone(player, "blue", "boots") ? 1 : 0;
+  return state.players.filter(
+    (p) => p.id !== player.id && !p.dead && distance(p.hex, player.hex) <= reach,
+  );
+};
 
 /**
  * Handing something to somebody you are standing with.

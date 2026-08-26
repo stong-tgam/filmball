@@ -31,20 +31,30 @@
 
 import { PALETTE } from "../palette";
 import { makeRng } from "./rng";
-import type { GameState, Gem, GemKind, GemSetting, Player } from "./types";
+import type { Combat, GameState, Gem, GemKind, GemSetting, Player } from "./types";
 
 export type { Gem, GemKind, GemSetting } from "./types";
 
 /** The three places a stone can sit, in the order the buttons show them. */
 export const SETTINGS: GemSetting[] = ["weapon", "armor", "boots"];
 
+/**
+ * How often a power comes back.
+ *
+ * - `"always"` - no limit at all. Green's spoils and blue's two reaches.
+ * - `"fight"` - once per fight, and it recharges with the next one. Red's whole set,
+ *   which is why red is the *now* stone: it is small, and it is there every time.
+ * - `"game"` - once in an evening, and then it is gone. The two biggest things a stone
+ *   does, so they get the weight of being spendable exactly once.
+ */
+export type GemLimit = "always" | "fight" | "game";
+
 export type GemPower = {
   /** What the button says. */
   title: string;
   /** One line a child can act on. Shown under the button, not in a rulebook. */
   text: string;
-  /** True for the two that only ever fire once in an evening. */
-  onceAGame: boolean;
+  limit: GemLimit;
 };
 
 export type GemProfile = {
@@ -69,7 +79,7 @@ export const GEMS: Record<GemKind, GemProfile> = {
       weapon: {
         title: "Spoils",
         text: "Win a fight and everyone who swung finds something to eat.",
-        onceAGame: false,
+        limit: "always",
       },
       // The best thing in the set, and the reason the stone is green. "Losing must not
       // feel like punishment" is the house rule; this is that rule as an object you can
@@ -77,7 +87,7 @@ export const GEMS: Record<GemKind, GemProfile> = {
       armor: {
         title: "Second wind",
         text: "Once a game, a blow that would put you down leaves you on one health.",
-        onceAGame: true,
+        limit: "game",
       },
       // Ground is searched once per game or standing still beats playing. This is the
       // one exception, and it is once a game too - it turns a tile the party has
@@ -85,7 +95,76 @@ export const GEMS: Record<GemKind, GemProfile> = {
       boots: {
         title: "Dig again",
         text: "Once a game, search ground that somebody has already been over.",
-        onceAGame: true,
+        limit: "game",
+      },
+    },
+  },
+
+  red: {
+    name: "Red Stone",
+    colour: PALETTE.gemRed,
+    theme: "you, now",
+    powers: {
+      // A re-throw rather than a bigger number, and that is the whole difference: the
+      // dice roll is one of the four or five moments this game stops for, and this
+      // gives a child a second one on the round it matters instead of quietly adding
+      // to the total on every round. Choosing *which* round to spend it on is the
+      // decision - which is why it is a second button and not an automatic re-roll.
+      weapon: {
+        title: "Second swing",
+        text: "Once a fight, throw your dice twice and keep the better roll.",
+        limit: "fight",
+      },
+      // The smallest possible save, and the one that fires every fight. Green's coat
+      // is the once-an-evening rescue; this is the one you can count on, which is why
+      // it stops a single health rather than a fall.
+      armor: {
+        title: "Grit",
+        text: "Once a fight, a round that falls short costs you no health.",
+        limit: "fight",
+      },
+      // Running is a gamble on purpose (`escapeChance` is never certain), and this is
+      // the one thing in the game that makes it a certainty. It does not make you
+      // braver, it makes you able to leave - which is what lets a child walk into
+      // something frightening in the first place.
+      boots: {
+        title: "Slip away",
+        text: "Once a fight, backing out of it is certain to work.",
+        limit: "fight",
+      },
+    },
+  },
+
+  blue: {
+    name: "Blue Stone",
+    colour: PALETTE.gemBlue,
+    theme: "everybody else",
+    powers: {
+      // §8's invitations reach as far as the starter's own legs, which is why a scout
+      // who picks the fight pulls from further away. This is the other way to get
+      // there, and it is the most co-operative thing in the set: it is worth nothing
+      // at all to a player on their own.
+      weapon: {
+        title: "Carry",
+        text: "Your shout for help reaches one tile further.",
+        limit: "always",
+      },
+      // The only power in the game that spends *your* health on somebody else's
+      // behalf, and it fires by itself because a child who has to be asked "do you
+      // want to save your sister" every round will say yes every round anyway. It only
+      // ever fires when you can afford it - see `takeTheHit`.
+      armor: {
+        title: "Take the hit",
+        text: "Once a fight, a blow that would put a friend on your tile down lands on you instead.",
+        limit: "fight",
+      },
+      // Handing something over needs a shared tile, which is two turns of walking. One
+      // tile of reach turns that into nothing at all, and it is the difference between
+      // the doctor's food reaching the knight this turn or next.
+      boots: {
+        title: "Long arm",
+        text: "Hand something to a friend one tile away, not just one you are standing with.",
+        limit: "always",
       },
     },
   },
@@ -96,11 +175,15 @@ export const GEM_FROM_A_BODY = 0.15;
 export const GEM_FROM_THE_GROUND = 0.1;
 export const GEM_FROM_A_CHEST = 0.4;
 
+/** Every colour, in the order they are described. */
+export const KINDS: GemKind[] = ["green", "red", "blue"];
+
 let counter = 0;
 export const makeGem = (kind: GemKind, id?: string): Gem => ({
   id: id ?? `gem-${kind}-${++counter}`,
   kind,
-  // Lands in the coat, which is the kindest of the three to be handed by surprise.
+  // Lands in the coat, which is the kindest of the three to be handed by surprise -
+  // every colour's coat power is a save of some sort.
   set: "armor",
   spent: [],
 });
@@ -108,28 +191,57 @@ export const makeGem = (kind: GemKind, id?: string): Gem => ({
 /** What this stone is doing where it currently sits. */
 export const powerOf = (gem: Gem): GemPower => GEMS[gem.kind].powers[gem.set];
 
-/** Has this stone's power in this setting already been used up? */
+/** Has this stone's once-a-game power in this setting already been used up? */
 export const isSpent = (gem: Gem, setting: GemSetting = gem.set): boolean =>
   gem.spent.includes(setting);
-
-/** Is this stone's current power available right now? */
-export const ready = (gem: Gem): boolean => !powerOf(gem).onceAGame || !isSpent(gem);
 
 /** Mark the current setting's once-a-game power used. */
 export const spend = (gem: Gem): Gem =>
   isSpent(gem) ? gem : { ...gem, spent: [...gem.spent, gem.set] };
 
 /**
- * The stone a player has, if it is set here and still has its power.
+ * Is this stone's power available to this player right now?
  *
- * One call site per power, and they all read this - so "the holder must be carrying it,
- * it must be in the right setting, and it must not be spent" is written once.
+ * The three limits are checked in one place so that "the holder must be carrying it,
+ * it must be in the right setting, and it must not be used up" is written once rather
+ * than nine times. A fight-limited power needs the fight to ask about - outside one
+ * there is nothing to spend it on, so it reads as unavailable.
  */
-export function powerHere(player: Player, setting: GemSetting): Gem | null {
-  const gem = player.gem;
-  if (!gem || gem.set !== setting) return null;
-  return ready(gem) ? gem : null;
+export function ready(player: Player, gem: Gem, combat?: Combat | null): boolean {
+  switch (powerOf(gem).limit) {
+    case "always":
+      return true;
+    case "game":
+      return !isSpent(gem);
+    case "fight":
+      return combat != null && !combat.stonesSpent.includes(player.id);
+  }
 }
+
+/**
+ * The stone this player is holding, if it is this colour, in this setting, and its
+ * power is available.
+ *
+ * **Every power in the game asks this and nothing else.** One call site per power, so
+ * a new colour is a row in the table above and a call here, and the rules about what
+ * counts as available cannot drift between them.
+ */
+export function stone(
+  player: Player,
+  kind: GemKind,
+  setting: GemSetting,
+  combat?: Combat | null,
+): Gem | null {
+  const gem = player.gem;
+  if (!gem || gem.kind !== kind || gem.set !== setting) return null;
+  return ready(player, gem, combat) ? gem : null;
+}
+
+/** Write a fight-limited power off for the rest of this fight. */
+export const spendForTheFight = (combat: Combat, playerId: string): Combat =>
+  combat.stonesSpent.includes(playerId)
+    ? combat
+    : { ...combat, stonesSpent: [...combat.stonesSpent, playerId] };
 
 /**
  * Move your stone. Free, and it does not cost the turn's action.
@@ -183,19 +295,29 @@ export function maybeAStone(state: GameState, playerId: string, chance: number):
 
   const rng = makeRng(state.rngState);
   const lucky = rng.next() < chance;
-  const rolled: GameState = { ...state, rngState: rng.state() };
-  if (!lucky) return rolled;
+  if (!lucky) return { ...state, rngState: rng.state() };
 
-  const gem = makeGem("green", `gem-green-${playerId}-${state.log.length}`);
+  // Which colour is its own roll, off the same generator. Even thirds: none of the
+  // three is the good one, they are three different games to play with the same object.
+  const kind = KINDS[Math.floor(rng.next() * KINDS.length)] ?? "green";
+  const gem = makeGem(kind, `gem-${kind}-${playerId}-${state.log.length}`);
   return {
-    ...rolled,
-    players: rolled.players.map((p) => (p.id === playerId ? { ...p, gem } : p)),
+    ...state,
+    rngState: rng.state(),
+    players: state.players.map((p) => (p.id === playerId ? { ...p, gem } : p)),
     log: [
-      ...rolled.log,
+      ...state.log,
       {
-        turn: rolled.turn,
-        text: `${player.name} turned up a ${GEMS.green.name.toLowerCase()}. It is in their ${WORN[gem.set]}: ${powerOf(gem).title} — ${powerOf(gem).text}`,
+        turn: state.turn,
+        text: `${player.name} turned up a ${GEMS[kind].name.toLowerCase()}. It is in their ${WORN[gem.set]}: ${powerOf(gem).title} — ${powerOf(gem).text}`,
       },
     ],
   };
 }
+
+/** What the strip says under a power's name, for the two that run out. */
+export const LIMIT_LABEL: Record<GemLimit, string> = {
+  always: "",
+  fight: "once a fight",
+  game: "once a game",
+};

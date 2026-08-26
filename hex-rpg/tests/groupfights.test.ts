@@ -50,6 +50,7 @@ function brawl(kind: Enemy["kind"], seed = 4471): GameState {
     playerId: "knight",
     allies: [],
     support: [],
+    stonesSpent: [],
     from: key(beside[0]),
     round: 0,
     playerRoll: null,

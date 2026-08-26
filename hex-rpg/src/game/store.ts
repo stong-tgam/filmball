@@ -10,6 +10,7 @@ import { activePlayer, clearDraw, endTurn, legalMoves, movePlayer } from "./turn
 import {
   attack,
   canInvite,
+  canSwingTwice,
   combatants,
   endCombat,
   fighters,
@@ -59,7 +60,7 @@ type Store = {
   tile: (label: string) => Tile | undefined;
   moveTo: (label: string) => void;
   endTurn: () => void;
-  attack: () => void;
+  attack: (twice?: boolean) => void;
   flee: () => void;
   search: () => void;
   fish: () => void;
@@ -106,7 +107,7 @@ export const useGame = create<Store>((set, get) => ({
   tile: (label) => get().game.tiles[label],
   moveTo: (label) => set({ game: movePlayer(get().game, label), selected: null }),
   endTurn: () => set({ game: endTurn(get().game), selected: null }),
-  attack: () => set({ game: attack(get().game) }),
+  attack: (twice = false) => set({ game: attack(get().game, twice) }),
   flee: () => set({ game: flee(get().game) }),
   closeCombat: () => set({ game: endTurn(endCombat(get().game)), selected: null }),
   search: () => set({ game: search(get().game) }),
@@ -172,6 +173,8 @@ export const useCanDonate = (): boolean =>
 export const useCanPayOff = (): boolean =>
   useGame((s) => canPayOff(s.game, activePlayer(s.game)));
 /** The active player's stone, and whether it may be moved right now. */
+/** The red stone in a weapon: this round may be thrown twice. */
+export const useCanSwingTwice = (): boolean => useGame((s) => canSwingTwice(s.game));
 export const useCanSetGem = (): boolean =>
   useGame((s) => canSetGem(s.game, activePlayer(s.game)));
 export const useCanFightThief = (): boolean =>

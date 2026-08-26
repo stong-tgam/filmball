@@ -1817,3 +1817,11 @@ button.fight-thief {
 .find-stone { display: grid; justify-items: center; gap: 6px; margin: 4px 0 2px; }
 .find-stone-power { margin: 0; font-size: 15px; text-align: center; }
 .find-stone-hint { margin: 0; font-size: 13px; text-align: center; }
+
+/* The red stone's second throw. Its own colour so it never reads as the ordinary
+   swing - it is the once-a-fight button, and spending it is a decision. */
+button.swing-twice {
+  border-color: transparent;
+  color: #ffffff;
+  font-weight: 700;
+}

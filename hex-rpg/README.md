@@ -4,7 +4,7 @@ Hotseat (one device, passed around) digital version of the Hex RPG tabletop game
 Built to `reference/hex-rpg-rulebook.md`, with `reference/webapp-spec.md` as the build
 plan.
 
-**This build is v0.26.** Every system the spec asks for is in, every placeholder from
+**This build is v0.27.** Every system the spec asks for is in, every placeholder from
 the early builds has been replaced with what the rulebook actually says, and the two
 rules the rulebook leans on hardest — the hidden board and the group fight — are both
 built. **The goal: kill the dragon before the board falls out from under you.**
@@ -606,6 +606,56 @@ else* — shout for help one tile further, take a hit meant for a friend on your
 hand something across a gap. If they make the party too strong, the answer is the same
 system pointed the other way: give the dragon a stone.
 
+## v0.27: three stones
+
+Red and blue, and the grid closes:
+
+| in your… | **green** — *keep going* | **red** — *you, now* | **blue** — *everybody else* |
+|---|---|---|---|
+| **weapon** | **Spoils** — win a fight and everyone who swung finds something to eat | **Second swing** — throw your dice twice and keep the better roll | **Carry** — your shout for help reaches one tile further |
+| **coat** | **Second wind** — a blow that would put you down leaves you on one | **Grit** — a round that falls short costs you no health | **Take the hit** — a friend's blow lands on you instead |
+| **boots** | **Dig again** — search ground somebody has already been over | **Slip away** — backing out of a fight is certain to work | **Long arm** — hand something to a friend a tile away |
+
+The rows mean the same thing in every colour: **weapon is the fight, coat is surviving,
+boots are reach.** Nine abilities from three objects, none of them a number, and a child
+never has to memorise the table — what a stone does is written on the button that does
+it, and a stone you are not carrying shows nothing at all.
+
+**Green's two big powers fire once an evening; red's whole set comes back every fight.**
+That is what makes red the *now* stone: small, and there every time. It also needed a
+second kind of bookkeeping — a fight-limited power lives on the fight
+(`Combat.stonesSpent`), which disappears when the fight does, so there is nothing to
+reset and nothing to forget to reset.
+
+Two of the nine are worth calling out:
+
+- **Second swing is its own button in the fight**, not an automatic re-roll on a bad
+  round. Choosing *which* round to spend it on is the decision, and a re-roll that
+  happens to you is not a moment.
+- **Take the hit fires by itself, but only while the holder stays standing.** A child
+  asked "do you want to save your sister?" every round says yes every round, so the
+  automatic version is the honest one — but heroism that swaps one of them for the
+  other is a trade nobody chose, so it sits the round out rather than backfiring.
+
+**And the dragon carries a stone now** — green, so once in the fight the blow that
+should have finished it leaves it on one health. That was added as the *counter* to the
+party's three colours, and measured at doing **nothing at all** to the win rate: the
+dragon fight is a siege spread over a dozen attempts, so one health is a rounding error.
+It is kept for the beat, not for the balance. What actually paid for the stones was the
+dial that has always done it: the dragon went from 9-13 health a head to **10-14**.
+
+| Players | Win | Out of time | Wiped | Stones a game |
+|---|---|---|---|---|
+| 2 | 48% | 22% | 30% | 0.9 |
+| 3 | 46% | 27% | 27% | 1.2 |
+| 4 | 43% | 36% | 21% | 1.6 |
+| 5 | 45% | 43% | 12% | 1.9 |
+
+800 games each. Red and blue were worth **+6 points on their own** — the band ran 48-53%
+before the dragon was paid — and the finished set sits at 43-48%, which is where v0.26
+was. The stones are a decision, not a difficulty setting, and that is what these numbers
+are meant to show.
+
 ## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.
 - **Four event cards** that need effects lasting beyond the moment they are read:
@@ -615,10 +665,10 @@ system pointed the other way: give the dragon a stone.
   the +1/+2 grades; this is the other half.
 - **Must mid bosses die first? (§15)** — nothing stops a party running at the dragon
   on turn one. The dice make that a bad idea, but no rule forbids it.
-- **The other two stones.** Green is in (v0.26); red and blue are designed and written
-  up there and not built. The other half of that direction is still open too: **random
-  skills on monsters late on so they keep pace**, which is also the balance lever if
-  three colours of stone make the party too strong.
+- **Random skills on monsters**, the other half of the equipment direction. The dragon
+  carries a stone as of v0.27 and it turned out to be a beat rather than a lever; giving
+  the ogres and the late-arriving bandits one is the version that might actually change
+  a fight. A fourth stone colour is the other obvious way to widen the system.
 - **Undo is unbuilt.** Autosave is in as of v0.21 and rests on the same groundwork, so
   this is now the cheap half of the pair. The seed is visible and typeable in the header.
 - **The bot never spends its money**, so the sim's purse line is gross earnings, not

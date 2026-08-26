@@ -133,8 +133,13 @@ export type Player = {
   joinedFightThisRound: boolean;
 };
 
-/** Green is built. Red and blue are designed and not written; see the README. */
-export type GemKind = "green";
+/**
+ * The three stones. Green is *keep going*, red is *you, now*, blue is *everybody else*.
+ *
+ * Three colours and three settings is nine abilities from three objects, and none of
+ * them has to be memorised: what a stone does is written on the button that does it.
+ */
+export type GemKind = "green" | "red" | "blue";
 
 /** The three places a stone can sit. Not `"supply"` - a stone is not lunch. */
 export type GemSetting = "weapon" | "armor" | "boots";
@@ -145,11 +150,11 @@ export type Gem = {
   /** Where it is set right now. Free to change on your own turn, never mid-fight. */
   set: GemSetting;
   /**
-   * Which of its powers have been used up.
+   * Which of its **once-a-game** powers have been used up.
    *
-   * Per setting, not per stone: spending the coat's once-a-game save must not also
-   * spend the boots' second dig. Two of green's three are once a game; the weapon's
-   * is not, and never appears here.
+   * Per setting, not per stone: spending the coat's save must not also spend the
+   * boots' second dig. Powers that recharge every fight are not tracked here - they
+   * live on `Combat.stonesSpent`, which disappears with the fight.
    */
   spent: GemSetting[];
 };
@@ -175,6 +180,17 @@ export type Enemy = {
    * middle tile and leave the game with nowhere to end.
    */
   dormant: boolean;
+  /**
+   * A stone of its own, and whether it has been spent.
+   *
+   * Only the dragon carries one, and it is the balance lever for the party's stones:
+   * three colours of them added about five points of win rate, and the honest answer
+   * to that is the same system pointed the other way rather than another number on the
+   * dragon's health. Green, and it means what green always means - once in the fight,
+   * a blow that should have finished it leaves it on one.
+   */
+  stone: GemKind | null;
+  stoneSpent: boolean;
   /** Drawn on first encounter; empty until then. */
   features: Feature[];
   featuresRevealed: boolean;
@@ -353,6 +369,16 @@ export type Combat = {
    * `"heal"` is just the only one built.
    */
   support: { by: string; kind: "heal"; to: string }[];
+  /**
+   * Players whose stone has fired in **this fight**.
+   *
+   * Red's three powers and blue's coat recharge every fight rather than once a game,
+   * and a fight is the natural place to keep that: the list goes away when the fight
+   * does, so there is nothing to reset and nothing to forget to reset. A player can
+   * only have one stone in one setting, so one id is enough - there is no way to spend
+   * two of them in a round.
+   */
+  stonesSpent: string[];
   /** Tile the player came from, so running away puts them back where they were. */
   from: string;
   round: number;

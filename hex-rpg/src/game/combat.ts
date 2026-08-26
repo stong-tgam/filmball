@@ -17,7 +17,7 @@
 import { ENEMIES, healthLeft, nameWithArticle, verb } from "./enemies";
 import { distance, key, neighbours, type Hex } from "./hex";
 import { standing } from "./collapse";
-import { GEM_FROM_A_BODY, maybeAStone, powerHere, spend } from "./gems";
+import { GEM_FROM_A_BODY, maybeAStone, spend, spendForTheFight, stone } from "./gems";
 import { makeRng } from "./rng";
 import { canTake, equip, makeFine, randomFood } from "./items";
 import { ROLES, maxHealthOf, moveRange } from "./players";
@@ -151,6 +151,7 @@ export function startCombat(
     playerId: player.id,
     allies: [],
     support: [],
+    stonesSpent: [],
     from,
     round: 0,
     playerRoll: null,
@@ -220,21 +221,33 @@ function hurt(state: GameState, amount: number, why: string): GameState {
 
   const fallen = new Set<string>();
   const saved = new Set<string>();
+
+  // Red's coat: once a fight, this round costs the holder nothing. Small, and it comes
+  // back every fight - green's coat is the once-an-evening rescue, this is the one you
+  // can count on.
+  const gritted = hit.find((f) => stone(f, "red", "armor", combat));
+
+  // Blue's coat: a blow that would put a friend on your tile down lands on you. Worked
+  // out before anybody's health moves, because it changes who takes what.
+  const rescue = takeTheHit(state, hit, amount, gritted?.id);
+
   let next: GameState = {
     ...state,
     players: state.players.map((p) => {
       if (!hit.some((f) => f.id === p.id)) return p;
-      const health = Math.max(0, p.health - amount);
+      if (p.id === gritted?.id) return p;
+      const owed = amount + (rescue?.by === p.id ? amount : 0);
+      const health = Math.max(0, p.health - (rescue?.forId === p.id ? 0 : owed));
 
       // The green stone in the coat: once a game, a blow that would put you down
       // leaves you on one instead. Checked here rather than in `gems.ts` because this
       // is the only place in the game where a player's health reaches zero in a fight,
       // and a save that lived anywhere else would be a save that could be missed.
       // The abyss is deliberately not covered: going over the edge is going over.
-      const stone = powerHere(p, "armor");
-      if (health === 0 && stone) {
+      const save = stone(p, "green", "armor");
+      if (health === 0 && save) {
         saved.add(p.id);
-        return { ...p, health: 1, gem: spend(stone) };
+        return { ...p, health: 1, gem: spend(save) };
       }
 
       if (health === 0) fallen.add(p.id);
@@ -246,8 +259,21 @@ function hurt(state: GameState, amount: number, why: string): GameState {
         fellOn: health === 0 ? state.turn : p.fellOn,
       };
     }),
-    combat: { ...combat, toll: amount },
+    combat: (() => {
+      let c = { ...combat, toll: amount };
+      if (gritted) c = spendForTheFight(c, gritted.id);
+      if (rescue) c = spendForTheFight(c, rescue.by);
+      return c;
+    })(),
   };
+  if (gritted) {
+    next = note(next, `${gritted.name} gritted it out — the red stone took the sting off that one.`);
+  }
+  if (rescue) {
+    const hero = state.players.find((p) => p.id === rescue.by)!;
+    const kept = state.players.find((p) => p.id === rescue.forId)!;
+    next = note(next, `${hero.name} stepped in front of it. ${kept.name} takes nothing; ${hero.name} takes it twice.`);
+  }
 
   const standing = hit.filter((f) => !fallen.has(f.id));
   next = note(
@@ -284,6 +310,43 @@ function hurt(state: GameState, amount: number, why: string): GameState {
   };
 }
 
+/**
+ * Blue's coat, worked out before any health moves.
+ *
+ * Somebody on the same tile, in the same fight, holding a ready blue stone in their
+ * coat, takes a friend's blow as well as their own - and **only if they stay standing
+ * afterwards**. That guard is what makes it safe to fire by itself: a child who had to
+ * be asked "do you want to save your sister?" every round would say yes every round, so
+ * the automatic version is the honest one, but only while it cannot quietly trade one
+ * of them for the other.
+ *
+ * Whoever the red stone is protecting this round is skipped - two stones arguing over
+ * one blow is a rule nobody at the table could follow.
+ */
+function takeTheHit(
+  state: GameState,
+  hit: Player[],
+  amount: number,
+  grittedId?: string,
+): { by: string; forId: string } | null {
+  const combat = state.combat;
+  if (!combat) return null;
+
+  for (const falling of hit) {
+    if (falling.id === grittedId || falling.health > amount) continue;
+    const hero = hit.find(
+      (other) =>
+        other.id !== falling.id &&
+        other.id !== grittedId &&
+        key(other.hex) === key(falling.hex) &&
+        other.health > amount * 2 &&
+        stone(other, "blue", "armor", combat),
+    );
+    if (hero) return { by: hero.id, forId: falling.id };
+  }
+  return null;
+}
+
 /* ------------------------------------------------------------- group fights */
 
 /**
@@ -313,7 +376,9 @@ export function inviteTargets(state: GameState): Player[] {
   const starter = state.players.find((p) => p.id === combat.playerId);
   if (!enemy || !starter || !invitable(enemy)) return [];
 
-  const reach = moveRange(starter);
+  // Blue's weapon: your shout carries one tile further. Worth nothing at all to a
+  // player on their own, which is the most co-operative thing in the set.
+  const reach = moveRange(starter) + (stone(starter, "blue", "weapon") ? 1 : 0);
   const already = new Set([combat.playerId, ...combat.allies]);
   return state.players.filter(
     (p) =>
@@ -395,7 +460,21 @@ export function withdrawSupport(state: GameState, byId: string): GameState {
 /* ---------------------------------------------------------------- one round */
 
 /** One roll of the dice, and what it does. */
-export function attack(state: GameState): GameState {
+/** Can the starter throw twice this round? The red stone in a weapon, once a fight. */
+export const canSwingTwice = (state: GameState): boolean =>
+  state.combat?.outcome === "ongoing" &&
+  fighters(state).some((f) => stone(f, "red", "weapon", state.combat)) === true;
+
+/**
+ * One exchange.
+ *
+ * `twice` is the red stone in somebody's weapon: **everybody throws, and the whole
+ * party's roll is thrown a second time and the better of the two totals kept.** Not a
+ * bigger number - a second go at the moment the game stops for, on the round the table
+ * decides matters. Choosing *which* round is the decision, which is why it is a second
+ * button rather than an automatic re-roll on every failure.
+ */
+export function attack(state: GameState, twice = false): GameState {
   const pair = combatants(state);
   if (!state.combat || state.combat.outcome !== "ongoing" || !pair) return state;
   const { player, enemy } = pair;
@@ -429,17 +508,29 @@ export function attack(state: GameState): GameState {
   // number against the monster's remaining health, not a turn each - which is what
   // makes five people meaningfully better than one against thirty health.
   let rngState = state.rngState;
-  const dice: number[] = [];
-  let dealt = 0;
-  const said: string[] = [];
-  for (const who of swinging) {
-    const swing = rollDice(rngState, BASE_DICE + who.bonusDiceNextFight);
-    rngState = swing.rngState;
-    const mine = total(swing.dice) + attackValue(who, enemy, ground);
-    dice.push(...swing.dice);
-    dealt += mine;
-    said.push(`${who.name} ${swing.dice.join("+")}${attackValue(who, enemy, ground) > 0 ? ` +${attackValue(who, enemy, ground)}` : ""}`);
-  }
+
+  const throwEverybody = (from: number) => {
+    let seed = from;
+    const dice: number[] = [];
+    const said: string[] = [];
+    let dealt = 0;
+    for (const who of swinging) {
+      const swing = rollDice(seed, BASE_DICE + who.bonusDiceNextFight);
+      seed = swing.rngState;
+      const bonus = attackValue(who, enemy, ground);
+      dice.push(...swing.dice);
+      dealt += total(swing.dice) + bonus;
+      said.push(`${who.name} ${swing.dice.join("+")}${bonus > 0 ? ` +${bonus}` : ""}`);
+    }
+    return { dice, said, dealt, rngState: seed };
+  };
+
+  const stoned = twice ? fighters(state).find((f) => stone(f, "red", "weapon", combat)) : undefined;
+  const first = throwEverybody(rngState);
+  const second = stoned ? throwEverybody(first.rngState) : null;
+  const best = second && second.dealt > first.dealt ? second : first;
+  const { dice, said, dealt } = best;
+  rngState = second ? second.rngState : first.rngState;
 
   const playerRoll: Roll = { dice, damage: dealt };
   const remaining = healthLeft(enemy);
@@ -452,7 +543,13 @@ export function attack(state: GameState): GameState {
     players: state.players.map((p) =>
       inFight.has(p.id) ? { ...p, bonusDiceNextFight: 0 } : p,
     ),
-    combat: { ...combat, round: combat.round + 1, playerRoll, toll: 0, support: [] },
+    combat: {
+      ...(stoned ? spendForTheFight(combat, stoned.id) : combat),
+      round: combat.round + 1,
+      playerRoll,
+      toll: 0,
+      support: [],
+    },
   };
   next = note(
     next,
@@ -460,11 +557,37 @@ export function attack(state: GameState): GameState {
       ? `${player.name} rolled ${dice.join("+")} for ${dealt}.`
       : `${said.join(", ")} — ${dealt} between them.`,
   );
+  if (stoned) {
+    next = note(
+      next,
+      second && second.dealt > first.dealt
+        ? `${stoned.name}'s red stone bought a second throw — ${first.dealt} the first time, ${dealt} the second.`
+        : `${stoned.name}'s red stone bought a second throw, and the first one was better.`,
+    );
+  }
 
   // Rulebook §7: an exact tie does nothing at all, and you go back where you started.
   if (dealt === remaining) return standoff(next, enemy);
 
   if (dealt > remaining) {
+    // The dragon's own green stone: once in the fight, the blow that should have
+    // finished it leaves it on one. Costs the party a round rather than a health tax,
+    // and it is the loudest moment in the game - which is the point of spending the
+    // party's new strength here rather than on the dragon's health bar.
+    if (enemy.stone === "green" && !enemy.stoneSpent) {
+      return note(
+        {
+          ...next,
+          enemies: next.enemies.map((e) =>
+            e.id === enemy.id
+              ? { ...e, stoneSpent: true, damageTaken: Math.max(0, e.maxHealth - 1) }
+              : e,
+          ),
+        },
+        `That should have finished it — and a green stone on the ${ENEMIES[enemy.kind].name}'s hide flared. It is on one health, and very cross.`,
+      );
+    }
+
     const finished: GameState = {
       ...next,
       enemies: next.enemies.map((e) =>
@@ -627,7 +750,7 @@ function beaten(state: GameState, enemy: Enemy): GameState {
   // out - and what it actually buys is a reason to shout for help, since the payout
   // scales with how many of you turned up rather than with anybody's dice.
   const fed = fighters(state);
-  if (fed.some((f) => powerHere(f, "weapon"))) {
+  if (fed.some((f) => stone(f, "green", "weapon"))) {
     const larder = makeRng(next.rngState);
     let hands = next;
     let given = 0;
@@ -794,8 +917,12 @@ export function flee(state: GameState): GameState {
   // Getting away is not automatic any more. Fail it and you are still in the fight -
   // no health lost for trying, because a failed escape that also hurt would make
   // running strictly worse than swinging and nobody would ever do it.
+  // Red's boots: running is a gamble on purpose, and this is the one thing in the game
+  // that makes it a certainty. It does not make anybody braver - it makes them able to
+  // leave, which is what lets a child walk into something frightening at all.
+  const sure = stone(player, "red", "boots", combat);
   const rng = makeRng(state.rngState);
-  const odds = escapeChance(player, freeLook);
+  const odds = sure ? 1 : escapeChance(player, freeLook);
   if (rng.next() >= odds) {
     return note(
       { ...state, rngState: rng.state() },
@@ -806,7 +933,14 @@ export function flee(state: GameState): GameState {
       )}.`,
     );
   }
-  const away: GameState = { ...state, rngState: rng.state() };
+  let away: GameState = {
+    ...state,
+    rngState: rng.state(),
+    combat: sure ? spendForTheFight(combat, player.id) : combat,
+  };
+  if (sure) {
+    away = note(away, `${player.name}'s red stone found the way out. No roll needed.`);
+  }
 
   if (freeLook) {
     return note(
@@ -815,7 +949,7 @@ export function flee(state: GameState): GameState {
         players: away.players.map((p) =>
           p.id === player.id ? { ...p, hex: home, actedThisTurn: false } : p,
         ),
-        combat: { ...combat, outcome: "playerEscaped" },
+        combat: { ...away.combat!, outcome: "playerEscaped" },
       },
       `${player.name} found ${nameWithArticle(enemy.kind)} and backed straight out again.`,
     );
@@ -827,7 +961,7 @@ export function flee(state: GameState): GameState {
       players: away.players.map((p) =>
         p.id === player.id ? { ...p, hex: home, actedThisTurn: true } : p,
       ),
-      combat: { ...combat, outcome: "playerEscaped" },
+      combat: { ...away.combat!, outcome: "playerEscaped" },
     },
     `${player.name} backed off. The ${ENEMIES[enemy.kind].name} ${verb(
       enemy.kind,

@@ -92,13 +92,13 @@ you have not published.
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 405 tests
+npm test           # 416 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html, plus the artifact fragment
 npx vite-node tools/sim.ts 800 5 # bot playtest: how do 800 five-player games end?
 ```
 
-## Current state: v0.26
+## Current state: v0.27
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -222,7 +222,7 @@ Key rules, so nothing gets "improved" back to a guess:
 - **Bandits keep arriving, more often the later it gets** (`mobArrivalChance`,
   `wanderIn`). The board used to be laid out once and then only ever empty out. Only
   bandits: an ogre appearing out of nowhere is a boss nobody could have planned for.
-- **The dragon carries `DRAGON_HEALTH_PER_PLAYER` (9-13) for every player at the
+- **The dragon carries `DRAGON_HEALTH_PER_PLAYER` (10-14) for every player at the
   table**, which is the full slope and then some, while mid bosses keep the half slope.
   Reported from the table: four players who shouted for each other killed the game's
   ending **in a single round**. A dragon is now three or four rounds against any size of
@@ -356,32 +356,54 @@ Key rules, so nothing gets "improved" back to a guess:
 - **Stones give verbs, not numbers** (`src/game/gems.ts`). This is the equipment-depth
   system and it is deliberately not more arithmetic: gear owns the numbers, and by turn
   six everybody holds the best of all three slots and a find is a shrug. A stone gives
-  you **a button you did not have**. Green is built; red and blue are designed and
-  written up in the README.
+  you **a button you did not have**. All three colours are built.
   - **One stone per player, three meanings.** It may be moved between weapon, coat and
     boots for **nothing** on your turn — that is the whole decision, and it is re-made
     whenever the game changes shape. **Never mid-fight** (`canSetGem`): switching to the
     coat after seeing a roll fall short would turn a once-a-game save into a save every
     fight, which is the one way this could quietly become a number again.
-  - **Green** (`GEMS.green`): weapon → *Spoils*, win a fight and everyone who swung
-    finds something to eat; coat → *Second wind*, once a game a blow that would put you
-    down leaves you on one; boots → *Dig again*, once a game search ground somebody has
-    already been over. Spending is tracked **per setting** (`Gem.spent`), so the coat's
-    save and the boots' dig are separate.
+  - **Green is *keep going*, red is *you, now*, blue is *everybody else*.** Nine
+    abilities from three objects, and the rows mean the same thing in every colour:
+    weapon is the fight, coat is surviving, boots are reach.
+
+    | | weapon | coat | boots |
+    |---|---|---|---|
+    | **green** | Spoils — everyone who swung eats | Second wind — a blow that would down you leaves you on one | Dig again — search spent ground |
+    | **red** | Second swing — throw twice, keep the better | Grit — a round that falls short costs you nothing | Slip away — backing out is certain |
+    | **blue** | Carry — your shout reaches one tile further | Take the hit — a friend's blow lands on you | Long arm — hand something a tile away |
+  - **Three limits, and they are the shape of the colours** (`GemPower.limit`).
+    `"always"` never runs out; `"game"` fires once an evening and is tracked per setting
+    on `Gem.spent`, so the coat's save and the boots' dig are separate; `"fight"` comes
+    back with the next fight and is tracked on `Combat.stonesSpent`, which disappears
+    with the fight so there is nothing to reset. Red's whole set is `"fight"` — small,
+    and there every time — which is what makes it the *now* stone.
+  - **`stone(player, kind, setting, combat)` is the only question any power asks.** One
+    call site per power. A new colour is a row in the table and a call here, and the
+    rules about what counts as available cannot drift between the nine of them.
   - Three rules the next two colours must also hold to. **No stone may show you the
     board** — the hidden map is what the note-taking is for. **No stone may do a role's
     job better than the role** — none heals, sees further, or hits harder. **No
     invisible passives** — either it is a button, or it is drawn where a child can see
     it, and a spent power is greyed out on the strip and in the party list.
   - **Drops are low and only ever to somebody empty-handed** (`maybeAStone`): a body
-    `GEM_FROM_A_BODY`, ground `GEM_FROM_THE_GROUND`, a chest `GEM_FROM_A_CHEST`. That
-    one rule replaces a whole pile of "you already have one" handling and spreads
-    stones round the party by itself. A search rolls for one **on top of** its card,
-    never instead of it. Measured at **1.8 a game with five players**; that is the dial
-    if the table wants them commoner.
+    `GEM_FROM_A_BODY`, ground `GEM_FROM_THE_GROUND`, a chest `GEM_FROM_A_CHEST`, and the
+    colour is its own even roll. That one rule replaces a whole pile of "you already
+    have one" handling and spreads stones round the party by itself. A search rolls for
+    one **on top of** its card, never instead of it. Measured at **1.9 a game with five
+    players**; that is the dial if the table wants them commoner.
   - **Dig again never opens a chest twice** (`canDigAgain`). `Tile.searched` is what a
     chest spends, so without that guard the stone would be the best find in the game
     rather than a nice one.
+  - **Take the hit only fires when the holder stays standing.** Heroism that swaps one
+    child for another is a trade nobody chose, and this one fires by itself — a player
+    asked "do you want to save your sister?" every round says yes every round, so the
+    automatic version is the honest one, but only while it cannot backfire.
+  - **The dragon carries a stone too** (`DRAGON_STONE`, green): once in the fight, the
+    blow that should finish it leaves it on one health. Added as the counter to the
+    party's three colours and **measured at doing nothing to the win rate** — the dragon
+    fight is a siege spread over a dozen attempts, so one health is a rounding error. It
+    is kept for the beat, not for the balance; `DRAGON_HEALTH_PER_PLAYER` is what
+    actually moved (9-13 to **10-14**).
 - **Loot (§10)**: items, **plus a small purse** — $1 mob, $2 mid boss, $5 dragon. This
   bends §10, which is items-only, on purpose. Keep the amounts under `GEAR_PRICE`:
   the moment a mob out-earns a sale, the shop stops mattering and so does the
@@ -496,8 +518,8 @@ how they end; the second argument is the party size, and every size wants its ow
 enough to invent an improvement that is not there. That happened: v0.17 read 20% on 200
 games and 25% on 800.
 
-At v0.26, five players: **46% wins, 39% out of time, 15% wipes**, and every party size
-from two to five lands in a **44-47% win band** — the tightest it has been. The per-size
+At v0.27, five players: **45% wins, 43% out of time, 12% wipes**, and every party size
+from two to five lands in a **43-48% win band**. The per-size
 table is in the README. v0.23 had drifted to 85% wins after the sim bot was taught to
 eat (which was a measurement fix, not a game change, and which made every wipe figure
 printed before it fiction); v0.24's harder dragon, sleeping opening and collapsing board
@@ -522,6 +544,7 @@ How it got here, because the shape of the story is the useful part:
 | v0.23 | 85% | 12% | 3% | the party starting in pairs |
 | v0.24 | 48% | 35% | 17% | **a dragon that scales per player**, a board that falls in, and the dragon sleeping through the opening |
 | v0.26 | 46% | 39% | 15% | the green stone — inside the noise, which is the point: it adds a decision, not a number |
+| v0.27 | 45% | 43% | 12% | red and blue stones (**+6 on their own**), paid for with a dragon at 10-14 a head |
 
 Two things worth keeping in mind before you trust a number here:
 

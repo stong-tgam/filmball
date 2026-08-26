@@ -517,13 +517,19 @@ describe("loot", () => {
           : { ...p, dead: true },
       ),
       enemies: base.enemies.map((e) =>
-        e.id === enemy.id ? { ...e, damageTaken: e.maxHealth - 1 } : e,
+        // `stoneSpent` up front: the dragon carries a green stone that survives the
+        // blow that should finish it, once (`DRAGON_STONE`). These tests are about
+        // what a body drops, not about how many rounds it takes to make one.
+        e.id === enemy.id
+          ? { ...e, damageTaken: e.maxHealth - 1, stoneSpent: true }
+          : e,
       ),
       combat: {
         enemyId: enemy.id,
         playerId: base.players[at].id,
         allies: [],
         support: [],
+        stonesSpent: [],
         from: key(enemy.hex),
         round: 0,
         playerRoll: null,

@@ -22,6 +22,7 @@ import {
   useCanHeal,
   useCanFightThief,
   useCanSetGem,
+  useCanSwingTwice,
   useCanPayOff,
   useThiefHere,
   useCanFish,
@@ -116,6 +117,7 @@ export default function App() {
   const canPayOff = useCanPayOff();
   const canFightThief = useCanFightThief();
   const canSetGem = useCanSetGem();
+  const canSwingTwice = useCanSwingTwice();
   const thiefHere = useThiefHere();
   const healTargets = useHealTargets();
   const donate = useGame((s) => s.donate);
@@ -175,7 +177,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.26 — the green stone</span>
+          <span className="version">v0.27 — three stones</span>
         </div>
         <button
           type="button"
@@ -342,6 +344,7 @@ export default function App() {
           player={fight.player}
           enemy={fight.enemy}
           onAttack={attack}
+          canSwingTwice={canSwingTwice}
           onFlee={flee}
           onTakeLoot={takeLoot}
           party={fightParty}

@@ -49,6 +49,11 @@ export const PALETTE = {
    * fisher's blue: a stone is a stone, and it should look like one across the table.
    */
   gemGreen: "#19c37d",
+  /** Ruby. Kept off the dragon's flat red by leaning rose - the two are never on the
+   *  same piece of furniture, but a child should still not mistake one for the other. */
+  gemRed: "#e11d48",
+  /** Sapphire, and deliberately much deeper than the fisher's pale sky blue. */
+  gemBlue: "#2f6fed",
 } as const;
 
 export type PaletteKey = keyof typeof PALETTE;
