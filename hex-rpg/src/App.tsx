@@ -186,7 +186,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.28 — our drawings</span>
+          <span className="version">v0.29 — everything has a face</span>
         </div>
         <button
           type="button"

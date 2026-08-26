@@ -69,6 +69,7 @@ milestone.
 
 ```
 src/palette.ts  every colour that names a character or an event, in one place
+src/artslots.ts the name of every picture, in one place - same argument
 src/game/     pure logic, no React - hex, rng, setup, turn, combat, actions,
               hazards, events, items, gems, enemies, collapse, vision, sense,
               save, store
@@ -93,13 +94,13 @@ you have not published.
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 423 tests
+npm test           # 425 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html, plus the artifact fragment
 npx vite-node tools/sim.ts 800 5 # bot playtest: how do 800 five-player games end?
 ```
 
-## Current state: v0.28
+## Current state: v0.29
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -584,6 +585,12 @@ points into its filters, so nothing renders without it.
 **Any of them can be replaced by the children's own** (v0.28, `src/ui/ArtRoom.tsx`).
 Four things about that worth not rediscovering:
 
+- **`src/artslots.ts` names every picture, once.** Exactly the argument `palette.ts`
+  makes about colour: a thing's drawing has to be the same on its piece on the board, on
+  its blip on the compass, on the card when it turns up and in the art room. It sits at
+  the root rather than beside the drawings because `sense.ts` needs it — `Sensed.art` is
+  carried on the blip the same way `Sensed.colour` is, so the dot and the token cannot
+  drift apart. There is no React in it.
 - **`<Art slot>` is the only place an upload is looked up** (`src/ui/art/Art.tsx`).
   Wrap a generated drawing in it and an uploaded picture wins *everywhere at once*.
   Before v0.28 only the round `Token` honoured uploads, so a photographed frying pan
@@ -594,6 +601,21 @@ Four things about that worth not rediscovering:
   something actually reads** — a slot the room offers and nothing honours is a promise
   the app breaks, and a child who draws a picture that never appears will not draw a
   second one.
+- **Everything on the board has a face** (v0.29). A player's piece is their drawing on
+  their colour, not an initial in a circle; a wanderer's marker is its drawing on its
+  plaque, not an emoji — which was the one place in the game where a system font decided
+  what something looked like, at three different weights on three different devices. The
+  compass blips are the same pictures with the step count in a corner bubble, because
+  the compass is the only map a *player* ever sees and a coloured dot asked a child to
+  remember that purple means the pirates.
+  - **The colour stays behind the drawing everywhere**, never replaced by it. Colour is
+    how a seven-year-old finds their piece at a glance; the picture is how they know
+    what it is.
+  - **A thief has one picture, not two** (`hazardSlot`). They are one character wearing
+    two hats — a hazard record that walks and a monster record that fights — so the
+    wanderer points at the monster's drawing. Two squares in the art room for one
+    character would leave one of them undrawn and a board where the thing you fight
+    looks nothing like the thing you were avoiding.
 - **It is in the app, not on the gallery page.** `gallery.html` is a second entry point
   and is *not in the build the family plays*, which is how the upload feature managed
   to be real and unreachable for fourteen versions.

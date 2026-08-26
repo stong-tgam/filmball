@@ -4,7 +4,7 @@ Hotseat (one device, passed around) digital version of the Hex RPG tabletop game
 Built to `reference/hex-rpg-rulebook.md`, with `reference/webapp-spec.md` as the build
 plan.
 
-**This build is v0.28.** Every system the spec asks for is in, every placeholder from
+**This build is v0.29.** Every system the spec asks for is in, every placeholder from
 the early builds has been replaced with what the rulebook actually says, and the two
 rules the rulebook leans on hardest — the hidden board and the group fight — are both
 built. **The goal: kill the dragon before the board falls out from under you.**
@@ -689,6 +689,46 @@ Three things that had to change underneath:
 
 Pictures are squared off and shrunk to 320px on the way in, so a phone photograph does
 not eat the storage budget: all 56 slots fit in about a megabyte.
+
+## v0.29: everything has a face
+
+The art room went in last version and immediately showed up what was still missing: you
+could photograph a drawing of your knight and it would appear on the title screen, on
+the find card and in the shop — and **not on the board, not on the compass, and not in
+the party list**, which is where a child actually looks.
+
+Because those three were never pictures in the first place. A player's piece was an
+initial in a coloured circle. A wanderer was **an emoji on a plaque** — the one place in
+the game where a system font decided what something looked like, and it rendered at
+three different weights on three different devices. And the compass blips, which are the
+only map a *player* ever gets, were coloured dots with a number on them.
+
+All three are drawings now:
+
+- **Player pieces** carry the role's drawing, on the role's colour.
+- **The wanderers** have drawings at last — a tornado and a traveller under an umbrella,
+  in the same marker-on-card hand as everything else — and two new squares in the art
+  room. The robber and the pirates deliberately do *not* get their own: they are one
+  character wearing two hats, so the thing that walks the board points at the monster's
+  picture. Two squares for one character would leave one of them undrawn.
+- **The compass** shows the picture on each blip with the step count in a corner bubble,
+  your own drawing at the middle, and the same little pictures down the read-out beside
+  each line. Your friends, the tornado and the smoke on the wind are recognisable now
+  rather than being three colours you have to remember.
+- **The turn banner and the party list** show each player's drawing too.
+
+Two rules that fell out of doing it, both worth keeping:
+
+- **The colour stays behind the drawing, never replaced by it.** Colour is how a
+  seven-year-old finds their piece at a glance; the picture is how they know what it is.
+  Both, always.
+- **The name of a picture is written down once** (`src/artslots.ts`), the same way every
+  colour is. The compass blip carries the slot alongside the colour, so the dot and the
+  token cannot show different drawings — which is exactly the bug the colour rule was
+  written to prevent, one layer up.
+
+Which means the art room now covers **58 squares**, and every one of them shows up
+somewhere a player is looking.
 
 ## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.

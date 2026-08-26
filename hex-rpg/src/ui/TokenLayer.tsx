@@ -1,15 +1,22 @@
 /**
  * Player tokens.
  *
- * A ring of the role's colour with its initial inside, plus a heavy dark rim so it
- * reads against every terrain on the board. The active player's token pulses - with
- * one device going round the table, whose piece is live has to be obvious from
- * across the room.
+ * A disc of the role's colour with **the role's drawing inside it**, plus a heavy dark
+ * rim so it reads against every terrain on the board. The active player's token
+ * pulses - with one device going round the table, whose piece is live has to be obvious
+ * from across the room.
+ *
+ * It was an initial in a circle until v0.29, which meant two things: the piece looked
+ * nothing like the picture of that character anywhere else in the game, and a family who
+ * had drawn their own knight (`ArtRoom`) never saw it on the board. `<Art>` is what
+ * makes the upload win here too.
  */
 
+import { useId } from "react";
+import Art from "./art/Art";
+import RoleArt, { roleSlot } from "./art/roles";
 import { hexToPixel, type Hex } from "../game/hex";
 import { ROLES } from "../game/players";
-import { inkOn } from "../palette";
 import type { Player } from "../game/types";
 
 type Props = {
@@ -71,23 +78,30 @@ function Token({
   const centre = hexToPixel(hex, size);
   const r = size * 0.29;
   const colour = ROLES[player.role].colour;
+  const clip = useId();
 
   return (
     <g
       className={`token${active ? " is-active" : ""}`}
       transform={`translate(${(centre.x + nudge.x).toFixed(2)} ${(centre.y + nudge.y).toFixed(2)})`}
     >
+      <defs>
+        <clipPath id={clip}>
+          <circle r={r} />
+        </clipPath>
+      </defs>
       {active && <circle className="token-halo" r={r * 1.55} fill="none" stroke={colour} />}
+      {/* The role's colour stays behind the drawing rather than being replaced by it:
+          a child finds their piece by colour before they read the picture. */}
       <circle r={r} fill={colour} stroke="#141a1f" strokeWidth={size * 0.06} />
-      <text
-        className="token-initial"
-        y={r * 0.36}
-        textAnchor="middle"
-        fontSize={r * 1.05}
-        fill={inkOn(player.role)}
-      >
-        {player.name[0]}
-      </text>
+      <g clipPath={`url(#${clip})`}>
+        <g transform={`translate(${-r} ${-r}) scale(${(r * 2) / 100})`}>
+          <Art slot={roleSlot(player.role)} fit="slice">
+            <RoleArt role={player.role} />
+          </Art>
+        </g>
+      </g>
+      <circle r={r} fill="none" stroke="#141a1f" strokeWidth={size * 0.06} />
     </g>
   );
 }

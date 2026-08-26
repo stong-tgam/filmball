@@ -386,7 +386,7 @@ button.ghost {
 
 .party-row {
   display: grid;
-  grid-template-columns: 14px 1fr auto auto;
+  grid-template-columns: 22px 1fr auto auto;
   align-items: center;
   gap: 10px;
   padding: 7px 8px;
@@ -401,7 +401,7 @@ button.ghost {
 }
 
 .party-row.is-dead { opacity: 0.45; text-decoration: line-through; }
-.party-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--who); }
+.party-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--who); }
 .party-health, .party-money { color: var(--ink-muted); font-size: 13px; }
 
 /* ---------- log ---------- */
@@ -540,7 +540,7 @@ button.ghost {
 /* ---------- gear, food and the market ---------- */
 
 .party-row {
-  grid-template-columns: 14px 1fr auto auto;
+  grid-template-columns: 22px 1fr auto auto;
   row-gap: 6px;
 }
 
@@ -1945,3 +1945,51 @@ button.swing-twice {
 }
 
 .title-art:hover { color: var(--ink); border-color: var(--accent); }
+
+
+/* ---------- blips, now that they are pictures ---------- */
+
+.blip-rim,
+.rose-you-rim {
+  stroke: #0b0f13;
+  stroke-width: 2.5;
+}
+
+/* The step count rides in its own bubble on the corner: a number laid straight over a
+   drawing is the one thing on the compass that must never be hard to read. */
+.blip-steps-disc {
+  fill: #0b0f13;
+  opacity: 0.88;
+}
+
+.blip-steps {
+  fill: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A swatch in the read-out was a coloured dot; it is the same picture as the blip now,
+   so the line and the thing on the rose are obviously the same thing. */
+.blip-dot.blip-drawn {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid #0b0f13;
+}
+
+/* The role dots hold a drawing now, so they need to clip it and keep their size. */
+.banner-dot,
+.party-dot {
+  overflow: hidden;
+  display: inline-flex;
+}
+
+.banner-dot svg,
+.party-dot svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

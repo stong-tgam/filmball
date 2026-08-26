@@ -19,15 +19,16 @@ import {
   putOverride,
   storageUsed,
 } from "../src/ui/art/overrides";
-import { gemSlot } from "../src/ui/art/gems";
-import { monsterSlot } from "../src/ui/art/monsters";
-import { roleSlot } from "../src/ui/art/roles";
+import { gemSlot, hazardSlot, monsterSlot, roleSlot } from "../src/artslots";
+import { HAZARDS } from "../src/game/hazards";
+import { sense } from "../src/game/sense";
+import { createInitialState } from "../src/game/setup";
 import { EQUIPMENT, FOOD } from "../src/game/items";
 import { ENEMIES } from "../src/game/enemies";
 import { GEMS } from "../src/game/gems";
 import { TURN_ORDER } from "../src/game/players";
 import { ALL_FEATURES } from "../src/game/combat";
-import type { EnemyKind, GemKind } from "../src/game/types";
+import type { EnemyKind, GameState, GemKind, HazardKind } from "../src/game/types";
 
 const PICTURE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
 
@@ -43,14 +44,25 @@ describe("the catalogue", () => {
       expect(offered.has(gemSlot(kind)), kind).toBe(true);
     }
     for (const feature of ALL_FEATURES) expect(offered.has(`feature:${feature}`), feature).toBe(true);
+    for (const kind of Object.keys(HAZARDS) as HazardKind[]) {
+      expect(offered.has(hazardSlot(kind)), kind).toBe(true);
+    }
     for (const item of [...EQUIPMENT, ...FOOD]) {
       expect(offered.has(`item:${item.name}`), item.name).toBe(true);
     }
 
     // Nothing invented: every slot is one of the five shapes the game asks for.
     for (const slot of offered) {
-      expect(slot, slot).toMatch(/^(role|monster|gem|feature|item):/);
+      expect(slot, slot).toMatch(/^(role|monster|hazard|gem|feature|item):/);
     }
+  });
+
+  it("gives a thief one square, not two", () => {
+    // The robber and the pirates are one character wearing two hats. Two squares would
+    // mean two drawings of one person, and one of them would always go undrawn.
+    expect(hazardSlot("robber")).toBe(monsterSlot("robber"));
+    expect(hazardSlot("pirates")).toBe(monsterSlot("pirates"));
+    expect(hazardSlot("tornado")).not.toBe(monsterSlot("mob"));
   });
 
   it("names and describes every one of them, and never twice", () => {
@@ -130,5 +142,35 @@ describe("the store", () => {
     });
     expect("error" in importDrawings(remote)).toBe(true);
     expect(overrideFor("item:Broom")).toBeUndefined();
+  });
+});
+
+describe("what the compass shows", () => {
+  it("carries the picture with the blip, so the dot and the token cannot drift apart", () => {
+    const base = createInitialState(4471);
+    // Everything on top of the knight, so one call sees a monster, a wanderer and a
+    // friend at once.
+    const here = base.players[0].hex;
+    const crowded: GameState = {
+      ...base,
+      enemies: base.enemies.map((e) => ({
+        ...e,
+        dormant: false,
+        found: true,
+        hex: { q: here.q + 1, r: here.r },
+      })),
+      hazards: base.hazards.map((h) => ({ ...h, hex: { q: here.q, r: here.r + 1 } })),
+      players: base.players.map((p, i) => (i === 1 ? { ...p, hex: { q: here.q - 1, r: here.r } } : p)),
+    };
+
+    const felt = sense(crowded, crowded.players[0]);
+    expect(felt.length).toBeGreaterThan(0);
+
+    const offered = new Set(everySlot().map((e) => e.slot));
+    for (const thing of felt) {
+      // Every blip names a real picture, and one the art room offers to replace.
+      expect(thing.art, thing.name).toMatch(/^(role|monster|hazard):/);
+      expect(offered.has(thing.art), `${thing.name} → ${thing.art}`).toBe(true);
+    }
   });
 });

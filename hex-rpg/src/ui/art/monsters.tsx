@@ -270,12 +270,4 @@ export const MOB_ART = { Blob, Goblin, Lizard, Ogre, Imp };
 export const BOSS_ART = { Scarecrow, SeaSerpent, Dragon, Robber, Pirates };
 export const MOB_NAMES = ["Blob", "Goblin", "Lizard", "Ogre", "Imp"] as const;
 
-/**
- * The upload slot for a monster.
- *
- * Bandits and ogres draw from a named pool, so the gallery keys those on the face
- * (`monster:mob:Goblin`); everything the *game* draws only knows the kind, so that is
- * what the game asks for. One picture per kind is the honest granularity for a board
- * where every bandit is "a bandit".
- */
-export const monsterSlot = (kind: EnemyKind): string => `monster:${kind}`;
+export { monsterSlot } from "../../artslots";

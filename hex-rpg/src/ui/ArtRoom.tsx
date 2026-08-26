@@ -20,12 +20,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import CrayonDefs from "./art/CrayonDefs";
-import Art from "./art/Art";
-import ItemArt from "./art/items";
-import MonsterArt from "./art/monsters";
-import FeatureArt from "./art/features";
-import GemArt from "./art/gems";
-import RoleArt from "./art/roles";
+import Drawing from "./art/Drawing";
 import { shelves, type ArtEntry } from "./art/catalogue";
 import {
   MAX_EDGE,
@@ -42,24 +37,6 @@ import {
 } from "./art/overrides";
 import { everySlot } from "./art/catalogue";
 import { readyToSave, saveTextFile } from "./art/downloads";
-import type { EnemyKind, Feature, GemKind, Role } from "../game/types";
-
-/** The generated drawing for a slot, so every square shows what it is replacing. */
-function Drawn({ slot }: { slot: string }) {
-  const [what, rest] = [slot.slice(0, slot.indexOf(":")), slot.slice(slot.indexOf(":") + 1)];
-  switch (what) {
-    case "role":
-      return <RoleArt role={rest as Role} />;
-    case "monster":
-      return <MonsterArt kind={rest as EnemyKind} seedName={slot} />;
-    case "gem":
-      return <GemArt kind={rest as GemKind} />;
-    case "feature":
-      return <FeatureArt feature={rest as Feature} seedName={slot} />;
-    default:
-      return <ItemArt name={rest} seedName={slot} />;
-  }
-}
 
 function Square({ entry }: { entry: ArtEntry }) {
   const input = useRef<HTMLInputElement>(null);
@@ -80,9 +57,7 @@ function Square({ entry }: { entry: ArtEntry }) {
   return (
     <li className={`art-square${mine ? " is-mine" : ""}`}>
       <svg viewBox="0 0 100 100" className="art-pic" aria-hidden="true">
-        <Art slot={entry.slot}>
-          <Drawn slot={entry.slot} />
-        </Art>
+        <Drawing slot={entry.slot} />
       </svg>
 
       <div className="art-said">

@@ -17,11 +17,10 @@ import { ENEMIES } from "../../game/enemies";
 import { GEMS } from "../../game/gems";
 import { ROLES, TURN_ORDER } from "../../game/players";
 import { ALL_FEATURES } from "../../game/combat";
-import { gemSlot } from "./gems";
-import { monsterSlot } from "./monsters";
-import { roleSlot } from "./roles";
+import { HAZARDS } from "../../game/hazards";
+import { featureSlot, gemSlot, hazardSlot, itemSlot, monsterSlot, roleSlot } from "../../artslots";
 import type { ArtSlot } from "./overrides";
-import type { EnemyKind, Feature, GemKind, Role } from "../../game/types";
+import type { EnemyKind, Feature, GemKind, HazardKind, Role } from "../../game/types";
 
 export type ArtEntry = {
   slot: ArtSlot;
@@ -68,6 +67,19 @@ export function shelves(): ArtShelf[] {
       })),
     },
     {
+      title: "Things that wander",
+      blurb: "The two that walk the board and are not fought. The robber and the pirates are up with the monsters — one picture each, because you meet them both ways.",
+      entries: (Object.keys(HAZARDS) as HazardKind[])
+        // The thieves share their monster picture (`hazardSlot`), so listing them here
+        // would be a second square for one character and one of them would go undrawn.
+        .filter((kind) => kind !== "robber" && kind !== "pirates")
+        .map((kind) => ({
+          slot: hazardSlot(kind),
+          name: HAZARDS[kind].name,
+          hint: HAZARDS[kind].blurb,
+        })),
+    },
+    {
       title: "Stones",
       blurb: "Three colours. Whatever you draw, keep them telling each other apart from across the table — colour is how a child knows which one they have.",
       entries: (Object.keys(GEMS) as GemKind[]).map((kind) => ({
@@ -80,7 +92,7 @@ export function shelves(): ArtShelf[] {
       title: "Gear",
       blurb: "The fifteen things in the game. A picture here shows up in the fight, on the shop shelf, in the party's kit and on the card when it is found.",
       entries: gear.map((item) => ({
-        slot: `item:${item.name}`,
+        slot: itemSlot(item.name),
         name: item.name,
         hint:
           item.slot === "weapon"
@@ -94,7 +106,7 @@ export function shelves(): ArtShelf[] {
       title: "Boss features",
       blurb: "The card a monster turns over before a fight — what the ground does for it.",
       entries: ALL_FEATURES.map((feature: Feature) => ({
-        slot: `feature:${feature}`,
+        slot: featureSlot(feature),
         name: feature,
         hint: FEATURE_HINT[feature],
       })),
@@ -103,7 +115,7 @@ export function shelves(): ArtShelf[] {
       title: "Food",
       blurb: "Small pictures, in a pack. Worth doing last, and worth doing at all — food is the thing a child looks at most.",
       entries: FOOD.map((item) => ({
-        slot: `item:${item.name}`,
+        slot: itemSlot(item.name),
         name: item.name,
         hint: item.value > 0 ? `Eat it for ${item.value} health.` : "No use as food. Sells for a dollar.",
       })),

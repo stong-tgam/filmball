@@ -9,6 +9,8 @@
 import { ROLES } from "../game/players";
 import ItemArt from "./art/items";
 import GemArt from "./art/gems";
+import RoleArt from "./art/roles";
+import { roleSlot } from "../artslots";
 import { GEMS, WORN, isSpent, powerOf } from "../game/gems";
 import { gearLabel } from "../game/items";
 import { moveRange, stepsLeft } from "../game/turn";
@@ -39,7 +41,15 @@ export function ActivePlayerBanner({
       style={{ ["--who" as string]: role.colour }}
     >
       <div className="banner-who">
-        <span className="banner-dot" aria-hidden="true" />
+        {/* Their own drawing, on their own colour. The biggest picture of a player
+            anywhere in the game, and it is on screen for their whole turn. */}
+        <span className="banner-dot" aria-hidden="true">
+          <svg viewBox="0 0 100 100">
+            <Art slot={roleSlot(player.role)} fit="slice">
+              <RoleArt role={player.role} />
+            </Art>
+          </svg>
+        </span>
         <div>
           <h2>{player.name}&rsquo;s turn</h2>
           <p className="banner-blurb">
@@ -113,7 +123,13 @@ export function PartyList({
             className={`party-row${player.id === activeId ? " is-active" : ""}${player.dead ? " is-dead" : ""}${player.gone ? " is-gone" : ""}`}
             style={{ ["--who" as string]: role.colour }}
           >
-            <span className="party-dot" aria-hidden="true" />
+            <span className="party-dot" aria-hidden="true">
+              <svg viewBox="0 0 100 100">
+                <Art slot={roleSlot(player.role)} fit="slice">
+                  <RoleArt role={player.role} />
+                </Art>
+              </svg>
+            </span>
             <span className="party-name">{player.name}</span>
             <span className="party-health" title={player.gone ? "Over the edge" : "Health"}>
               {player.gone ? "lost" : `${player.health}/${player.maxHealth}`}

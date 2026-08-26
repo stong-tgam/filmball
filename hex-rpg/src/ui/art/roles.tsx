@@ -126,7 +126,7 @@ const ROLE_ART: Record<Role, Art> = {
   fisherman: Fisher,
 };
 
-export const roleSlot = (role: Role): string => `role:${role}`;
+export { roleSlot } from "../../artslots";
 
 export default function RoleArt({ role, seedName }: { role: Role; seedName?: string }) {
   const Art = ROLE_ART[role];

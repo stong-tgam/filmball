@@ -16,7 +16,12 @@
  * two-tile move legal to take.
  */
 
+import { useId } from "react";
 import Tile from "./Tile";
+import Drawing from "./art/Drawing";
+import RoleArt from "./art/roles";
+import Art from "./art/Art";
+import { roleSlot } from "../artslots";
 import { DIRS, add, allNeighbours, distance, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
 import { compassName, type Sensed } from "../game/sense";
 import { sightOf, visibleFrom } from "../game/vision";
@@ -146,8 +151,17 @@ export default function Compass({
           })}
         </g>
 
-        {/* You. Not a position on a map - just a marker for which hex is underfoot. */}
-        <circle className="rose-you" r="11" style={{ fill: ROLES[viewer.role].colour }} />
+        {/* You. Not a position on a map - just a marker for which hex is underfoot, and
+            the same drawing that is on your piece and in the party list. */}
+        <g className="rose-you">
+          <circle r={YOU} style={{ fill: ROLES[viewer.role].colour }} />
+          <Cropped r={YOU}>
+            <Art slot={roleSlot(viewer.role)} fit="slice">
+              <RoleArt role={viewer.role} />
+            </Art>
+          </Cropped>
+          <circle r={YOU} fill="none" className="rose-you-rim" />
+        </g>
 
         {/*
           Bearings. A one-move blip lands exactly on the tile it is standing on, because
@@ -157,21 +171,13 @@ export default function Compass({
         */}
         {sensed.map((thing) => {
           const at = point(thing.bearing, STEP * thing.steps);
-          return (
-            <g key={thing.id} className={`rose-blip rose-blip-${thing.kind}`}>
-              <title>{`${thing.name}, ${thing.steps} away, ${compassName(thing.bearing)}`}</title>
-              <circle cx={at.x} cy={at.y} r="13" fill={thing.colour} />
-              <text x={at.x} y={at.y + 5} textAnchor="middle">
-                {thing.steps}
-              </text>
-            </g>
-          );
+          return <Blip key={thing.id} thing={thing} at={at} />;
         })}
       </svg>
 
       <ul className="compass-read">
         <li className="compass-here">
-          <span className="blip-dot" style={{ background: ROLES[viewer.role].colour }} />
+          <Swatch slot={roleSlot(viewer.role)} colour={ROLES[viewer.role].colour} />
           <strong>Underfoot:</strong> {tiles[key(viewer.hex)]?.base}
           {tiles[key(viewer.hex)]?.river ? ", on the river" : ""}
           {tiles[key(viewer.hex)]?.rail ? ", by the railway" : ""}
@@ -197,7 +203,7 @@ export default function Compass({
         ) : (
           sensed.map((thing) => (
             <li key={thing.id}>
-              <span className="blip-dot" style={{ background: thing.colour }} />
+              <Swatch slot={thing.art} colour={thing.colour} />
               <strong>{thing.name}</strong> — {thing.steps === 1 ? "one move" : "two moves"}{" "}
               {compassName(thing.bearing)}
             </li>
@@ -205,5 +211,67 @@ export default function Compass({
         )}
       </ul>
     </div>
+  );
+}
+
+/** Half the width of the marker for the player themselves. */
+const YOU = 13;
+
+/** Clip whatever is inside to a disc, and scale the 0-100 drawing box onto it. */
+function Cropped({ r, children }: { r: number; children: React.ReactNode }) {
+  const clip = useId();
+  return (
+    <>
+      <defs>
+        <clipPath id={clip}>
+          <circle r={r} />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${clip})`}>
+        <g transform={`translate(${-r} ${-r}) scale(${(r * 2) / 100})`}>{children}</g>
+      </g>
+    </>
+  );
+}
+
+/**
+ * One thing you can feel, on the bearing it is on.
+ *
+ * A coloured dot with a number was the whole blip until v0.29, which asked a child to
+ * hold "purple means the pirates" in their head while working out which way to walk.
+ * The picture is on it now and the colour stays behind it - colour is still how a
+ * seven-year-old finds a thing at a glance, and the drawing is how they know what it
+ * is. The number of moves stays, in its own bubble so nothing swallows it.
+ */
+function Blip({
+  thing,
+  at,
+}: {
+  thing: Sensed;
+  at: { x: number; y: number };
+}) {
+  const r = 15;
+  return (
+    <g className={`rose-blip rose-blip-${thing.kind}`} transform={`translate(${at.x} ${at.y})`}>
+      <title>{`${thing.name}, ${thing.steps} away, ${compassName(thing.bearing)}`}</title>
+      <circle r={r} fill={thing.colour} />
+      <Cropped r={r}>
+        <Drawing slot={thing.art} fit="slice" />
+      </Cropped>
+      <circle r={r} fill="none" className="blip-rim" />
+      <circle cx={r * 0.72} cy={r * 0.72} r={r * 0.5} className="blip-steps-disc" />
+      <text x={r * 0.72} y={r * 0.72 + r * 0.19} textAnchor="middle" className="blip-steps">
+        {thing.steps}
+      </text>
+    </g>
+  );
+}
+
+/** The picture beside a line of the read-out, where a plain colour swatch used to be. */
+function Swatch({ slot, colour }: { slot: string; colour: string }) {
+  return (
+    <svg className="blip-dot blip-drawn" viewBox="0 0 100 100" style={{ background: colour }}>
+      <Drawing slot={slot} fit="slice" />
+    </svg>
   );
 }
