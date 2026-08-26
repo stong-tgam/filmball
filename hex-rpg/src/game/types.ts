@@ -43,6 +43,14 @@ export type Tile = {
    */
   chest: boolean;
   rail: boolean;
+  /**
+   * Planks across the water: the one place anybody but the fisherman may cross.
+   *
+   * A river tile is otherwise impassable (`bridges.ts`). Bridges are where the railway
+   * meets the water, plus whatever fords the generator has to add to keep the board in
+   * one piece - a map with a stranded corner is a map that eats an evening.
+   */
+  bridge: boolean;
   /** Turn number the tile recovers on; null when undamaged. Tornado damage. */
   destroyedUntil: number | null;
   /** A tile gives up its findings once. Stops the party camping on one square. */

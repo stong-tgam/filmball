@@ -62,6 +62,7 @@ const makeTile = (base: Tile["base"], sides: Element[], extra: Partial<Tile> = {
   sides,
   chest: false,
   river: sides.includes("water"),
+  bridge: false,
   rail: false,
   destroyedUntil: null,
   searched: false,

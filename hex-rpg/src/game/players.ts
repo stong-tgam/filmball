@@ -74,6 +74,15 @@ export type RoleProfile = {
   /** Fishermen, and only fishermen, can fish a river and cast the hook. */
   canFish: boolean;
   /**
+   * Crosses open water without a bridge.
+   *
+   * The fisherman's, and the other half of their bargain (see `tradesWithTheParty`).
+   * A river is a wall to everybody else, which makes the one person who can ignore it
+   * the party's scout for the far bank - and it is what stopped bridges deleting the
+   * role outright, since fishing needs somebody standing in the water.
+   */
+  swims: boolean;
+  /**
    * Turned-over ground gives this role a second look, on the terrain they know.
    *
    * The scout's in the woods, and it is the only one - a role bonus that applies
@@ -119,6 +128,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     sightBonus: 0,
     canHeal: false,
     canFish: false,
+    swims: false,
     carriesSpare: true,
     homeGround: null,
     robsTheBody: false,
@@ -134,6 +144,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     sightBonus: 0,
     canHeal: false,
     canFish: false,
+    swims: false,
     carriesSpare: false,
     homeGround: null,
     robsTheBody: true,
@@ -149,6 +160,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     sightBonus: 1,
     canHeal: false,
     canFish: false,
+    swims: false,
     carriesSpare: false,
     homeGround: "forest",
     robsTheBody: false,
@@ -164,6 +176,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     sightBonus: 0,
     canHeal: true,
     canFish: false,
+    swims: false,
     carriesSpare: false,
     homeGround: null,
     robsTheBody: false,
@@ -179,6 +192,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     sightBonus: 0,
     canHeal: false,
     canFish: true,
+    swims: true,
     carriesSpare: false,
     homeGround: null,
     robsTheBody: false,

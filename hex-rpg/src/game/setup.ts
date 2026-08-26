@@ -25,6 +25,7 @@ import { makeRng, type Rng } from "./rng";
 import { createPlayers } from "./players";
 import { placeEnemies, spawnThieves } from "./enemies";
 import { placeHazards } from "./hazards";
+import { bridgeUp } from "./bridges";
 import { remember } from "./vision";
 import { beginTurn } from "./turn";
 import { createItemPile } from "./items";
@@ -78,6 +79,7 @@ const blankBoard = (): Draft =>
         base: "field",
         sides: Array<Element>(6).fill("field"),
         river: false,
+        bridge: false,
         chest: false,
         rail: false,
         destroyedUntil: null,
@@ -164,10 +166,21 @@ export const CHEST_SHARE_OF_RIVER = 0.35;
 export const chestsFor = (water: number): number =>
   Math.max(2, Math.round(water * CHEST_SHARE_OF_RIVER));
 
-/** Sink the chests, once the river knows where it runs. */
+/**
+ * Chests are hauled out **at the bridges**.
+ *
+ * They used to be sunk anywhere in the water, which was right while anybody could wade
+ * in. Now that the river is a wall (`bridges.ts`) a chest in open water would be the
+ * fisherman's private stash - the best loot in the game behind one role, and that role
+ * is the one that cannot hand anything over. At the crossings, everybody can reach
+ * them, and the bridge becomes a landmark worth remembering rather than only a way
+ * through.
+ */
 function sinkChests(board: Draft, rng: Rng): void {
+  const crossings = [...board.values()].filter((t) => t.river && t.bridge);
   const water = [...board.values()].filter((t) => t.river);
-  for (const tile of rng.shuffle(water).slice(0, chestsFor(water.length))) {
+  // A share of the river, but only ever placed where somebody can stand.
+  for (const tile of rng.shuffle(crossings).slice(0, chestsFor(water.length))) {
     tile.chest = true;
   }
 }
@@ -330,8 +343,13 @@ export function generateBoard(seed: number): Record<string, Tile> {
   const board = blankBoard();
 
   carveRiver(board, rng);
-  sinkChests(board, rng);
+  // The railway before the bridges, because the bridges are where it crosses; and the
+  // bridges before the chests, because a chest is hauled out at a crossing.
   layRailway(board, rng);
+  const bridged = bridgeUp(Object.fromEntries(board));
+  for (const [label, tile] of Object.entries(bridged)) board.set(label, tile);
+
+  sinkChests(board, rng);
   placeCities(board, rng);
   growForests(board, rng);
   composeSides(board, rng);

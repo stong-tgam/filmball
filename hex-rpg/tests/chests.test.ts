@@ -48,7 +48,11 @@ describe("river chests", () => {
       const board = Object.values(createInitialState(seed).tiles);
       const water = board.filter((t) => t.river);
       const chests = board.filter((t) => t.chest);
-      expect(chests).toHaveLength(chestsFor(water.length));
+      // Capped by the crossings: a chest is hauled out at a bridge now that the
+      // river is a wall, so there can never be more chests than places to stand.
+      const bridges = board.filter((t) => t.bridge).length;
+      expect(chests).toHaveLength(Math.min(chestsFor(water.length), bridges));
+      expect(chests.every((t) => t.bridge)).toBe(true);
       // Every chest is in the water, and most of the water has none - which is the
       // whole reason a chest is worth changing course for. Counted off the *river*
       // rather than the board: the river is a line and the board is an area, so a
