@@ -6,6 +6,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { SAVE_VERSION, clearSave, hasSave, howLongAgo, readSave, saveGame } from "../src/game/save";
 import { createInitialState, startGame } from "../src/game/setup";
 import { MAX_PARTY, MIN_PARTY, TURN_ORDER, createPlayers } from "../src/game/players";
+import { teamSizes } from "../src/game/teams";
 import { makeRng } from "../src/game/rng";
 import { endTurn } from "../src/game/turn";
 import { key } from "../src/game/hex";
@@ -37,8 +38,10 @@ describe("putting a game on the shelf", () => {
   });
 
   it("comes back mid-game with the board, party and decks intact", () => {
+    // Three goes in. Not seven: eight turns is the whole game now, and a party that
+    // stands still on the rim is over the edge by turn 4.
     let game = startGame(4471);
-    for (let i = 0; i < 7; i++) game = endTurn(game);
+    for (let i = 0; i < 3; i++) game = endTurn(game);
     saveGame(game);
 
     const back = readSave()!.game;
@@ -107,11 +110,13 @@ describe("choosing who is playing", () => {
     expect(createPlayers(makeRng(1)).map((p) => p.role)).toEqual(TURN_ORDER);
   });
 
-  it("puts every party on its own corner, however many there are", () => {
+  it("puts every team on its own corner, however many there are", () => {
     for (let n = MIN_PARTY; n <= MAX_PARTY; n++) {
       const party = createPlayers(makeRng(n), TURN_ORDER.slice(0, n));
       expect(party).toHaveLength(n);
-      expect(new Set(party.map((p) => key(p.hex))).size).toBe(n);
+      // One corner per *team*, and everybody in a team on it - so the number of
+      // distinct spots is the number of teams, not the number of players.
+      expect(new Set(party.map((p) => key(p.hex))).size).toBe(teamSizes(n).length);
     }
   });
 

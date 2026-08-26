@@ -9,7 +9,8 @@
 
 import { draw as drawCard, isFace, rankValue } from "./cards";
 import { startCombat } from "./combat";
-import { DRAGON_WAKES_ON, ENEMIES, THIEVES, enemyAt, wanderIn } from "./enemies";
+import { activeMembers, membersOf, teamOf } from "./teams";
+import { DRAGON_WAKES_ON, ENEMIES, enemyAt, wanderIn } from "./enemies";
 import { applyEvent, createEventDeck } from "./events";
 import { hazardMoves, isDestroyed, meet, moveHazards } from "./hazards";
 import { fromLabel, key, reachable } from "./hex";
@@ -19,13 +20,14 @@ import { makeRng } from "./rng";
 import { hasMoved, stepsLeft } from "./players";
 import { bearingBetween, compassName } from "./sense";
 import { cardName } from "./cards";
-import type { Card, EventCard, GameState, LogEntry, Player } from "./types";
+import type { Card, Enemy, EventCard, GameState, LogEntry, Player } from "./types";
 
 export const activePlayer = (state: GameState): Player => state.players[state.activePlayerIndex];
 
 // Both live in players.ts so combat.ts can read a player's speed for the escape roll
 // without importing this file, which already imports combat.ts.
 export { BASE_MOVE, hasMoved, moveRange, stepsLeft } from "./players";
+import { BASE_MOVE } from "./players";
 
 const note = (state: GameState, text: string): GameState => ({
   ...state,
@@ -86,12 +88,18 @@ export function movePlayer(state: GameState, destination: string): GameState {
   const hex = fromLabel(destination);
   if (steps === undefined || hex === null) return state;
 
+  // **The whole team walks.** A team is the thing that stands on a tile, because a
+  // team is the thing that plays a mini-game - and a rule that let one of them wander
+  // off would be a rule that produced a fight with one player in it, which is not a
+  // game anybody can play.
+  const team = teamOf(state, player.id);
+  const walking = new Set(team ? team.memberIds : [player.id]);
   const players = state.players.map((p) =>
-    p.id === player.id ? { ...p, hex, stepsTaken: p.stepsTaken + 1 } : p,
+    walking.has(p.id) && !p.gone ? { ...p, hex, stepsTaken: p.stepsTaken + 1 } : p,
   );
   const moved = note(
     { ...state, players },
-    `${player.name} walked ${steps === 1 ? "one tile" : `${steps} tiles`} ${compassName(bearingBetween(player.hex, hex))}.`,
+    `${team ? team.name : player.name} walked ${steps === 1 ? "one tile" : `${steps} tiles`} ${compassName(bearingBetween(player.hex, hex))}.`,
   );
 
   // Walking into a hazard sets it off, the same as it walking into you.
@@ -113,18 +121,18 @@ export function movePlayer(state: GameState, destination: string): GameState {
   // from the first step flickering away when they take the second.
   const noted = rememberAll(arrived);
 
+  // Walking onto something **finds** it. It does not start the fight: `canTakeOn` and
+  // `takeOn` put that on a button, because a team is about to be handed a clock and
+  // three minutes of everybody's evening, and being asked first is the difference
+  // between a moment and an ambush. It is also what makes "they do not have to kill
+  // all the mobs" a real option rather than a thing the rules say and the board
+  // prevents.
   const enemy = enemyAt(noted.enemies, destination);
-  if (!enemy || THIEVES.includes(enemy.kind)) return noted;
-  // An unfound monster was not on the board when the move was chosen, so this is an
-  // ambush and `flee` lets the player straight back out of it. Marking the action
-  // spent still happens - the turn is gone either way - but `flee` un-spends it for
-  // a first-round walk-out.
-  const ambush = !enemy.found;
-  const fighting = {
+  if (!enemy) return noted;
+  return {
     ...noted,
-    players: noted.players.map((p) => (p.id === player.id ? { ...p, actedThisTurn: true } : p)),
+    enemies: noted.enemies.map((e) => (e.id === enemy.id ? { ...e, found: true } : e)),
   };
-  return startCombat(fighting, enemy, key(player.hex), ambush);
 }
 
 /**
@@ -160,6 +168,83 @@ export function eventThreshold(turn: number, turnLimit: number): number {
 export const bringsEvent = (card: Card, turn: number, turnLimit: number): boolean =>
   isFace(card) || rankValue(card) >= eventThreshold(turn, turnLimit);
 
+/* ------------------------------------------------------- picking a fight */
+
+/**
+ * The monster standing where the team is, if there is one and it can be taken on.
+ *
+ * Walking onto something used to start the fight on the spot. It does not any more,
+ * and the reason is what a fight became: three minutes of everybody's evening with a
+ * clock running. A team should be *asked*. It also makes "you do not have to kill all
+ * the mobs" true rather than merely stated - the board no longer forces the fight you
+ * happened to walk into.
+ */
+export function enemyHere(state: GameState): Enemy | undefined {
+  const player = activePlayer(state);
+  if (!player) return undefined;
+  return enemyAt(state.enemies, key(player.hex));
+}
+
+/** One fight a turn per team, and a fight is that team's action. */
+export function canTakeOn(state: GameState): boolean {
+  const player = activePlayer(state);
+  return (
+    !state.combat &&
+    state.ending === null &&
+    player !== undefined &&
+    !player.actedThisTurn &&
+    enemyHere(state) !== undefined
+  );
+}
+
+/** Take it on. Everybody standing there plays - that is what a team is for. */
+export function takeOn(state: GameState): GameState {
+  const enemy = enemyHere(state);
+  const team = activeMembers(state);
+  if (!canTakeOn(state) || !enemy || team.length === 0) return state;
+
+  const spent = {
+    ...state,
+    players: state.players.map((p) =>
+      team.some((m) => m.id === p.id) ? { ...p, actedThisTurn: true } : p,
+    ),
+  };
+  return startCombat(spent, enemy, key(team[0].hex), team.map((p) => p.id));
+}
+
+/**
+ * Turn 8: everybody, the dragon, no excuses.
+ *
+ * The table asked for this in as many words - *at turn 8 everyone fights the final
+ * boss together regardless of gear, item or health* - and it is the best rule in the
+ * game. It removes the two worst endings a hex crawl has: "we never found it", and
+ * "we found it and stood next to it while the clock ran out". Everybody is carried to
+ * the middle and the last three cards are dealt to the whole table at once.
+ *
+ * It is why nobody has to be efficient. A team that spent the evening searching woods
+ * and losing to bandits still gets the ending, and gets it with everybody in it.
+ */
+export function finalStand(state: GameState): GameState {
+  const dragon = state.enemies.find((e) => e.kind === "finalboss" && !e.defeated);
+  const playing = state.players.filter((p) => !p.gone);
+  if (!dragon || playing.length === 0 || state.combat) return state;
+
+  const gathered: GameState = {
+    ...state,
+    enemies: state.enemies.map((e) =>
+      e.id === dragon.id ? { ...e, dormant: false, found: true } : e,
+    ),
+    players: state.players.map((p) =>
+      p.gone ? p : { ...p, hex: dragon.hex, actedThisTurn: true, stepsTaken: BASE_MOVE },
+    ),
+  };
+  const called = note(
+    rememberAll(gathered),
+    `The ground gives out under everybody at once, and they land together in front of the ${ENEMIES.finalboss.name}. Whatever anybody is carrying, this is it. Three cards.`,
+  );
+  return startCombat(called, dragon, key(dragon.hex), playing.map((p) => p.id));
+}
+
 export function beginTurn(state: GameState): GameState {
   // The rim goes first, on the turns it goes at all: everything after this happens on
   // the board that is left, and a hazard that steps onto a tile which is about to fall
@@ -180,6 +265,10 @@ export function beginTurn(state: GameState): GameState {
     stirred: hazardMoves(state, stirred),
     happenings: stirred.log.slice(state.log.length).map((l) => l.text),
   };
+
+  // The last turn is the dragon and nothing else. No card, no event, no wandering off
+  // to the shop: the evening has an ending and this is it.
+  if (stirred.turn >= stirred.turnLimit) return finalStand(stirred);
 
   const pull = drawCard(stirred.pokerDeck, stirred.rngState);
   let next: GameState = { ...stirred, pokerDeck: pull.deck, rngState: pull.rngState };
@@ -275,41 +364,54 @@ export function endTurn(state: GameState): GameState {
   // Whatever the last search turned up belongs to the turn it happened on. Leaving it
   // set would pop the card up again behind the next player's event card.
   let next: GameState = state.find ? { ...state, find: null } : state;
-  if (!hasMoved(player) && !player.dead) {
-    next = note(next, `${player.name} held position.`);
+  if (!hasMoved(player)) {
+    next = note(next, `${teamOf(state, player.id)?.name ?? player.name} held position.`);
   }
 
   // Rulebook §7: the fallen can pick themselves up after a full turn, and a doctor
   // reaching them is instant. Nobody is out of the game for good.
   next = tendTheFallen(next);
 
-  const living = next.players.filter((p) => !p.dead);
-  if (living.length === 0) {
-    return note(
-      { ...next, phase: "gameOver", ending: "partyLost" },
-      "Everybody is down. The dragon wins this one.",
-    );
-  }
-
-  let index = next.activePlayerIndex;
+  // **The turn passes to the next team, not the next player.** Turn order is still an
+  // index into `players` - every rule written before teams reads it - but it only ever
+  // lands on a team's first member, which is why the walk below steps over teams and
+  // then asks who is leading that one.
   let turn = next.turn;
   let players = next.players;
+  const here = next.teams.findIndex((t) => t.memberIds.includes(activePlayer(next)?.id));
+  let at = here < 0 ? 0 : here;
 
-  // Walk forward to the next player who can actually take a turn. The dead are
-  // skipped for good; anyone the tornado flattened is skipped once, and getting
-  // skipped is what clears it.
-  for (;;) {
-    index = (index + 1) % players.length;
-    if (index === 0) turn += 1;
+  let leader: Player | undefined;
+  for (let tried = 0; tried <= next.teams.length; tried++) {
+    at = (at + 1) % next.teams.length;
+    // Round the horn and back to the first team means a new turn. With one team that
+    // is every single go, which is right: one team is one movement a turn.
+    if (at === 0) turn += 1;
 
-    if (players[index].dead) continue;
-    if (players[index].stunned) {
-      next = note(next, `${players[index].name} is still picking themselves up.`);
-      players = players.map((p, i) => (i === index ? { ...p, stunned: false } : p));
+    const team = next.teams[at];
+    const up = membersOf({ ...next, players }, team)[0];
+    if (!up) continue;
+    // The tornado owes a team a turn, and getting skipped is what pays it off.
+    if (up.stunned) {
+      next = note(next, `${team.name} are still picking themselves up.`);
+      const owed = new Set(team.memberIds);
+      players = players.map((p) => (owed.has(p.id) ? { ...p, stunned: false } : p));
       continue;
     }
+    leader = up;
     break;
   }
+  // Nobody left at all. Only the abyss can do this, and only to a party that stood on
+  // the rim through a full turn's warning - so it is a mistake rather than bad luck,
+  // and it is the one thing that can finish an evening early. It still needs an
+  // ending: a game that quietly stops accepting turns looks like a crash.
+  if (!leader) {
+    return note(
+      { ...next, players, phase: "gameOver", ending: "outOfTime" },
+      "There is nobody left on the board. The world closed up around the dragon.",
+    );
+  }
+  const index = players.findIndex((p) => p.id === leader!.id);
   next = { ...next, players };
 
   if (turn > next.turnLimit) {
@@ -319,14 +421,12 @@ export function endTurn(state: GameState): GameState {
     );
   }
 
-  // A fresh turn for whoever is up next. Rulebook §8's second guard - a player joins
-  // at most one fight per round - is cleared when the round rolls over rather than
-  // per player, or the same friend gets dragged into every fight of the round.
-  const rolled = turn !== next.turn;
-  const ready = next.players.map((p, i) => ({
-    ...(i === index ? { ...p, stepsTaken: 0, actedThisTurn: false } : p),
-    joinedFightThisRound: rolled ? false : p.joinedFightThisRound,
-  }));
+  // A fresh go for the whole of the team that is up: everybody's steps back to zero
+  // and their action back, because they all walk and they all fight.
+  const upNext = new Set(next.teams[at].memberIds);
+  const ready = next.players.map((p) =>
+    upNext.has(p.id) ? { ...p, stepsTaken: 0, actedThisTurn: false } : p,
+  );
   // Everybody's memory brought up to date once a turn, which catches the ways a player
   // changes tiles that are not a move: the hook, the tornado, backing out of a fight.
   const started = rememberAll({

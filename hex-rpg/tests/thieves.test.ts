@@ -6,8 +6,9 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState, startGame } from "../src/game/setup";
 import { canFightThief, canPayOff, fightThief, hazardMoves, payOff } from "../src/game/hazards";
-import { attack, endCombat } from "../src/game/combat";
-import { endTurn, movePlayer } from "../src/game/turn";
+import { endCombat } from "../src/game/combat";
+import { winAll } from "./fight";
+import { canTakeOn, endTurn, movePlayer, takeOn } from "../src/game/turn";
 import { key } from "../src/game/hex";
 import type { GameState } from "../src/game/types";
 
@@ -74,7 +75,11 @@ describe("walking into a thief", () => {
         i === 0 ? { ...p, hex: neighbourOf(base, mob.hex) } : { ...p, dead: true },
       ),
     };
-    expect(movePlayer(state, key(mob.hex)).combat).not.toBeNull();
+    // Walking on finds it and offers the fight; taking it on starts it.
+    const met = movePlayer(state, key(mob.hex));
+    expect(met.combat).toBeNull();
+    expect(canTakeOn(met)).toBe(true);
+    expect(takeOn(met).combat).not.toBeNull();
   });
 
   it("costs the turn's action once you swing, and not before", () => {
@@ -97,20 +102,17 @@ describe("beating a thief", () => {
     const loaded: GameState = {
       ...state,
       hazards: state.hazards.map((h) => (h.kind === "robber" ? { ...h, carrying: 7 } : h)),
-      // Nearly down, so one swing finishes it whatever the dice do.
-      enemies: state.enemies.map((e) =>
-        e.kind === "robber" ? { ...e, damageTaken: e.maxHealth - 1 } : e,
-      ),
     };
     const met = movePlayer(loaded, key(thief.hex));
-    const before = met.players[0].money;
+    const before = met.players.reduce((sum, p) => sum + p.money, 0);
 
-    let fighting = fightThief(met);
-    for (let i = 0; i < 6 && fighting.combat?.outcome === "ongoing"; i++) fighting = attack(fighting);
+    const fighting = winAll(fightThief(met));
     expect(fighting.combat?.outcome).toBe("enemyDefeated");
 
-    // The $7 plus the body's own purse. Before v0.25 the coins simply left the game.
-    expect(fighting.players[0].money).toBeGreaterThanOrEqual(before + 7);
+    // The $7 plus the body's own purse, split across the team that fought for it -
+    // before v0.25 the coins simply left the game.
+    const now = fighting.players.reduce((sum, p) => sum + p.money, 0);
+    expect(now).toBeGreaterThanOrEqual(before + 7);
     expect(fighting.hazards.find((h) => h.kind === "robber")?.carrying).toBe(0);
     expect(fighting.log.some((l) => /\$7/.test(l.text))).toBe(true);
   });
@@ -152,7 +154,7 @@ describe("the turn's report", () => {
 
   it("rides on the turn card, with everything the opening did", () => {
     let state = startGame(4471);
-    for (let i = 0; i < state.players.length; i++) state = endTurn(clear(state));
+    for (let i = 0; i < state.teams.length; i++) state = endTurn(clear(state));
 
     expect(state.draw).not.toBeNull();
     expect(state.draw!.stirred.length).toBeGreaterThan(0);
@@ -165,5 +167,5 @@ describe("the turn's report", () => {
 /** Turns cannot pass with a card up or a fight running. */
 function clear(state: GameState): GameState {
   const next = state.draw ? { ...state, draw: null } : state;
-  return next.combat ? endCombat({ ...next, combat: { ...next.combat, outcome: "playerEscaped" } }) : next;
+  return next.combat ? endCombat({ ...next, combat: { ...next.combat, outcome: "partyBeaten" } }) : next;
 }

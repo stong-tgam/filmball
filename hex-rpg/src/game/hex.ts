@@ -10,21 +10,20 @@
 
 export type Hex = { q: number; r: number };
 
-/** The board is a hexagon of radius 4 - 5 tiles per side, 61 tiles. */
 /**
- * Rings of tiles out from the middle. 3 gives **37 hexes**; 4 gave 61.
+ * Rings of tiles out from the middle. 3 gives **37 hexes**; 4 gives 61 and 5 gives 91.
  *
- * Shrunk in v0.22 to get an evening under twenty minutes. The old board took a
- * measured **20 rounds and 94 individual turns** to play out, which on one device
- * passed round a table is well over an hour, and each child spent four fifths of it
- * watching somebody else. Only 10% of turns were empty, so the board was never
- * *boring* - it was simply too far across. Cutting a ring takes the walk from a corner
- * to the dragon from four tiles to three and removes a third of the ground.
+ * It went to 5 in v0.30 to hold more exploring, and came back to 3 in v0.31 when the
+ * evening stopped being about exploring. **Eight turns and two tiles a go is sixteen
+ * tiles of walking for a whole game**; on ninety-one tiles most of the map would be
+ * scenery nobody ever stood on, which is a worse map than a small one. At radius 3 a
+ * corner is three steps from the middle, so a team can cross the board twice and still
+ * have turns left for the things worth stopping for.
  *
- * Everything sized against the board scales off this: monster counts, cities, forests,
- * chests, and the turn limit. Change it and re-run `tools/sim.ts`.
+ * Everything sized against the board scales off this: monster counts, cities, forests
+ * and chests.
  */
-export const RADIUS = 5;
+export const RADIUS = 3;
 
 export const inBoard = (h: Hex): boolean =>
   Math.abs(h.q) <= RADIUS &&

@@ -5,8 +5,9 @@ import { FINE_CHEST_CHANCE, MISHAPS, isMishap, search, searchKind } from "../src
 import { createInitialState } from "../src/game/setup";
 import { key } from "../src/game/hex";
 import { JOKER } from "../src/game/cards";
-import { movePlayer } from "../src/game/turn";
-import { attack, endCombat } from "../src/game/combat";
+import { } from "../src/game/turn";
+import { endCombat } from "../src/game/combat";
+import { intoFight, winAll } from "./fight";
 import type { Card, GameState, Item, Tile } from "../src/game/types";
 
 const card = (rank: string, suit: Card["suit"]): Card => ({ rank, suit } as Card);
@@ -58,13 +59,8 @@ describe("two grades of gear", () => {
       ...base,
       activePlayerIndex: 0,
       players: base.players.map((p, i) => (i === 0 ? { ...p, hex: mob.hex, health: 9 } : p)),
-      enemies: base.enemies.map((e) => (e.id === mob.id ? { ...e, maxHealth: 1 } : e)),
     };
-    let fighting = movePlayer(
-      { ...doomed, players: doomed.players.map((p, i) => (i === 0 ? { ...p, hex: base.players[0].hex } : p)) },
-      key(mob.hex),
-    );
-    for (let i = 0; i < 8 && fighting.combat?.outcome === "ongoing"; i++) fighting = attack(fighting);
+    const fighting = winAll(intoFight(doomed, mob, [doomed.players[0].id]));
     for (const item of fighting.combat?.spoils ?? []) expect(isFine(item)).toBe(false);
     endCombat(fighting);
   });

@@ -1,220 +1,249 @@
 /**
- * Rulebook §8, group fights, and §10's loot distribution.
+ * Teams, the mini-game they play, and §10's loot.
  *
- * This is the rule the whole boss maths assumes. §7.4's health bands were set against
- * a party rolling together, and until now every fight was one player against one
- * enemy - which is why over half of simulated games ran out the clock with a wounded
- * dragon still standing.
+ * This replaced §8's invitation system in v0.31, and the reason is the same one that
+ * replaced the dice: **the team is the group fight**. Everybody standing on the tile is
+ * about to shout guesses at whoever is drawing, so there is nobody left to invite.
  */
 
 import { describe, expect, it } from "vitest";
-import {
-  BASE_DICE,
-  attack,
-  canInvite,
-  fighters,
-  invitable,
-  invite,
-  inviteTargets,
-  pledgeSupport,
-  supportOptions,
-  takeSpoil,
-  withdrawSupport,
-} from "../src/game/combat";
+import { canUseSkill, fighters, hintsFor, secondsFor, takeSpoil, useHint, useSkill } from "../src/game/combat";
+import { challengeFor } from "../src/game/challenges";
+import { LINGER_SECONDS, SKILLS, hasSkill, whoTakesTheHit } from "../src/game/skills";
+import { createTeams, teamSizes } from "../src/game/teams";
 import { createInitialState } from "../src/game/setup";
-import { bringsEvent, endTurn, eventThreshold } from "../src/game/turn";
+import { activePlayer, bringsEvent, endTurn, eventThreshold, legalMoves, movePlayer } from "../src/game/turn";
 import { sense } from "../src/game/sense";
-import { ROLES } from "../src/game/players";
 import { HAZARDS } from "../src/game/hazards";
 import { ENEMIES } from "../src/game/enemies";
 import { PALETTE } from "../src/palette";
-import { moveRange, TURN_ORDER } from "../src/game/players";
+import { ROLES, TURN_ORDER } from "../src/game/players";
 import { EQUIPMENT, makeItem } from "../src/game/items";
-import { distance, key } from "../src/game/hex";
-import type { Combat, Enemy, GameState } from "../src/game/types";
+import { key } from "../src/game/hex";
+import { intoFight } from "./fight";
+import type { Enemy, GameState } from "../src/game/types";
 
-/**
- * The knight fighting the given monster, with everybody else parked one tile away so
- * they are all inside a shout.
- */
+/** The whole party standing on one monster, as a team, with the fight running. */
 function brawl(kind: Enemy["kind"], seed = 4471): GameState {
   const base = createInitialState(seed);
   const enemy = base.enemies.find((e) => e.kind === kind)!;
-  const beside = [
-    { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 },
-    { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 },
-  ].map((d) => ({ q: enemy.hex.q + d.q, r: enemy.hex.r + d.r }));
-
-  const combat: Combat = {
-    enemyId: enemy.id,
-    playerId: "knight",
-    allies: [],
-    support: [],
-    from: key(beside[0]),
-    round: 0,
-    playerRoll: null,
-    toll: 0,
-    spoils: [],
-    picksLeft: 0,
-    ambush: false,
-    outcome: "ongoing",
-  };
-
-  return {
+  const together: GameState = {
     ...base,
     activePlayerIndex: 0,
-    phase: "combat",
-    combat,
-    players: base.players.map((p, i) => ({
-      ...p,
-      hex: i === 0 ? enemy.hex : beside[i % beside.length],
-      health: 9,
-      maxHealth: 9,
-    })),
+    teams: [{ id: "team-1", name: "everybody", memberIds: base.players.map((p) => p.id) }],
+    players: base.players.map((p) => ({ ...p, hex: enemy.hex, health: 9, maxHealth: 9 })),
   };
+  return intoFight(together, enemy, base.players.map((p) => p.id));
 }
 
-describe("who may be shouted for", () => {
-  it("keeps mobs solo, which is §8's own balance guard", () => {
-    const mobs = brawl("mob");
-    expect(invitable(mobs.enemies.find((e) => e.id === mobs.combat!.enemyId)!)).toBe(false);
-    expect(inviteTargets(mobs)).toEqual([]);
-    expect(canInvite(mobs)).toBe(false);
-    // Without this the whole party clusters on every bandit and turn order stops
-    // meaning anything - the rulebook says so in as many words.
-    expect(invite(mobs, "rogue")).toBe(mobs);
+describe("who walks with whom", () => {
+  it("splits the party the way the table asked for", () => {
+    expect(teamSizes(2)).toEqual([2]);
+    expect(teamSizes(3)).toEqual([3]);
+    expect(teamSizes(4)).toEqual([2, 2]);
+    expect(teamSizes(5)).toEqual([3, 2]);
   });
 
-  it("opens the big ones up, thieves included", () => {
-    for (const kind of ["midboss", "finalboss"] as const) {
-      const state = brawl(kind);
-      expect(canInvite(state)).toBe(true);
+  it("never leaves anybody out and never puts anybody in twice", () => {
+    for (const size of [2, 3, 4, 5]) {
+      const players = createInitialState(4471, TURN_ORDER.slice(0, size)).players;
+      const teams = createTeams(players);
+      const listed = teams.flatMap((t) => t.memberIds);
+      expect(listed.sort()).toEqual(players.map((p) => p.id).sort());
+      expect(new Set(listed).size).toBe(players.length);
+      for (const team of teams) expect(team.memberIds.length).toBeGreaterThanOrEqual(2);
     }
   });
 
-  it("reaches as far as the starter's own legs", () => {
-    const state = brawl("finalboss");
-    const enemy = state.enemies.find((e) => e.id === state.combat!.enemyId)!;
-    const reach = moveRange(state.players[0]);
-    for (const who of inviteTargets(state)) {
-      expect(distance(who.hex, enemy.hex)).toBeLessThanOrEqual(reach);
+  it("starts a team on one tile, so the first thing you see is who you are with", () => {
+    for (const size of [2, 3, 4, 5]) {
+      const state = createInitialState(4471, TURN_ORDER.slice(0, size));
+      for (const team of state.teams) {
+        const spots = new Set(
+          team.memberIds.map((id) => key(state.players.find((p) => p.id === id)!.hex)),
+        );
+        expect(spots.size, `${size} players`).toBe(1);
+      }
+      // ...and two teams do not start on top of each other, or the hidden map has
+      // nothing left to talk about.
+      const corners = new Set(
+        state.teams.map((t) => key(state.players.find((p) => p.id === t.memberIds[0])!.hex)),
+      );
+      expect(corners.size).toBe(state.teams.length);
     }
-
-    // Park somebody out of earshot and they are not on the list.
-    const far: GameState = {
-      ...state,
-      players: state.players.map((p) => (p.id === "rogue" ? { ...p, hex: { q: 0, r: -4 } } : p)),
-    };
-    expect(inviteTargets(far).map((p) => p.id)).not.toContain("rogue");
   });
 
-  it("never lists the dead, the already-in, or somebody who fought this round", () => {
-    const state = brawl("finalboss");
-    const busy: GameState = {
-      ...state,
-      players: state.players.map((p) =>
-        p.id === "rogue"
-          ? { ...p, joinedFightThisRound: true }
-          : p.id === "scout"
-            ? { ...p, dead: true }
-            : p,
-      ),
-    };
-    const listed = inviteTargets(busy).map((p) => p.id);
-    expect(listed).not.toContain("rogue");
-    expect(listed).not.toContain("scout");
-    expect(listed).not.toContain("knight");
+  it("gives the turn to the other team, and only rolls the turn over on the way round", () => {
+    const state = createInitialState(4471, TURN_ORDER.slice(0, 4));
+    expect(state.teams).toHaveLength(2);
+    const second = endTurn(state);
+    expect(second.turn, "the second team goes on the same turn").toBe(state.turn);
+    expect(second.teams[1].memberIds).toContain(second.players[second.activePlayerIndex].id);
 
-    const joined = invite(state, "rogue");
-    expect(inviteTargets(joined).map((p) => p.id)).not.toContain("rogue");
+    const third = endTurn({ ...second, draw: null });
+    expect(third.turn).toBe(state.turn + 1);
+  });
+
+  it("walks the whole team, never one of them", () => {
+    const state = createInitialState(4471, TURN_ORDER.slice(0, 4));
+    const step = [...legalMoves(state, activePlayer(state)).keys()][0];
+    const after = movePlayer(state, step);
+    const team = after.teams[0];
+    const spots = new Set(
+      team.memberIds.map((id: string) => key(after.players.find((p) => p.id === id)!.hex)),
+    );
+    expect(spots.size).toBe(1);
+    expect([...spots][0]).toBe(step);
   });
 });
 
-describe("piling in", () => {
-  it("moves them onto the tile and does not spend their turn", () => {
-    const state = brawl("finalboss");
-    const enemy = state.enemies.find((e) => e.id === state.combat!.enemyId)!;
-    const before = state.players.find((p) => p.id === "rogue")!;
-    expect(before.actedThisTurn).toBe(false);
-
-    const after = invite(state, "rogue");
-    const rogue = after.players.find((p) => p.id === "rogue")!;
-    expect(key(rogue.hex)).toBe(key(enemy.hex));
-    // §8 is explicit: they roll, but it is still their turn to spend afterwards.
-    expect(rogue.actedThisTurn).toBe(false);
-    expect(rogue.stepsTaken).toBe(before.stepsTaken);
-    expect(rogue.joinedFightThisRound).toBe(true);
-    expect(after.combat?.allies).toEqual(["rogue"]);
-    expect(fighters(after).map((p) => p.id)).toEqual(["knight", "rogue"]);
+describe("everybody in the fight", () => {
+  it("puts the whole team into it, with no invitation step", () => {
+    const state = brawl("midboss");
+    expect(fighters(state).map((p) => p.id).sort()).toEqual(
+      state.players.map((p) => p.id).sort(),
+    );
   });
 
-  it("clears the once-a-round guard when the round rolls over", () => {
-    let state = invite(brawl("finalboss"), "rogue");
-    state = { ...state, combat: null, phase: "playerMove" };
-    expect(state.players.find((p) => p.id === "rogue")!.joinedFightThisRound).toBe(true);
-
-    for (let i = 0; i < TURN_ORDER.length; i++) state = endTurn(state);
-    expect(state.turn).toBeGreaterThan(1);
-    expect(state.players.every((p) => !p.joinedFightThisRound)).toBe(true);
+  it("deals the monster's own number of cards", () => {
+    for (const kind of ["mob", "midboss", "finalboss"] as const) {
+      expect(brawl(kind).combat?.trials).toHaveLength(ENEMIES[kind].cards);
+    }
   });
 });
 
-describe("rolling together", () => {
-  it("totals every participant's dice into one number", () => {
-    const solo = attack(brawl("finalboss"));
-    const group = attack(invite(invite(brawl("finalboss"), "rogue"), "scout"));
-
-    expect(solo.combat?.playerRoll?.dice).toHaveLength(BASE_DICE);
-    // Three fighters, three dice each, one total against the monster.
-    expect(group.combat?.playerRoll?.dice).toHaveLength(BASE_DICE * 3);
-    expect(group.combat?.playerRoll?.damage).toBeGreaterThan(0);
+describe("what gear buys, now that it cannot buy damage", () => {
+  it("buys seconds with the team's best weapon, not everybody's added up", () => {
+    const state = brawl("mob");
+    const thing = challengeFor({ suit: "diamonds", rank: "7" });
+    const bare = state.players.map((p) => ({ ...p, weapon: null }));
+    const armed = bare.map((p) => ({
+      ...p,
+      weapon: makeItem(EQUIPMENT.find((e) => e.slot === "weapon")!, `w-${p.id}`),
+    }));
+    // Five children with frying pans must not get three minutes to draw a cat.
+    expect(secondsFor(thing, armed, false)).toBe(
+      secondsFor(thing, [armed[0]], false),
+    );
+    expect(secondsFor(thing, armed, false)).toBeGreaterThan(secondsFor(thing, bare, false));
   });
 
-  it("charges every participant a health for a failed roll", () => {
-    const state = invite(invite(brawl("finalboss"), "rogue"), "scout");
-    const before = fighters(state).map((p) => p.health);
-    const after = attack(state);
+  it("buys hints with boots, one a pair", () => {
+    const state = brawl("mob");
+    const bare = state.players.map((p) => ({ ...p, boots: null }));
+    expect(hintsFor(bare)).toBe(0);
+    expect(
+      hintsFor(bare.map((p) => ({ ...p, boots: makeItem(EQUIPMENT.find((e) => e.slot === "boots")!, `b-${p.id}`) }))),
+    ).toBe(bare.length);
+  });
 
-    // The dragon has 20-30 health; three players cannot clear that in one roll, so
-    // this is a failed roll and §8 says everybody pays for it.
-    expect(after.combat?.outcome).toBe("ongoing");
-    for (const [i, who] of fighters(after).entries()) {
-      expect(who.health).toBe(before[i] - 1);
+  it("spends a hint to read one, and only once a card", () => {
+    const state = brawl("mob");
+    const stocked: GameState = { ...state, combat: { ...state.combat!, hintsLeft: 2 } };
+    const read = useHint(stocked);
+    expect(read.combat?.trials[0].hinted).toBe(true);
+    expect(read.combat?.hintsLeft).toBe(1);
+    // Already read: nothing more to buy.
+    expect(useHint(read)).toBe(read);
+  });
+
+  it("gives no hints at all to a monster fighting in the streets - §9", () => {
+    const state = brawl("mob");
+    const streets: GameState = { ...state, combat: { ...state.combat!, hintsLeft: 0 } };
+    expect(useHint(streets)).toBe(streets);
+  });
+});
+
+describe("skills, which are what health is for", () => {
+  it("gives every role exactly one, and only the knight's fires by itself", () => {
+    for (const role of TURN_ORDER) expect(SKILLS[role]).toBeDefined();
+    expect(SKILLS.knight.pressed).toBe(false);
+    for (const role of TURN_ORDER.filter((r) => r !== "knight")) {
+      expect(SKILLS[role].pressed, role).toBe(true);
     }
   });
 
-  it("hands the fight on when the starter falls but friends are still up", () => {
-    const state = invite(brawl("finalboss"), "rogue");
-    const frail: GameState = {
-      ...state,
-      players: state.players.map((p) => (p.id === "knight" ? { ...p, health: 1 } : p)),
-    };
-    const after = attack(frail);
-
-    expect(after.players.find((p) => p.id === "knight")!.dead).toBe(true);
-    // The party is standing right there. Ending the fight because one of them went
-    // down would be the app overruling the table.
-    expect(after.combat?.outcome).toBe("ongoing");
-    expect(after.combat?.playerId).toBe("rogue");
-    expect(after.combat?.allies).toEqual([]);
+  it("takes the skill away at zero health and gives it back with a health", () => {
+    const state = brawl("midboss");
+    const rogue = state.players.find((p) => p.role === "rogue")!;
+    expect(hasSkill(rogue)).toBe(true);
+    expect(hasSkill({ ...rogue, health: 0 })).toBe(false);
+    expect(hasSkill({ ...rogue, health: 1 })).toBe(true);
   });
 
-  it("ends the fight only when everybody in it is down", () => {
-    const state = invite(brawl("finalboss"), "rogue");
-    const frail: GameState = {
+  it("will not let a player out of health press one", () => {
+    const state = brawl("midboss");
+    const spent: GameState = {
       ...state,
-      players: state.players.map((p) =>
-        p.id === "knight" || p.id === "rogue" ? { ...p, health: 1 } : p,
-      ),
+      players: state.players.map((p) => (p.role === "scout" ? { ...p, health: 0 } : p)),
     };
-    expect(attack(frail).combat?.outcome).toBe("playerDown");
+    const scout = spent.players.find((p) => p.role === "scout")!;
+    expect(canUseSkill(spent, scout)).toBe(false);
+    expect(useSkill(spent, scout.id)).toBe(spent);
+  });
+
+  it("lets the scout add seconds to the clock that is running", () => {
+    const state = brawl("midboss");
+    const scout = state.players.find((p) => p.role === "scout")!;
+    const was = state.combat!.trials[0].seconds;
+    const after = useSkill(state, scout.id);
+    expect(after.combat?.trials[0].seconds).toBe(was + LINGER_SECONDS);
+    // One each, per fight.
+    expect(after.combat?.skillsUsed).toContain(scout.id);
+    expect(canUseSkill(after, scout)).toBe(false);
+  });
+
+  it("lets the rogue read the hint without spending one of the team's", () => {
+    const state = brawl("midboss");
+    const rogue = state.players.find((p) => p.role === "rogue")!;
+    const after = useSkill(state, rogue.id);
+    expect(after.combat?.trials[0].hinted).toBe(true);
+    expect(after.combat?.hintsLeft).toBe(state.combat?.hintsLeft);
+  });
+
+  it("lets the doctor give a friend a health, and their skill with it", () => {
+    const state = brawl("midboss");
+    const doctor = state.players.find((p) => p.role === "doctor")!;
+    const flat: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.role === "knight" ? { ...p, health: 0 } : p)),
+    };
+    const knight = flat.players.find((p) => p.role === "knight")!;
+    expect(hasSkill(knight)).toBe(false);
+
+    const after = useSkill(flat, doctor.id, knight.id);
+    const mended = after.players.find((p) => p.role === "knight")!;
+    expect(mended.health).toBe(1);
+    expect(hasSkill(mended)).toBe(true);
+  });
+
+  it("lets the fisherman throw a card back for a different one", () => {
+    const state = brawl("midboss");
+    const fisher = state.players.find((p) => p.role === "fisherman");
+    if (!fisher) return;
+    const before = state.combat!.trials[0].card;
+    const after = useSkill(state, fisher.id);
+    expect(after.combat?.trials[0].card).not.toEqual(before);
+    expect(after.combat?.trials[0].hinted).toBe(false);
+  });
+
+  it("makes the knight wear a lost fight, but never at the cost of going down for it", () => {
+    const state = brawl("midboss");
+    const team = state.players;
+    const knight = team.find((p) => p.role === "knight")!;
+    expect(whoTakesTheHit(team, 1)?.id).toBe(knight.id);
+
+    // On one health the trade would swap one child for another, and that is a trade
+    // nobody chose. It stops fending for everybody rather than falling over.
+    const frail = team.map((p) => (p.role === "knight" ? { ...p, health: 1 } : p));
+    expect(whoTakesTheHit(frail, 1)).toBeNull();
   });
 });
 
 describe("sharing out the loot", () => {
-  /** A won fight with a known haul, and two people who fought for it. */
+  /** A won fight with a known haul, and the whole team standing in it. */
   function won(): GameState {
-    const state = invite(brawl("midboss"), "rogue");
+    const state = brawl("midboss");
     const spoils = [
       makeItem(EQUIPMENT.find((e) => e.slot === "weapon")!, "prize-weapon"),
       makeItem(EQUIPMENT.find((e) => e.slot === "armor")!, "prize-armour"),
@@ -240,30 +269,14 @@ describe("sharing out the loot", () => {
     expect(after.log.at(-1)?.text).toContain("was handed");
   });
 
-  it("gives nothing to somebody who was only watching", () => {
+  it("gives nothing to somebody who was not in the fight", () => {
     const state = won();
-    // The scout is standing right next to the fight and did not join it.
-    expect(fighters(state).map((p) => p.id)).not.toContain("scout");
-    expect(takeSpoil(state, "prize-weapon", "scout")).toBe(state);
-  });
-
-  it("pays the purse to everybody who swung", () => {
-    const state = invite(brawl("midboss"), "rogue");
-    const wounded: GameState = {
+    const outsider: GameState = {
       ...state,
-      enemies: state.enemies.map((e) =>
-        e.id === state.combat!.enemyId ? { ...e, damageTaken: e.maxHealth - 1 } : e,
-      ),
+      combat: { ...state.combat!, allies: state.combat!.allies.filter((id) => id !== "scout") },
     };
-    const before = Object.fromEntries(state.players.map((p) => [p.id, p.money]));
-    const after = attack(wounded);
-    expect(after.combat?.outcome).toBe("enemyDefeated");
-
-    // Splitting $2 two ways is one argument and two disappointments.
-    for (const id of ["knight", "rogue"]) {
-      expect(after.players.find((p) => p.id === id)!.money).toBeGreaterThan(before[id]);
-    }
-    expect(after.players.find((p) => p.id === "doctor")!.money).toBe(before.doctor);
+    expect(fighters(outsider).map((p) => p.id)).not.toContain("scout");
+    expect(takeSpoil(outsider, "prize-weapon", "scout")).toBe(outsider);
   });
 });
 
@@ -351,72 +364,5 @@ describe("one crew of pirates, not two", () => {
     for (const kind of ["mob", "midboss", "finalboss", "robber", "pirates"] as const) {
       expect(ENEMIES[kind].colour).toBe(PALETTE[kind]);
     }
-  });
-});
-
-describe("choosing what to do in a group fight", () => {
-  const withDoctor = (): GameState => invite(brawl("finalboss"), "doctor");
-
-  it("offers the doctor a patch-up, and offers nobody else anything yet", () => {
-    const state = withDoctor();
-    const hurt: GameState = {
-      ...state,
-      players: state.players.map((p) => (p.id === "knight" ? { ...p, health: 4 } : p)),
-    };
-    const doctor = fighters(hurt).find((p) => p.id === "doctor")!;
-    const knight = fighters(hurt).find((p) => p.id === "knight")!;
-
-    expect(supportOptions(hurt, doctor).map((p) => p.id)).toContain("knight");
-    // Everybody else swings. This is the hook the weapon skills will hang on.
-    expect(supportOptions(hurt, knight)).toEqual([]);
-  });
-
-  it("only offers somebody who is actually hurt", () => {
-    const state = withDoctor();
-    const doctor = fighters(state).find((p) => p.id === "doctor")!;
-    // The brawl fixture starts everybody at full health.
-    expect(supportOptions(state, doctor)).toEqual([]);
-  });
-
-  it("heals for a health and costs the healer their dice", () => {
-    const state = withDoctor();
-    const hurt: GameState = {
-      ...state,
-      players: state.players.map((p) => (p.id === "knight" ? { ...p, health: 4 } : p)),
-    };
-    const pledged = pledgeSupport(hurt, "doctor", "knight");
-    expect(pledged.combat?.support).toEqual([{ by: "doctor", kind: "heal", to: "knight" }]);
-
-    const after = attack(pledged);
-    // Two in the fight, but only one set of dice: heal or hit, never both.
-    expect(after.combat?.playerRoll?.dice).toHaveLength(BASE_DICE);
-    // Patched for one, then the failed roll takes one off everybody - so the knight
-    // is back where they started and the doctor is a health down.
-    expect(after.players.find((p) => p.id === "knight")!.health).toBe(4);
-    expect(after.players.find((p) => p.id === "doctor")!.health).toBe(8);
-    // The pledge is spent: next round everybody swings again unless they say otherwise.
-    expect(after.combat?.support).toEqual([]);
-  });
-
-  it("can be taken back before the dice go", () => {
-    const state = withDoctor();
-    const hurt: GameState = {
-      ...state,
-      players: state.players.map((p) => (p.id === "knight" ? { ...p, health: 4 } : p)),
-    };
-    const pledged = pledgeSupport(hurt, "doctor", "knight");
-    const changed = withdrawSupport(pledged, "doctor");
-    expect(changed.combat?.support).toEqual([]);
-    expect(attack(changed).combat?.playerRoll?.dice).toHaveLength(BASE_DICE * 2);
-  });
-
-  it("refuses a pledge from somebody who is not in the fight", () => {
-    const state = withDoctor();
-    const hurt: GameState = {
-      ...state,
-      players: state.players.map((p) => (p.id === "knight" ? { ...p, health: 4 } : p)),
-    };
-    // The rogue is standing next to the fight and never joined it.
-    expect(pledgeSupport(hurt, "rogue", "knight")).toBe(hurt);
   });
 });

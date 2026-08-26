@@ -27,8 +27,10 @@ import {
   useCanFish,
   useCanGive,
   useFighters,
-  useInviteTargets,
-  useSupportChoices,
+  useNowPlaying,
+  useCanTakeOn,
+  useEnemyHere,
+  useSkillChoices,
   useCanHook,
   useCanSearch,
   useGiveTargets,
@@ -40,6 +42,7 @@ import {
   useLegalMoves,
 } from "./game/store";
 import { sellable, stockFor } from "./game/actions";
+import { ENEMIES } from "./game/enemies";
 import { key } from "./game/hex";
 import { elementsOf } from "./game/setup";
 import { ROLES, hasMoved } from "./game/players";
@@ -82,8 +85,11 @@ export default function App() {
   const player = useActivePlayer();
   const legalMoves = useLegalMoves();
   const fight = useCombatants();
-  const attack = useGame((s) => s.attack);
-  const flee = useGame((s) => s.flee);
+  const nowPlaying = useNowPlaying();
+  const wonTrial = useGame((s) => s.wonTrial);
+  const lostTrial = useGame((s) => s.lostTrial);
+  const useHint = useGame((s) => s.useHint);
+  const useSkill = useGame((s) => s.useSkill);
   const closeCombat = useGame((s) => s.closeCombat);
   const takeLoot = useGame((s) => s.takeLoot);
   const search = useGame((s) => s.search);
@@ -107,11 +113,10 @@ export default function App() {
   const [hooking, setHooking] = useState(false);
   const canGive = useCanGive();
   const fightParty = useFighters();
-  const inviteTargets = useInviteTargets();
-  const callForHelp = useGame((s) => s.invite);
-  const supportChoices = useSupportChoices();
-  const pledgeSupport = useGame((s) => s.pledgeSupport);
-  const withdrawSupport = useGame((s) => s.withdrawSupport);
+  const skillChoices = useSkillChoices();
+  const enemyHere = useEnemyHere();
+  const canTakeOn = useCanTakeOn();
+  const takeOn = useGame((s) => s.takeOn);
   const giveTargets = useGiveTargets();
   const handOver = useGame((s) => s.give);
   const [giving, setGiving] = useState(false);
@@ -313,7 +318,12 @@ export default function App() {
             canDonate={canDonate}
             canHeal={canHeal}
             canPayOff={canPayOff}
-            canFightThief={canFightThief}
+            canTakeOn={canTakeOn}
+          enemyHere={
+            enemyHere ? { name: ENEMIES[enemyHere.kind].name, cards: ENEMIES[enemyHere.kind].cards } : null
+          }
+          onTakeOn={takeOn}
+          canFightThief={canFightThief}
             thief={thiefHere}
             onSearch={search}
             onFish={fish}
@@ -374,17 +384,15 @@ export default function App() {
       {game.combat && fight && (
         <CombatModal
           combat={game.combat}
-          player={fight.player}
           enemy={fight.enemy}
-          onAttack={attack}
-          onFlee={flee}
-          onTakeLoot={takeLoot}
           party={fightParty}
-          inviteTargets={inviteTargets}
-          onInvite={callForHelp}
-          supportChoices={supportChoices}
-          onSupport={pledgeSupport}
-          onUnsupport={withdrawSupport}
+          playing={nowPlaying}
+          onWon={wonTrial}
+          onLost={lostTrial}
+          onHint={useHint}
+          skills={skillChoices}
+          onSkill={useSkill}
+          onTakeLoot={takeLoot}
           onEat={eat}
           onClose={closeCombat}
           ground={game.tiles[key(fight.enemy.hex)]}

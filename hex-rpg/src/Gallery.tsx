@@ -85,7 +85,7 @@ function MonsterBack({ kind }: { kind: keyof typeof ENEMIES }) {
   return (
     <>
       <strong>
-        {beast.health[0]}–{beast.health[1]} health
+        {beast.cards} card{beast.cards === 1 ? "" : "s"}
       </strong>
       {beast.blurb}
     </>

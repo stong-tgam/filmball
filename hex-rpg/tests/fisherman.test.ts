@@ -391,20 +391,28 @@ describe("bugs the playtest found", () => {
 
 describe("standing together", () => {
   /** Two players on one tile, which is now a thing you can walk into. */
+  /** Two named players on one tile, everybody else pushed to the far corner. */
   function together(seed = 4471): GameState {
     const base = createInitialState(seed);
+    const away = { q: 0, r: 1 };
     return {
       ...base,
       activePlayerIndex: 0,
-      players: base.players.map((p, i) => (i === 1 ? { ...p, hex: base.players[0].hex } : p)),
+      players: base.players.map((p) =>
+        p.id === "knight" || p.id === "rogue"
+          ? { ...p, hex: base.players[0].hex }
+          : { ...p, hex: away },
+      ),
     };
   }
 
   it("lists everybody on your tile, and nobody who is merely next to you", () => {
     const state = together();
     expect(tileMates(state, state.players[0]).map((p) => p.id)).toEqual(["rogue"]);
-    const apart = createInitialState(4471);
-    expect(tileMates(apart, apart.players[0])).toEqual([]);
+    // A whole team starts stacked, which is what a team is; two teams do not.
+    const fresh = createInitialState(4471);
+    const mine = new Set(fresh.teams[0].memberIds);
+    expect(tileMates(fresh, fresh.players[0]).every((p) => mine.has(p.id))).toBe(true);
   });
 
   it("hands something over without costing the turn's action", () => {
@@ -435,7 +443,8 @@ describe("standing together", () => {
     // The rogue is already wearing one. A trade that quietly costs them their coat is
     // an argument waiting to happen, so it is not offered at all.
     const offers = giveTargets(state, state.players[0]);
-    expect(offers.flatMap((o) => o.items).map((i) => i.id)).not.toContain("spare-coat");
+    const toTheRogue = offers.find((o) => o.player.id === "rogue");
+    expect(toTheRogue?.items.map((i) => i.id) ?? []).not.toContain("spare-coat");
     expect(give(state, "rogue", "spare-coat")).toBe(state);
   });
 

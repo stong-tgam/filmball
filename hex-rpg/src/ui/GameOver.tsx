@@ -18,11 +18,6 @@ const ENDINGS: Record<Ending, { title: string; line: string; tone: string }> = {
     line: "The dragon is still out there, and the turn limit ran out. Closer next time.",
     tone: "lose",
   },
-  partyLost: {
-    title: "Everybody is down",
-    line: "Nobody was left standing to keep going. The dragon keeps the map.",
-    tone: "lose",
-  },
 };
 
 export default function GameOver({ ending, turn, onNewGame }: { ending: Ending; turn: number; onNewGame: () => void }) {

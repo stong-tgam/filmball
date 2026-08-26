@@ -6,6 +6,7 @@ import { activePlayer, endTurn, legalMoves, movePlayer, moveRange } from "../src
 import { BASE_HEALTH, BASE_MONEY, BASE_MOVE, ROLES, TURN_ORDER, createPlayers } from "../src/game/players";
 import { makeRng } from "../src/game/rng";
 import { FISHING_ROD } from "../src/game/items";
+import { endCombat, lostTrial } from "../src/game/combat";
 import {
   RADIUS,
   boardCorners,
@@ -34,32 +35,32 @@ describe("the party", () => {
     expect(TURN_ORDER.length).toBeLessThanOrEqual(boardCorners().length);
   });
 
-  it("starts the party in pairs on the corners, with everybody in reach of somebody", () => {
-    // One to a corner meant nobody was ever next to anybody, which quietly disabled
-    // the doctor, the hook, handing things over and half of §8's invitations. Pairs
-    // keep two or three separate corners - so the map is still worth talking about -
-    // while giving every player somebody within a tile from turn one.
+  it("starts each team together on its own corner", () => {
+    // A team moves as one thing and fights as one thing, so it starts as one thing -
+    // and a hex with three tokens on it is the first thing the table sees about how
+    // this game is played. The corners stay separate, which is what keeps the hidden
+    // map worth talking about.
     for (const seed of SEEDS) {
-      const players = createInitialState(seed).players;
+      const state = createInitialState(seed);
       const corners = boardCorners();
 
-      for (const p of players) {
-        const onOrBesideACorner = corners.some((c) => distance(c, p.hex) <= 1);
-        expect(onOrBesideACorner, `seed ${seed}`).toBe(true);
-        // Still out on the rim - partners take the corner's *rim* neighbours, so the
-        // whole party opens the same distance from the dragon that one-to-a-corner
-        // gave them, and nobody starts inside the smoke.
+      for (const p of state.players) {
+        expect(corners.some((c) => key(c) === key(p.hex)), `seed ${seed}`).toBe(true);
+        // Out on the rim, the same distance from the dragon for everybody.
         expect(distance(p.hex, { q: 0, r: 0 }), `seed ${seed}, ${p.id}`).toBe(RADIUS);
       }
 
-      // Nobody stacked at the start, and everybody has a neighbour.
-      expect(new Set(players.map((p) => key(p.hex))).size).toBe(players.length);
-      for (const p of players) {
-        const nearest = Math.min(
-          ...players.filter((o) => o.id !== p.id).map((o) => distance(p.hex, o.hex)),
+      for (const team of state.teams) {
+        const spots = new Set(
+          team.memberIds.map((id) => key(state.players.find((p) => p.id === id)!.hex)),
         );
-        expect(nearest, `seed ${seed}, ${p.id}`).toBeLessThanOrEqual(1);
+        expect(spots.size, `seed ${seed}, ${team.id}`).toBe(1);
       }
+      // Two teams never start on top of each other.
+      const opened = new Set(
+        state.teams.map((t) => key(state.players.find((p) => p.id === t.memberIds[0])!.hex)),
+      );
+      expect(opened.size, `seed ${seed}`).toBe(state.teams.length);
     }
   });
 
@@ -243,28 +244,42 @@ describe("moving", () => {
     expect(JSON.stringify(state)).toBe(before);
   });
 
-  it("only ever moves the player whose turn it is", () => {
+  it("moves the whole team, and nobody outside it", () => {
     const state = game();
-    const others = state.players.slice(1).map((p) => key(p.hex));
-    const after = movePlayer(state, [...legalMoves(state, activePlayer(state)).keys()][0]);
-    expect(after.players.slice(1).map((p) => key(p.hex))).toEqual(others);
+    const mine = new Set(state.teams[0].memberIds);
+    const theirs = state.players.filter((p) => !mine.has(p.id)).map((p) => key(p.hex));
+    const step = [...legalMoves(state, activePlayer(state)).keys()][0];
+    const after = movePlayer(state, step);
+
+    for (const id of mine) {
+      expect(key(after.players.find((p) => p.id === id)!.hex), id).toBe(step);
+    }
+    expect(after.players.filter((p) => !mine.has(p.id)).map((p) => key(p.hex))).toEqual(theirs);
   });
 });
 
+/** Everybody one tile off the middle, safe from every ring the collapse takes. */
+const inland = (state: GameState): GameState => ({
+  ...state,
+  players: state.players.map((p) => ({ ...p, hex: { q: 0, r: 1 } })),
+});
+
 describe("turn order", () => {
-  it("passes the turn round the party and then rolls the counter over", () => {
+  it("passes the turn round the teams and then rolls the counter over", () => {
     let state = game();
     expect(state.turn).toBe(1);
 
     const seen: string[] = [];
-    for (let i = 0; i < TURN_ORDER.length; i++) {
+    for (let i = 0; i < state.teams.length; i++) {
       seen.push(activePlayer(state).id);
       state = endTurn(state);
     }
 
-    expect(seen).toEqual(TURN_ORDER);
+    // One go per team per turn - two teams is two movements and at most two fights,
+    // which is the whole reason eight turns fits in an evening.
+    expect(seen).toEqual(state.teams.map((t) => t.memberIds[0]));
     expect(state.turn).toBe(2);
-    expect(activePlayer(state).id).toBe(TURN_ORDER[0]);
+    expect(activePlayer(state).id).toBe(state.teams[0].memberIds[0]);
   });
 
   it("gives the next player a fresh move", () => {
@@ -281,30 +296,60 @@ describe("turn order", () => {
     expect(state.log.some((e) => e.text.includes("held position"))).toBe(true);
   });
 
-  it("skips the dead", () => {
+  it("keeps a player with no health in the turn order", () => {
+    // Zero health costs you your skill and nothing else. A child with nothing to do
+    // for the rest of the evening is the failure this whole design refuses.
     const state = game();
-    const withCasualty: GameState = {
+    const flat: GameState = {
       ...state,
-      players: state.players.map((p, i) => (i === 1 ? { ...p, dead: true } : p)),
+      players: state.players.map((p) => ({ ...p, health: 0 })),
     };
-    expect(activePlayer(endTurn(withCasualty)).id).toBe(TURN_ORDER[2]);
+    const after = endTurn(flat);
+    expect(after.ending).toBeNull();
+    expect(after.teams[1].memberIds).toContain(activePlayer(after).id);
   });
 
-  it("ends the game when the turn limit runs out", () => {
-    let state: GameState = { ...game(), turnLimit: 2 };
-    const passes = TURN_ORDER.length * 3;
-    for (let i = 0; i < passes && state.phase !== "gameOver"; i++) state = endTurn(state);
+  it("hands a team on to its next member when the first has gone over the rim", () => {
+    const state = game();
+    const lost: GameState = {
+      ...state,
+      players: state.players.map((p) =>
+        p.id === state.teams[1].memberIds[0] ? { ...p, gone: true } : p,
+      ),
+    };
+    expect(activePlayer(endTurn(lost)).id).toBe(state.teams[1].memberIds[1]);
+  });
+
+  it("carries everybody to the dragon on the last turn, whatever they are holding", () => {
+    // Standing still on the rim for eight turns is a way to fall in the abyss, which
+    // is a different test; this one is about the ending, so they start inland.
+    let state = inland(game());
+    for (let i = 0; i < 40 && !state.combat; i++) state = endTurn({ ...state, draw: null });
+
+    // Turn 8 is the dragon, and nobody misses the ending for being three tiles away.
+    expect(state.turn).toBe(state.turnLimit);
+    const dragon = state.enemies.find((e) => e.kind === "finalboss")!;
+    expect(state.combat?.enemyId).toBe(dragon.id);
+    expect(state.combat?.trials).toHaveLength(3);
+    for (const p of state.players) expect(key(p.hex)).toBe(key(dragon.hex));
+  });
+
+  it("runs out of time only after the last stand has been played", () => {
+    let state = inland(game());
+    for (let i = 0; i < 40 && !state.combat; i++) state = endTurn({ ...state, draw: null });
+    state = endTurn(endCombat(lostTrial(state)));
 
     expect(state.phase).toBe("gameOver");
-    expect(state.turn).toBe(2);
+    expect(state.ending).toBe("outOfTime");
     expect(endTurn(state)).toBe(state);
-    expect(legalMoves(state, activePlayer(state)).size).toBe(0);
   });
 
-  it("ends the game when nobody is left standing", () => {
+  it("has no ending that takes the party out of the game", () => {
+    // Teams never wipe. There is nothing left that can end an evening early, which is
+    // the point of health only ever costing somebody their skill.
     const state = game();
-    const wiped: GameState = { ...state, players: state.players.map((p) => ({ ...p, dead: true })) };
-    expect(endTurn(wiped).phase).toBe("gameOver");
+    const flat: GameState = { ...state, players: state.players.map((p) => ({ ...p, health: 0 })) };
+    expect(endTurn(flat).ending).toBeNull();
   });
 
   it("keeps the whole game serialisable as it is played", () => {

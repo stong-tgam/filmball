@@ -1,22 +1,31 @@
 /**
- * The fight.
+ * The fight, which is a mini-game the family plays.
  *
- * Two health bars, the dice in the middle, and two buttons: swing again, or back off.
- * Running away is always on screen and never disabled - a child should be able to see
- * the way out of a fight they are losing without having to ask an adult.
+ * A card turns over, a clock runs, and then **the table** taps whether they did it.
+ * There is no scoring here and there never will be: no machine can tell whether a
+ * drawing looked enough like a dragon, and one that tried would be wrong in front of a
+ * child. The app's whole job is to pose the thing, hold the clock and keep the score
+ * of who won what.
+ *
+ * The one piece of stagecraft that is load-bearing: **for Quick Draw and Act It Out,
+ * only one person may see the prompt.** The device is on the table with four people
+ * round it, so the card goes face down, the person doing it taps to look, and taps
+ * again to hide it before the clock starts. Without that step those two games do not
+ * work at all, and it is the sort of thing that is obvious at a table and invisible in
+ * a spec.
  */
 
-import DiceRoller from "./DiceRoller";
-import { ENEMIES, healthLeft } from "../game/enemies";
-import { activeFeatures, attackValue } from "../game/combat";
-import { ROLES } from "../game/players";
-import { escapeChance } from "../game/combat";
+import { useEffect, useState } from "react";
+import { ENEMIES } from "../game/enemies";
+import { GAME_HOW, GAME_NAME, challengeFor, difficultyOf, type Challenge } from "../game/challenges";
+import { FEATURE_BITE, activeFeatures } from "../game/combat";
+import { SKILLS, hasSkill } from "../game/skills";
+import { SUIT_PIP } from "../game/cards";
 import { CHIP, INK } from "./art/crayon";
 import MonsterArt from "./art/monsters";
-import FeatureArt from "./art/features";
 import ItemArt from "./art/items";
 import { canTake, gearLabel, equipped } from "../game/items";
-import type { Combat, Enemy, Item, Player, Tile } from "../game/types";
+import type { Combat, Enemy, Item, Player, Tile, Trial } from "../game/types";
 import Art from "./art/Art";
 import { monsterSlot } from "./art/monsters";
 
@@ -24,184 +33,295 @@ import { monsterSlot } from "./art/monsters";
 const replacing = (player: Player, item: Item): Item | null =>
   item.slot === "supply" ? null : equipped(player, item.slot);
 
+/** The two games nobody else may see the card for. */
+const isSecret = (challenge: Challenge): boolean =>
+  challenge.kind === "draw" || challenge.kind === "act";
+
 type Props = {
   combat: Combat;
-  player: Player;
   enemy: Enemy;
-  onAttack: (twice?: boolean) => void;
-  onFlee: () => void;
-  /** §10: the starter keeps a pick, or hands it to anybody who fought beside them. */
-  onTakeLoot: (itemId: string, toId?: string) => void;
-  /** Everybody swinging, starter first. */
+  /** The whole team. All of them play, so all of them are on screen. */
   party: Player[];
-  /** Who could still be shouted for, per §8. Empty for mobs, which stay solo. */
-  inviteTargets: Player[];
-  onInvite: (playerId: string) => void;
-  /**
-   * Fighters who can do something other than swing this round, and who they can do it
-   * to. Only the doctor has one so far; this is where weapon skills will hang.
-   */
-  supportChoices: { who: Player; targets: Player[] }[];
-  onSupport: (byId: string, toId: string) => void;
-  onUnsupport: (byId: string) => void;
-  /**
-   * Eating is not the turn's action and never was - the spec is explicit that supply
-   * may be used at any time, "including in the middle of a fight". It could not be:
-   * the party list lives in the sidebar and this modal covers it, so the one moment a
-   * child actually wants a sandwich was the one moment they could not reach one.
-   */
+  playing: { trial: Trial; challenge: Challenge; index: number; of: number } | null;
+  onWon: () => void;
+  onLost: () => void;
+  onHint: () => void;
+  /** Each fighter, and whether their own skill is pressable this second. */
+  skills: { who: Player; ready: boolean }[];
+  onSkill: (playerId: string, toId?: string) => void;
+  onTakeLoot: (itemId: string, toId?: string) => void;
   onEat: (playerId: string, itemId: string) => void;
   onClose: () => void;
-  /** The tile the fight is on: it decides which of the enemy's features bite. */
   ground: Tile | undefined;
 };
 
-function Bar({ value, max, colour }: { value: number; max: number; colour: string }) {
-  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+/**
+ * The clock.
+ *
+ * Kept in the view and never in `GameState`, exactly like the turn hourglass and for
+ * the same reason: a game has to be reproducible from its seed, and a wall clock in the
+ * state would make a saved game resume differently from the one that was put down.
+ */
+function useCountdown(seconds: number, running: boolean, onOut: () => void) {
+  const [left, setLeft] = useState(seconds);
+
+  useEffect(() => {
+    if (!running) return;
+    const id = window.setInterval(() => {
+      setLeft((was) => {
+        if (was <= 1) {
+          window.clearInterval(id);
+          onOut();
+          return 0;
+        }
+        return was - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [running, onOut]);
+
+  return { left, setLeft };
+}
+
+function Clock({ left, of }: { left: number; of: number }) {
+  const pct = Math.max(0, Math.min(100, (left / Math.max(1, of)) * 100));
+  const low = left <= 10;
   return (
-    <div className="bar" role="img" aria-label={`${value} of ${max}`}>
-      <span className="bar-fill" style={{ width: `${pct}%`, background: colour }} />
+    <div className={`clock${low ? " clock-low" : ""}`}>
+      <span className="clock-num">{left}</span>
+      <div className="clock-track">
+        <span className="clock-fill" style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }
 
-const RESULT: Record<string, { title: string; tone: string }> = {
-  enemyDefeated: { title: "Beaten!", tone: "win" },
-  enemyEscaped: { title: "It got away!", tone: "away" },
-  standoff: { title: "Dead even", tone: "away" },
-  playerEscaped: { title: "Got away", tone: "away" },
-  playerDown: { title: "Down", tone: "lose" },
-};
-
 export default function CombatModal({
   combat,
-  player,
   enemy,
-  onAttack,
-  onFlee,
-  onTakeLoot,
   party,
-  inviteTargets,
-  onInvite,
-  supportChoices,
-  onSupport,
-  onUnsupport,
+  playing,
+  onWon,
+  onLost,
+  onHint,
+  skills,
+  onSkill,
+  onTakeLoot,
   onEat,
   onClose,
   ground,
 }: Props) {
   const beast = ENEMIES[enemy.kind];
-  const role = ROLES[player.role];
   const over = combat.outcome !== "ongoing";
-  // One class for "that hurt" and one for "we got it", both keyed on the round so the
-  // animation replays on every roll rather than only the first.
-  const beat =
-    combat.outcome === "enemyDefeated"
-      ? "fight-won"
-      : combat.toll > 0
-        ? "fight-hit"
-        : "";
-  const result = RESULT[combat.outcome];
+  const bites = activeFeatures(enemy, ground);
+
+  // Where in the card's own little ceremony we are. Reset on every new card, which is
+  // what `combat.at` keys.
+  const [stage, setStage] = useState<"deal" | "look" | "run">("deal");
+  useEffect(() => setStage("deal"), [combat.at]);
+
+  const seconds = playing?.trial.seconds ?? 0;
+  const { left, setLeft } = useCountdown(seconds, stage === "run" && !over, onLost);
+  // A card that has just been dealt shows its full clock; the scout's extra seconds
+  // land on a clock that is already running.
+  useEffect(() => {
+    if (stage !== "run") setLeft(seconds);
+  }, [seconds, stage, setLeft]);
 
   return (
     <div
       className={`modal-backdrop${combat.outcome === "enemyDefeated" ? " backdrop-flash" : ""}`}
       role="dialog"
       aria-modal="true"
-      aria-label="Fight"
+      aria-label={`Fighting the ${beast.name}`}
     >
-      {/* Keyed on the round so the shake or the glow replays on every roll, not just
-          the first one - a fight is three or four beats and each needs its own. */}
-      <div className={`modal ${beat}`} key={`${combat.round}-${beat}`}>
+      <div className="modal fight">
         <header className="fight-head">
-          <div className="fighter">
-            <span className="fighter-dot" style={{ background: role.colour }} />
-            <div>
-              <h2>{player.name}</h2>
-              <Bar value={player.health} max={player.maxHealth} colour={role.colour} />
-              <p className="fighter-stat">
-                {player.health}/{player.maxHealth} health
-              </p>
-            </div>
-          </div>
-
-          <span className="versus" aria-hidden="true">
-            vs
-          </span>
-
-          <div className="fighter fighter-enemy">
-            {/* The boss reveal is one of the moments worth protecting, so the monster
-                gets its drawing at size rather than a coloured dot. */}
-            <svg className="fighter-portrait" viewBox="0 0 100 100" aria-hidden="true">
-              <circle cx="50" cy="50" r="49" fill={CHIP} stroke={INK} strokeWidth="2" />
+          <span className="fight-face">
+            <svg viewBox="0 0 100 100" aria-hidden="true">
               <Art slot={monsterSlot(enemy.kind)} fit="slice">
                 <MonsterArt kind={enemy.kind} seedName={enemy.id} />
               </Art>
             </svg>
-            <div>
-              <h2>{beast.name}</h2>
-              <Bar value={healthLeft(enemy)} max={enemy.maxHealth} colour={beast.colour} />
-              <p className="fighter-stat">
-                {healthLeft(enemy)}/{enemy.maxHealth} health
-              </p>
-              {enemy.featuresRevealed && (
-                <ul className="features">
-                  {enemy.features.map((feature) => {
-                    const biting = activeFeatures(enemy, ground).includes(feature);
-                    return (
-                      <li key={feature} className={`feature${biting ? " is-active" : ""}`}>
-                        <svg viewBox="0 0 100 100" aria-hidden="true" className="feature-art">
-                          <Art slot={`feature:${feature}`}>
-                            <FeatureArt feature={feature} seedName={`${enemy.id}-${feature}`} />
-                          </Art>
-                        </svg>
-                        <span>
-                          {feature}
-                          {biting && " +1"}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
+          </span>
+          <div className="fight-who">
+            <h2>{beast.name}</h2>
+            {/* The run of cards, as pips. A child can see how much is left without
+                reading a number, which is the whole reason a boss is three and not
+                thirty health. */}
+            <p className="fight-run" aria-label={`${combat.trials.length} cards`}>
+              {combat.trials.map((t, i) => (
+                <span
+                  key={i}
+                  className={`run-pip${
+                    t.result === "won" ? " is-won" : t.result === "lost" ? " is-lost" : ""
+                  }${i === combat.at && !over ? " is-now" : ""}`}
+                />
+              ))}
+              <span className="muted">
+                {combat.trials.length === 1 ? "One card" : `${combat.trials.length} cards — win them all`}
+              </span>
+            </p>
           </div>
         </header>
 
-        <div className="fight-body">
-          {combat.playerRoll ? (
-            <>
-              <DiceRoller
-                dice={combat.playerRoll.dice}
-                bonus={attackValue(player, enemy, ground)}
-                total={combat.playerRoll.damage}
-                label={`${player.name} swings`}
-                tone="player"
-              />
-              {combat.toll > 0 && (
-                <p className="fight-toll">
-                  Not enough. {player.name} loses {combat.toll} health.
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="fight-intro">{beast.blurb}</p>
-          )}
-        </div>
+        {bites.length > 0 && (
+          <ul className="fight-bites">
+            {bites.map((f) => (
+              <li key={f}>
+                <strong>{f}</strong> {FEATURE_BITE[f]}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {!over && playing && (
+          <div className="game">
+            <div className="game-card">
+              <span className={`game-suit suit-${playing.trial.card.suit}`}>
+                {SUIT_PIP[playing.trial.card.suit]}
+              </span>
+              <span className="game-rank">{playing.trial.card.rank}</span>
+              <span className="game-name">{GAME_NAME[playing.challenge.kind]}</span>
+              <span className="game-hard">{difficultyOf(playing.trial.card.rank)}</span>
+            </div>
+            <p className="game-how">{GAME_HOW[playing.challenge.kind]}</p>
+
+            {stage === "deal" && (
+              <div className="game-stage">
+                {isSecret(playing.challenge) ? (
+                  <>
+                    <p className="game-warn">
+                      One of you does this one. <strong>Only they look.</strong> Everybody else,
+                      eyes up.
+                    </p>
+                    <button type="button" className="big" onClick={() => setStage("look")}>
+                      I am doing it — show me
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="game-warn">All of you together. Ready?</p>
+                    <button type="button" className="big" onClick={() => setStage("run")}>
+                      Turn it over — {seconds} seconds
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {stage === "look" && (
+              <div className="game-stage">
+                <p className="game-prompt">{playing.challenge.prompt}</p>
+                {playing.trial.hinted && <p className="game-hint">{playing.challenge.hint}</p>}
+                <button type="button" className="big" onClick={() => setStage("run")}>
+                  Got it — start the clock
+                </button>
+              </div>
+            )}
+
+            {stage === "run" && (
+              <div className="game-stage">
+                {isSecret(playing.challenge) ? (
+                  <p className="game-hidden">Go! Everybody else, guess.</p>
+                ) : (
+                  <>
+                    <p className="game-prompt">{playing.challenge.prompt}</p>
+                    {playing.trial.hinted && <p className="game-hint">{playing.challenge.hint}</p>}
+                  </>
+                )}
+                <Clock left={left} of={seconds} />
+                <div className="game-calls">
+                  <button type="button" className="big win" onClick={onWon}>
+                    We did it!
+                  </button>
+                  <button type="button" className="ghost" onClick={onLost}>
+                    We could not
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="game-helps">
+              <button
+                type="button"
+                className="ghost"
+                disabled={combat.hintsLeft <= 0 || playing.trial.hinted}
+                onClick={onHint}
+                title={
+                  playing.trial.hinted
+                    ? "Already read"
+                    : combat.hintsLeft <= 0
+                      ? "No hints left. Boots buy them."
+                      : "Read the hint"
+                }
+              >
+                Hint ({combat.hintsLeft})
+              </button>
+              {skills.map(({ who, ready }) => {
+                const skill = SKILLS[who.role];
+                if (!skill.pressed) return null;
+                return (
+                  <button
+                    key={who.id}
+                    type="button"
+                    className="ghost"
+                    disabled={!ready}
+                    onClick={() => onSkill(who.id)}
+                    title={
+                      !hasSkill(who)
+                        ? `${who.name} is out of health, so ${skill.title} is gone until somebody patches them up.`
+                        : combat.skillsUsed.includes(who.id)
+                          ? `${who.name} has already used it this fight.`
+                          : skill.text
+                    }
+                  >
+                    {who.name}: {skill.title}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {over ? (
-          <footer className={`fight-foot fight-${result.tone}`}>
-            <p className="fight-result">{result.title}</p>
+          <footer
+            className={`fight-foot fight-${
+              combat.outcome === "enemyDefeated" ? "win" : combat.outcome === "enemyEscaped" ? "away" : "lose"
+            }`}
+          >
+            <p className="fight-result">
+              {combat.outcome === "enemyDefeated"
+                ? "Beaten!"
+                : combat.outcome === "enemyEscaped"
+                  ? "It got away!"
+                  : "Out of time"}
+            </p>
+            {/* The answers, always, on the games that have one. A puzzle nobody was
+                ever told the answer to is the one thing at a table that genuinely
+                annoys a child - and it is the difference between a hard question and
+                an unfair one. */}
+            {(() => {
+              const told = combat.trials
+                .map((t) => ({ t, c: challengeFor(t.card) }))
+                .filter(({ t, c }) => t.result !== null && c.answer !== undefined);
+              if (told.length === 0) return null;
+              return (
+                <ul className="fight-answers">
+                  {told.map(({ c }, i) => (
+                    <li key={i}>
+                      <span className="muted">{c.prompt}</span> <strong>{c.answer}</strong>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
             <p className="muted">
               {combat.outcome === "enemyDefeated" && `The ${beast.name} is out of the game.`}
-              {combat.outcome === "standoff" &&
-                "Exactly even, so nothing happened at all. Back where you started."}
               {combat.outcome === "enemyEscaped" &&
-                `It went into the water with every wound you gave it. It cannot do that twice.`}
-              {combat.outcome === "playerEscaped" &&
-                `The ${beast.name} keeps the ${enemy.damageTaken} damage it has taken. Come back for it.`}
-              {combat.outcome === "playerDown" &&
-                `${player.name} is down. They get back up next turn, or a doctor can reach them now.`}
+                "It went into the water. It cannot do that twice."}
+              {combat.outcome === "partyBeaten" &&
+                `The ${beast.name} is still standing right there. Come back for it — nothing is remembered.`}
             </p>
             {combat.spoils.length > 0 && combat.picksLeft > 0 && (
               <div className="loot">
@@ -212,12 +332,6 @@ export default function CombatModal({
                 <ul className="stock">
                   {combat.spoils.map((item) => (
                     <li key={item.id}>
-                      {/*
-                        §10 gives the picks to the starter and lets them hand any of
-                        them to somebody who fought. Solo, that is one button and reads
-                        exactly as it always did; in a group each piece names the people
-                        who could take it, so nobody has to remember who was there.
-                      */}
                       <div className="loot-item">
                         <span className="loot-face">
                           <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art">
@@ -265,117 +379,48 @@ export default function CombatModal({
           </footer>
         ) : (
           <footer className="fight-foot">
-            {player.supply.length > 0 && (
+            {/* Eating is not the turn's action and never was: the spec is explicit that
+                supply may be used at any time, "including in the middle of a fight" -
+                and a health back is a skill back. */}
+            {party.some((p) => p.supply.length > 0) && (
               <div className="fight-supply">
-                <p className="fight-supply-title">
-                  {player.health >= player.maxHealth
-                    ? `${player.name} is on full health.`
-                    : "Eat something. It does not cost the turn."}
-                </p>
+                <p className="fight-supply-title">Eat something. It does not cost anything.</p>
                 <ul className="stock">
-                  {player.supply.map((item) => (
-                    <li key={item.id}>
-                      <button
-                        type="button"
-                        className="buy"
-                        onClick={() => onEat(player.id, item.id)}
-                        disabled={item.value <= 0 || player.health >= player.maxHealth}
-                        title={
-                          item.value <= 0
-                            ? `The ${item.name} is not food. Sell it, or let a thief take it.`
-                            : `Eat the ${item.name} for ${item.value} health`
-                        }
-                      >
-                        <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art">
-                          <Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art>
-                        </svg>
-                        <span className="buy-name">{item.name}</span>
-                        <span className="buy-value">+{item.value}</span>
-                      </button>
-                    </li>
-                  ))}
+                  {party.flatMap((who) =>
+                    who.supply.map((item) => (
+                      <li key={`${who.id}-${item.id}`}>
+                        <button
+                          type="button"
+                          className="buy"
+                          onClick={() => onEat(who.id, item.id)}
+                          disabled={item.value <= 0 || who.health >= who.maxHealth}
+                          title={
+                            item.value <= 0
+                              ? `The ${item.name} is not food.`
+                              : `${who.name} eats the ${item.name} for ${item.value} health`
+                          }
+                        >
+                          <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art">
+                            <Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art>
+                          </svg>
+                          <span className="buy-name">{who.name}: {item.name}</span>
+                          <span className="buy-value">+{item.value}</span>
+                        </button>
+                      </li>
+                    )),
+                  )}
                 </ul>
               </div>
             )}
-            {inviteTargets.length > 0 && (
-              <div className="fight-supply">
-                <p className="fight-supply-title">
-                  Shout for help — they run in and roll with you, and it does not cost
-                  them their turn.
-                </p>
-                <div className="hook-ways">
-                  {inviteTargets.map((who) => (
-                    <button key={who.id} type="button" className="ghost" onClick={() => onInvite(who.id)}>
-                      {who.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {combat.support.length > 0 && (
-              <div className="fight-supply">
-                <p className="fight-supply-title">Holding back to help:</p>
-                <div className="hook-ways">
-                  {combat.support.map((pledge) => {
-                    const by = party.find((p) => p.id === pledge.by);
-                    const to = party.find((p) => p.id === pledge.to);
-                    return (
-                      <button key={pledge.by} type="button" className="ghost" onClick={() => onUnsupport(pledge.by)}>
-                        {by?.name} patches {to?.name} — tap to swing instead
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {supportChoices.map((choice) => (
-              <div className="fight-supply" key={choice.who.id}>
-                <p className="fight-supply-title">
-                  {choice.who.name} can patch somebody up instead of rolling — their
-                  dice are the price.
-                </p>
-                <div className="hook-ways">
-                  {choice.targets.map((target) => (
-                    <button
-                      key={target.id}
-                      type="button"
-                      className="ghost"
-                      onClick={() => onSupport(choice.who.id, target.id)}
-                    >
-                      {target.id === choice.who.id ? "Themselves" : target.name} (
-                      {target.health}/{target.maxHealth})
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {party.length > 1 && (
-              <p className="fight-party">
-                Fighting together: {party.map((p) => p.name).join(", ")}. All the dice
-                count, and a bad roll costs every one of them a health.
-              </p>
-            )}
-            <p className="muted">
-              Round {combat.round + 1}. Hurting it counts even if you leave — and an
-              exact tie does nothing at all. Backing off is a gamble: fast feet get away
-              more often, and a failed attempt leaves you here.
+            <p className="muted fight-stakes">
+              Lose a card and the fight is lost: a health off {party.length === 1 ? "you" : "everybody"}
+              {party.some((p) => p.role === "knight" && hasSkill(p)) && ", unless the knight wears it"}.
+              Nobody leaves the game for it.
             </p>
-            <div className="fight-buttons">
-              <button
-                type="button"
-                className="ghost"
-                onClick={onFlee}
-                title="Fast feet get away more often. Fail and you are still in the fight."
-              >
-                Back off ({Math.round(escapeChance(player, combat.ambush && combat.round === 0) * 100)}%)
-              </button>
-              <button type="button" onClick={() => onAttack()}>
-                {combat.round === 0 ? "Roll the dice" : "Roll again"}
-              </button>
-            </div>
           </footer>
         )}
       </div>
+      <span style={{ display: "none" }}>{CHIP}{INK}</span>
     </div>
   );
 }

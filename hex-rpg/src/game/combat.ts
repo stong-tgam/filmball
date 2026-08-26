@@ -1,65 +1,92 @@
 /**
- * Fighting. Rulebook §7 and §9.
+ * Fighting, which is now a game the family plays.
  *
- * Roll three dice, add your attack, and compare the total to what the enemy has left.
+ * A monster deals **one poker card**, a mid boss two, the dragon three. The suit says
+ * which mini-game (`challenges.ts`) and the rank says how hard the thing is. A clock
+ * runs; the team draws, acts, argues or works it out; and then **the table** says
+ * whether they did it. Win every card and the monster is beaten. Miss one and the
+ * fight is lost, which costs a health and nothing else - the monster is still standing
+ * on that tile and can be taken on again.
  *
- * - **Damage ≥ remaining health** → beaten, and it drops its loot.
- * - **Damage < remaining health** → the damage sticks, and you lose 1 health.
- * - **Exact tie** → nothing at all happens, and you go back where you started.
+ * What went, and why it went:
  *
- * Then roll again or walk away. Damage stays on a wounded enemy either way, which is
- * the rule that makes the health numbers work: nothing has to die in one turn.
+ * - **The dice.** Three of them plus a weapon bonus against a health bar was the
+ *   entire fight for thirty versions, and it is the thing a bot could play and a
+ *   family could not enjoy. Nobody at a table has ever laughed at a 4.
+ * - **Wounded enemies.** Damage used to accumulate across fights, which turned the
+ *   dragon into a siege spread over a dozen goes. A siege is the opposite of a moment.
+ *   Every fight now starts clean, and that is what makes the turn-8 dragon an event.
+ * - **Escaping.** You choose whether to take a fight at all now (`turn.ts`), so
+ *   there is nothing left to run from. A decision before beats a gamble after.
+ * - **Invitations.** The team *is* the group fight. Everybody standing there plays,
+ *   because everybody standing there is going to shout guesses anyway.
  *
- * Losing a roll costs exactly one health, never a dice roll's worth. On three health
- * that is the difference between a game a child can read and one they cannot.
+ * The features (§9) stayed, and all five now bite the mini-game rather than the dice -
+ * see `FEATURE_BITE`. The loot rules (§10) stayed untouched.
  */
 
-import { ENEMIES, healthLeft, nameWithArticle, verb } from "./enemies";
-import { distance, key, neighbours, type Hex } from "./hex";
-import { standing } from "./collapse";
+import { ENEMIES, nameWithArticle, verb } from "./enemies";
+import { challengeFor, type Challenge } from "./challenges";
+import { draw as drawCard } from "./cards";
+import { key, neighbours } from "./hex";
 import { makeRng } from "./rng";
 import { canTake, equip, makeFine, randomFood } from "./items";
-import { ROLES, maxHealthOf, moveRange } from "./players";
-import type { Combat, Enemy, Feature, GameState, Item, LogEntry, Player, Roll, Tile } from "./types";
+import { ROLES, maxHealthOf } from "./players";
+import { LINGER_SECONDS, hasSkill, spentSkill, whoTakesTheHit, SKILLS } from "./skills";
+import type {
+  Combat,
+  Enemy,
+  Feature,
+  GameState,
+  Item,
+  Player,
+  Tile,
+  Trial,
+} from "./types";
 
-/** Rulebook §2: three faces of 1, two of 2, one of 3. Average 1.67 a die. */
-export const DIE_FACES = [1, 1, 1, 2, 2, 3] as const;
+/** What one lost fight costs everybody who played it. */
+export const FAILED_FIGHT_COST = 1;
 
-/** Dice you roll before any bonus. */
-export const BASE_DICE = 3;
-
-/** A failed roll costs this much health, before any boss feature adds to it. */
-export const FAILED_ROLL_COST = 1;
+/** Seconds a point of weapon buys. A plain weapon is +10, a fine one +20. */
+export const SECONDS_PER_WEAPON = 10;
 
 export const ALL_FEATURES: Feature[] = ["water", "railway", "city", "forest", "field"];
 
+/**
+ * What each feature does to the mini-game.
+ *
+ * §9 named five and specified only the water escape; the rest was a guess made against
+ * dice, and dice are gone. Every one of them is re-pointed at the thing a fight is
+ * now, and the rule for each is one sentence a seven-year-old can hold:
+ *
+ * | feature | what it does |
+ * |---|---|
+ * | water | beaten on a river, it slips away downstream. Once. |
+ * | railway | it catches somebody on the tracks before the first card. A health. |
+ * | forest | ten seconds off every clock. |
+ * | field | losing out here costs a second health. |
+ * | city | no hints. It knows these streets and you do not. |
+ */
+export const FEATURE_BITE: Record<Feature, string> = {
+  water: "It can slip away downriver once.",
+  railway: "It catches somebody on the tracks: a health, before the first card.",
+  forest: "Ten seconds off every clock.",
+  field: "Losing out here costs a second health.",
+  city: "No hints. It knows these streets.",
+};
+
 const note = (state: GameState, text: string): GameState => ({
   ...state,
-  log: [...state.log, { turn: state.turn, text } satisfies LogEntry],
+  log: [...state.log, { turn: state.turn, text }],
 });
 
-const total = (dice: number[]): number => dice.reduce((sum, d) => sum + d, 0);
-
-/** Roll `count` dice, returning the faces and the state the generator ended on. */
-export function rollDice(rngState: number, count: number): { dice: number[]; rngState: number } {
-  const rng = makeRng(rngState);
-  const dice = Array.from({ length: count }, () => rng.pick(DIE_FACES));
-  return { dice, rngState: rng.state() };
-}
-
-/**
- * Everybody swinging, starter first.
- *
- * The starter is not special in a roll - §8 totals every participant's dice together -
- * but they are special afterwards, because §10 gives them the picks. Keeping them at
- * the head of the list is what makes both true at once.
- */
+/** Everybody playing this fight - the whole team, standing on the tile. */
 export function fighters(state: GameState): Player[] {
   if (!state.combat) return [];
   const ids = [state.combat.playerId, ...state.combat.allies];
   return ids
     .map((id) => state.players.find((p) => p.id === id))
-    .filter((p): p is Player => p !== undefined && !p.dead);
+    .filter((p): p is Player => p !== undefined && !p.gone);
 }
 
 export const combatants = (state: GameState): { player: Player; enemy: Enemy } | null => {
@@ -85,51 +112,59 @@ export function activeFeatures(enemy: Enemy, tile: Tile | undefined): Feature[] 
   );
 }
 
-/**
- * Rulebook §9, field: the boss hits harder in the open.
- *
- * §9 says "+1 to the toll per player in the fight", which with one player is +1 and
- * has only ever been read that way. With a group it splits two ways: +1 to *each* of
- * them, or +N to each. The second is a party wipe on one bad roll - five players, six
- * health gone each - so this build takes the first. A §15-style choice, made here.
- */
+/** §9, field: it hits harder in the open, so losing out here costs one extra. */
 export const extraToll = (enemy: Enemy, tile: Tile | undefined): number =>
   activeFeatures(enemy, tile).includes("field") ? 1 : 0;
 
-/** Rulebook §9, forest: everybody in the fight loses a point of attack. */
-export const attackPenalty = (enemy: Enemy, tile: Tile | undefined): number =>
-  activeFeatures(enemy, tile).includes("forest") ? 1 : 0;
+/** §9, forest: the clock is shorter under the trees. */
+export const FOREST_SECONDS = 10;
 
-/* ------------------------------------------------------------------- attack */
+/** §9, city: it knows the streets, and no hint is going to help you out here. */
+export const noHints = (enemy: Enemy, tile: Tile | undefined): boolean =>
+  activeFeatures(enemy, tile).includes("city");
 
-/** Rulebook §3 and §12: the role's own arm, plus a weapon, less any forest penalty. */
-export function attackValue(player: Player, enemy?: Enemy, tile?: Tile): number {
-  const base = (player.weapon?.value ?? 0) + roleAttack(player);
-  const penalty = enemy ? attackPenalty(enemy, tile) : 0;
-  return Math.max(0, base - penalty);
+/* ---------------------------------------------------------------- the clock */
+
+/**
+ * How long a card gets, and where every second of it came from.
+ *
+ * The base is the game kind's own (`SECONDS`), because the rank already decides how
+ * hard the thing is and taking the clock away as well would be two punishments for one
+ * card. What moves it is **gear**: the best weapon in the team buys `SECONDS_PER_WEAPON`
+ * a point. The team's best rather than everybody's added together - five children with
+ * frying pans should not get three minutes to draw a cat.
+ */
+export function secondsFor(challenge: Challenge, team: Player[], shorter: boolean): number {
+  const best = Math.max(0, ...team.map((p) => p.weapon?.value ?? 0));
+  return Math.max(15, challenge.seconds + best * SECONDS_PER_WEAPON - (shorter ? FOREST_SECONDS : 0));
 }
 
-const roleAttack = (player: Player): number =>
-  player.role === "rogue" ? 1 : 0;
+/**
+ * Hints the team gets for the whole fight, bought with boots.
+ *
+ * One a pair. Boots were "an extra tile and a better chance of running away", and both
+ * of those are gone - this is the same idea pointed at the thing a fight is now:
+ * something you spend at the moment you are stuck.
+ */
+export const hintsFor = (team: Player[]): number => team.filter((p) => p.boots !== null).length;
 
 /* -------------------------------------------------------------- the encounter */
 
 /**
- * Meeting something. Features are drawn here, before the first roll - rulebook §9 is
- * explicit that they are known before the encounter, so the party can decide whether
- * to take the fight at all.
+ * Meeting something.
  *
- * Two of them bite the moment the fight opens: railway costs a health, and city costs
- * a dollar on a city tile or a health anywhere else.
+ * Features are drawn first, because §9 is explicit that they are known *before* the
+ * encounter - and it matters more now than it ever did with dice, since the team is
+ * about to be told how long they have and whether hints work.
  */
 export function startCombat(
   state: GameState,
   enemy: Enemy,
   from: string,
-  /** True when the player walked onto a hidden monster rather than picking the fight. */
-  ambush = false,
+  /** Everybody fighting it. The first is the starter and gets §10's picks. */
+  teamIds: string[],
 ): GameState {
-  const player = state.players[state.activePlayerIndex];
+  const starter = state.players.find((p) => p.id === teamIds[0]) ?? state.players[0];
   const profile = ENEMIES[enemy.kind];
   let next = state;
   let fighter = enemy;
@@ -145,379 +180,292 @@ export function startCombat(
     next = note(next, `${profile.name} is at home on ${drawn.features.join(" and ")}.`);
   }
 
+  const team = teamIds
+    .map((id) => next.players.find((p) => p.id === id))
+    .filter((p): p is Player => p !== undefined && !p.gone);
+  const ground = next.tiles[key(enemy.hex)];
+  const shorter = activeFeatures(fighter, ground).includes("forest");
+
+  // Deal the whole hand up front. The team is allowed to see what it has taken on
+  // before the first clock starts - three cards is the dragon telling you what the
+  // next five minutes are, and that is the moment worth having.
+  const trials: Trial[] = [];
+  let deck = next.challengeDeck;
+  let seed = next.rngState;
+  for (let i = 0; i < profile.cards; i++) {
+    const pull = drawCard(deck, seed);
+    deck = pull.deck;
+    seed = pull.rngState;
+    trials.push({
+      card: pull.card,
+      seconds: secondsFor(challengeFor(pull.card), team, shorter),
+      hinted: false,
+      result: null,
+    });
+  }
+
   const combat: Combat = {
     enemyId: enemy.id,
-    playerId: player.id,
-    allies: [],
-    support: [],
+    playerId: starter.id,
+    allies: teamIds.slice(1),
+    trials,
+    at: 0,
+    hintsLeft: noHints(fighter, ground) ? 0 : hintsFor(team),
+    skillsUsed: [],
     from,
-    round: 0,
-    playerRoll: null,
-    toll: 0,
     spoils: [],
     picksLeft: 0,
-    ambush,
     outcome: "ongoing",
   };
-  // Found is permanent. Back away from an ambush and the monster stays on the board
-  // for everyone who can see that tile - the party paid a turn for that information.
+  // Found is permanent: the party paid a turn for that information.
   next = {
     ...next,
+    challengeDeck: deck,
+    rngState: seed,
     enemies: next.enemies.map((e) => (e.id === enemy.id ? { ...e, found: true } : e)),
   };
   next = note(
     { ...next, phase: "combat", combat },
-    `${player.name} met ${nameWithArticle(enemy.kind)}.`,
+    `${starter.name}${team.length > 1 ? ` and ${team.length - 1} more` : ""} met ${nameWithArticle(
+      enemy.kind,
+    )}. ${profile.cards === 1 ? "One card." : `${profile.cards} cards, and they have to win all of them.`}`,
   );
 
   return openingBite(next, fighter);
 }
 
-/** Railway and city both take something the moment the fight starts. */
+/** §9, railway: it takes a health before the first card is even turned over. */
 function openingBite(state: GameState, enemy: Enemy): GameState {
   const ground = state.tiles[key(enemy.hex)];
-  const active = activeFeatures(enemy, ground);
-  const profile = ENEMIES[enemy.kind];
-  let next = state;
+  if (!activeFeatures(enemy, ground).includes("railway")) return state;
+  return hurt(state, 1, `The ${ENEMIES[enemy.kind].name} caught someone on the tracks.`);
+}
 
-  if (active.includes("railway")) {
-    next = hurt(next, FAILED_ROLL_COST, `The ${profile.name} caught someone on the tracks.`);
+/**
+ * Take health off the team.
+ *
+ * The knight wears it alone if they can (`whoTakesTheHit`). Nobody falls out of the
+ * fight and nobody falls out of the game: a player on zero keeps playing every
+ * mini-game and loses only the button with their name on it.
+ */
+function hurt(state: GameState, amount: number, why: string): GameState {
+  const combat = state.combat;
+  const team = fighters(state);
+  if (!combat || team.length === 0 || amount <= 0) return state;
+
+  const hero = whoTakesTheHit(team, amount);
+  const paying = hero ? [hero] : team;
+  const lost = new Set(paying.map((p) => p.id));
+
+  let next: GameState = {
+    ...state,
+    players: state.players.map((p) =>
+      lost.has(p.id) ? { ...p, health: Math.max(0, p.health - amount) } : p,
+    ),
+  };
+  next = note(next, why);
+  if (hero) {
+    next = note(next, `${hero.name} wore it. Nobody else lost anything.`);
   }
-  if (active.includes("city")) {
-    const player = next.players.find((p) => p.id === next.combat?.playerId);
-    if (player && ground?.sides.includes("city")) {
-      next = note(
-        {
-          ...next,
-          players: next.players.map((p) =>
-            p.id === player.id ? { ...p, money: Math.max(0, p.money - 1) } : p,
-          ),
-        },
-        `Fighting in the streets costs ${player.name} $1.`,
-      );
-    } else {
-      next = hurt(next, 1, `The ${profile.name} fights dirty out here.`);
+  for (const p of paying) {
+    const now = next.players.find((q) => q.id === p.id)!;
+    if (now.health === 0 && p.health > 0) {
+      next = note(next, `${now.name} is out of health, and out of ${SKILLS[now.role].title}. They are still playing.`);
     }
   }
   return next;
 }
 
-/**
- * Take health off **everybody in the fight**. Rulebook §8: all participants lose 1
- * health on a failed roll, which is the price of all their dice counting.
- *
- * Anybody who runs out falls where they stand and drops out of the fight. If the
- * *starter* falls with friends still up, the fight carries on and the next one along
- * takes over as starter — the party is standing right there, and ending the fight
- * because one of them went down would be the app overruling the table. The picks go
- * with the job, per §10.
- */
-function hurt(state: GameState, amount: number, why: string): GameState {
+/* ------------------------------------------------------------- the mini-game */
+
+/** The card being played right now, and the game it asks for. */
+export function nowPlaying(
+  state: GameState,
+): { trial: Trial; challenge: Challenge; index: number; of: number } | null {
   const combat = state.combat;
-  const hit = fighters(state);
-  if (!combat || hit.length === 0 || amount <= 0) return state;
-
-  const fallen = new Set<string>();
-
-  let next: GameState = {
-    ...state,
-    players: state.players.map((p) => {
-      if (!hit.some((f) => f.id === p.id)) return p;
-      const health = Math.max(0, p.health - amount);
-      if (health === 0) fallen.add(p.id);
-      return {
-        ...p,
-        health,
-        dead: health === 0,
-        fellAt: health === 0 ? p.hex : p.fellAt,
-        fellOn: health === 0 ? state.turn : p.fellOn,
-      };
-    }),
-    combat: { ...combat, toll: amount },
-  };
-
-  const standing = hit.filter((f) => !fallen.has(f.id));
-  next = note(
-    next,
-    hit.length === 1
-      ? `${why} ${hit[0].name} is down to ${next.players.find((p) => p.id === hit[0].id)!.health} health.`
-      : `${why} ${amount} health off each of ${hit.map((f) => f.name).join(", ")}.`,
-  );
-  for (const id of fallen) {
-    next = note(next, `${state.players.find((p) => p.id === id)!.name} has fallen.`);
-  }
-
-  if (standing.length === 0) {
-    return { ...next, combat: { ...next.combat!, outcome: "playerDown" } };
-  }
-
-  // Drop the fallen out, and hand the fight to whoever is still up if the starter
-  // is not among them.
-  const stillIn = standing.map((f) => f.id);
+  if (!combat || combat.outcome !== "ongoing") return null;
+  const trial = combat.trials[combat.at];
+  if (!trial) return null;
   return {
-    ...next,
-    combat: {
-      ...next.combat!,
-      playerId: stillIn[0],
-      allies: stillIn.slice(1),
-      outcome: next.combat!.outcome,
-    },
+    trial,
+    challenge: challengeFor(trial.card),
+    index: combat.at + 1,
+    of: combat.trials.length,
   };
 }
 
-
-/* ------------------------------------------------------------- group fights */
-
-/**
- * Rulebook §8's balance guard: **only the big ones**.
- *
- * Mobs stay solo. Without this the whole party clusters on every bandit, steamrolls
- * it, and turn order stops meaning anything - which the rulebook says in as many
- * words. The thieves fight as mid bosses (§5.5) and count as big.
- */
-export const invitable = (enemy: Enemy): boolean => enemy.kind !== "mob";
+const withTrial = (combat: Combat, at: number, patch: Partial<Trial>): Combat => ({
+  ...combat,
+  trials: combat.trials.map((t, i) => (i === at ? { ...t, ...patch } : t)),
+});
 
 /**
- * Who the starter can shout to.
+ * The table says they did it.
  *
- * §8 says "within their movement range", so it is the *starter's* legs that decide
- * how far the shout carries - a scout who picks a fight can pull somebody in from two
- * tiles away, and that is a second reason to send the scout first.
- *
- * A player joins at most one fight per turn cycle (`joinedFightThisRound`, cleared
- * when the turn rolls over), which is §8's other guard: without it the same friend
- * can be dragged into all five fights of a round.
+ * **Only the table can say this.** No machine can tell whether a drawing looked enough
+ * like a dragon, and one that tried would be wrong in front of a child - so the button
+ * is the whole adjudication system and it is meant to be.
  */
-export function inviteTargets(state: GameState): Player[] {
+export function wonTrial(state: GameState): GameState {
   const combat = state.combat;
-  if (!combat || combat.outcome !== "ongoing") return [];
-  const enemy = state.enemies.find((e) => e.id === combat.enemyId);
-  const starter = state.players.find((p) => p.id === combat.playerId);
-  if (!enemy || !starter || !invitable(enemy)) return [];
+  const enemy = state.enemies.find((e) => e.id === combat?.enemyId);
+  if (!combat || !enemy || combat.outcome !== "ongoing") return state;
 
-  const reach = moveRange(starter);
-  const already = new Set([combat.playerId, ...combat.allies]);
-  return state.players.filter(
-    (p) =>
-      !already.has(p.id) &&
-      !p.dead &&
-      !p.joinedFightThisRound &&
-      distance(p.hex, enemy.hex) <= reach,
+  const done = withTrial(combat, combat.at, { result: "won" });
+  const more = combat.at + 1 < combat.trials.length;
+  let next = note(
+    { ...state, combat: { ...done, at: combat.at + 1 } },
+    more
+      ? `They did it. ${combat.trials.length - combat.at - 1} to go.`
+      : `They did it.`,
   );
-}
+  if (more) return next;
 
-export const canInvite = (state: GameState): boolean => inviteTargets(state).length > 0;
-
-/**
- * Pull somebody into the fight. §8: they move onto the tile and roll, and it does
- * **not** spend their turn - so a player who has already had their go can still be
- * shouted for, and one who has not still gets their own turn afterwards.
- */
-export function invite(state: GameState, playerId: string): GameState {
-  const combat = state.combat;
-  if (!combat) return state;
-  const joining = inviteTargets(state).find((p) => p.id === playerId);
-  const enemy = state.enemies.find((e) => e.id === combat.enemyId);
-  if (!joining || !enemy) return state;
-
-  const next: GameState = {
-    ...state,
-    players: state.players.map((p) =>
-      p.id === joining.id ? { ...p, hex: enemy.hex, joinedFightThisRound: true } : p,
-    ),
-    combat: { ...combat, allies: [...combat.allies, joining.id] },
-  };
-  return note(next, `${joining.name} ran in to help. Their turn is still their own.`);
+  const ground = next.tiles[key(enemy.hex)];
+  const slipsAway =
+    !enemy.escapedOnce && activeFeatures(enemy, ground).includes("water") && ground?.river === true;
+  return slipsAway ? escapeDownriver(next, enemy) : beaten(next, enemy);
 }
 
 /**
- * A fighter choosing to do something other than swing.
+ * The clock beat them, or the table says it was not close enough.
  *
- * Only the doctor has one so far, and it is the obvious one: with everybody in the
- * fight losing a health per failed roll, a group fight is exactly where a doctor is
- * worth more than three dice. It costs them their dice for the round, which is the
- * trade — heal or hit, not both.
+ * One card is the whole fight. There is no partial credit and nothing to come back to,
+ * which is what keeps a fight to a few minutes and keeps a monster worth thinking twice
+ * about - but it is also why losing one costs a single health and never a player.
  */
-export function supportOptions(state: GameState, who: Player): Player[] {
+export function lostTrial(state: GameState): GameState {
   const combat = state.combat;
-  if (!combat || combat.outcome !== "ongoing") return [];
-  if (!ROLES[who.role].canHeal) return [];
-  if (combat.support.some((s) => s.by === who.id)) return [];
-  return fighters(state).filter((f) => f.health < f.maxHealth);
-}
-
-/** Commit to patching somebody up this round instead of rolling. */
-export function pledgeSupport(state: GameState, byId: string, toId: string): GameState {
-  const combat = state.combat;
-  if (!combat) return state;
-  const healer = fighters(state).find((p) => p.id === byId);
-  if (!healer || supportOptions(state, healer).every((p) => p.id !== toId)) return state;
-  const target = state.players.find((p) => p.id === toId)!;
-
-  return note(
-    { ...state, combat: { ...combat, support: [...combat.support, { by: byId, kind: "heal", to: toId }] } },
-    `${healer.name} is patching ${target.name} up instead of swinging.`,
-  );
-}
-
-/** Undo it before the dice go, in case the table changes its mind. */
-export function withdrawSupport(state: GameState, byId: string): GameState {
-  const combat = state.combat;
-  if (!combat) return state;
-  return {
-    ...combat.support.some((s) => s.by === byId)
-      ? note(
-          { ...state, combat: { ...combat, support: combat.support.filter((s) => s.by !== byId) } },
-          `${state.players.find((p) => p.id === byId)?.name ?? "Somebody"} picked their weapon back up.`,
-        )
-      : state,
-  };
-}
-
-/* ---------------------------------------------------------------- one round */
-
-/** One roll of the dice, and what it does. */
-
-/**
- * One exchange.
- */
-export function attack(state: GameState): GameState {
-  const pair = combatants(state);
-  if (!state.combat || state.combat.outcome !== "ongoing" || !pair) return state;
-  const { player, enemy } = pair;
+  const enemy = state.enemies.find((e) => e.id === combat?.enemyId);
+  if (!combat || !enemy || combat.outcome !== "ongoing") return state;
 
   const ground = state.tiles[key(enemy.hex)];
-  const party = fighters(state);
-
-  // Anybody patching somebody up does it now, and takes no part in the roll. Their
-  // dice are the price - heal or hit, never both.
-  const combat = state.combat;
-  let state2 = state;
-  const medics = new Set(combat.support.map((s) => s.by));
-  for (const pledge of combat.support) {
-    const healer = state2.players.find((p) => p.id === pledge.by);
-    const target = state2.players.find((p) => p.id === pledge.to);
-    if (!healer || !target || target.health >= target.maxHealth) continue;
-    state2 = note(
-      {
-        ...state2,
-        players: state2.players.map((p) =>
-          p.id === target.id ? { ...p, health: Math.min(p.maxHealth, p.health + 1) } : p,
-        ),
-      },
-      `${healer.name} patched ${target.name} up mid-fight.`,
-    );
-  }
-  state = state2;
-  const swinging = party.filter((p) => !medics.has(p.id));
-
-  // Rulebook §8: every participant rolls and the whole lot is totalled together. One
-  // number against the monster's remaining health, not a turn each - which is what
-  // makes five people meaningfully better than one against thirty health.
-  let rngState = state.rngState;
-
-  const throwEverybody = (from: number) => {
-    let seed = from;
-    const dice: number[] = [];
-    const said: string[] = [];
-    let dealt = 0;
-    for (const who of swinging) {
-      const swing = rollDice(seed, BASE_DICE + who.bonusDiceNextFight);
-      seed = swing.rngState;
-      const bonus = attackValue(who, enemy, ground);
-      dice.push(...swing.dice);
-      dealt += total(swing.dice) + bonus;
-      said.push(`${who.name} ${swing.dice.join("+")}${bonus > 0 ? ` +${bonus}` : ""}`);
-    }
-    return { dice, said, dealt, rngState: seed };
-  };
-
-  const first = throwEverybody(rngState);
-  const { dice, said, dealt } = first;
-  rngState = first.rngState;
-
-  const playerRoll: Roll = { dice, damage: dealt };
-  const remaining = healthLeft(enemy);
-  const inFight = new Set(party.map((p) => p.id));
+  const cost = FAILED_FIGHT_COST + extraToll(enemy, ground);
+  const beatenBy = ENEMIES[enemy.kind].name;
 
   let next: GameState = {
     ...state,
-    rngState,
-    // The donated die is spent whether or not it helped.
-    players: state.players.map((p) =>
-      inFight.has(p.id) ? { ...p, bonusDiceNextFight: 0 } : p,
-    ),
-    combat: {
-      ...combat,
-      round: combat.round + 1,
-      playerRoll,
-      toll: 0,
-      support: [],
-    },
+    combat: { ...withTrial(combat, combat.at, { result: "lost" }), outcome: "partyBeaten" },
   };
-  next = note(
-    next,
-    swinging.length === 1
-      ? `${player.name} rolled ${dice.join("+")} for ${dealt}.`
-      : `${said.join(", ")} — ${dealt} between them.`,
-  );
-  // Rulebook §7: an exact tie does nothing at all, and you go back where you started.
-  if (dealt === remaining) return standoff(next, enemy);
+  next = hurt(next, cost, `Out of time. The ${beatenBy} got the better of them.`);
+  return note(next, `${beatenBy} ${verb(enemy.kind, "is", "are")} still there. They can try again.`);
+}
 
-  if (dealt > remaining) {
-    const finished: GameState = {
-      ...next,
-      enemies: next.enemies.map((e) =>
-        e.id === enemy.id ? { ...e, damageTaken: e.maxHealth } : e,
-      ),
-    };
-    const slipsAway =
-      !enemy.escapedOnce && activeFeatures(enemy, ground).includes("water") && ground?.river === true;
-    return slipsAway ? escapeDownriver(finished, enemy) : beaten(finished, enemy);
-  }
-
-  // Short of it: the damage sticks and it costs a health.
-  const wounded: GameState = {
-    ...next,
-    enemies: next.enemies.map((e) =>
-      e.id === enemy.id ? { ...e, damageTaken: e.damageTaken + dealt } : e,
-    ),
-  };
-  const toll = FAILED_ROLL_COST + extraToll(enemy, ground);
-  return hurt(
-    wounded,
-    toll,
-    `Not enough — the ${ENEMIES[enemy.kind].name} has ${remaining - dealt} left.`,
+/** Read the hint on the card in play. Costs one of the team's hints. */
+export function useHint(state: GameState): GameState {
+  const combat = state.combat;
+  const playing = nowPlaying(state);
+  if (!combat || !playing || playing.trial.hinted || combat.hintsLeft <= 0) return state;
+  return note(
+    { ...state, combat: { ...withTrial(combat, combat.at, { hinted: true }), hintsLeft: combat.hintsLeft - 1 } },
+    `A hint, off somebody's boots.`,
   );
 }
 
 /**
- * The tile a fight is backed out of, which is the one it was walked in from - unless
- * that ground has since fallen into the abyss (`collapse.ts`), in which case there is
- * no back and you stay where you are. Retreating onto a tile that no longer exists
- * would put a player outside the board with the rim already past them.
+ * Whether a player's skill is pressable right now.
+ *
+ * Every reason it might not be: the fight is over, they have spent it this fight, they
+ * are out of health, or the thing it does has nothing to do here - a peek at a hint
+ * already read, a re-cast on the last card of a fight nobody is going to survive
+ * anyway. Each of those is a greyed-out button with a reason, never a button that does
+ * nothing.
  */
-function wayBack(state: GameState, player: Player): Hex {
-  const from = state.tiles[state.combat?.from ?? ""]?.hex;
-  return from && standing(state, from) ? from : player.hex;
+export function canUseSkill(state: GameState, player: Player): boolean {
+  const combat = state.combat;
+  const playing = nowPlaying(state);
+  if (!combat || !playing || !hasSkill(player) || spentSkill(combat, player)) return false;
+  if (!fighters(state).some((f) => f.id === player.id)) return false;
+
+  switch (SKILLS[player.role].kind) {
+    case "peek":
+      return !playing.trial.hinted;
+    case "patch":
+      return fighters(state).some((f) => f.id !== player.id && f.health < maxHealthOf(f));
+    case "linger":
+    case "recast":
+      return true;
+    // The knight's is not a button. It fires on its own, in `hurt`.
+    default:
+      return false;
+  }
 }
 
-/** Rulebook §7: an exact tie. Nothing happens; you are back where you started. */
-function standoff(state: GameState, enemy: Enemy): GameState {
-  const starter = state.players.find((p) => p.id === state.combat!.playerId);
-  const home = starter ? wayBack(state, starter) : undefined;
-  return note(
-    {
-      ...state,
-      players: home
-        ? state.players.map((p) =>
-            p.id === state.combat!.playerId ? { ...p, hex: home } : p,
-          )
-        : state.players,
-      combat: { ...state.combat!, outcome: "standoff" },
-    },
-    `Dead even against the ${ENEMIES[enemy.kind].name}. Nothing doing — back where they started.`,
-  );
+/** Press a skill. `toId` is only read by the doctor's. */
+export function useSkill(state: GameState, playerId: string, toId?: string): GameState {
+  const combat = state.combat;
+  const player = state.players.find((p) => p.id === playerId);
+  const playing = nowPlaying(state);
+  if (!combat || !player || !playing || !canUseSkill(state, player)) return state;
+
+  const spend = (s: GameState): GameState => ({
+    ...s,
+    combat: { ...s.combat!, skillsUsed: [...s.combat!.skillsUsed, playerId] },
+  });
+  const skill = SKILLS[player.role];
+
+  switch (skill.kind) {
+    case "peek":
+      return note(
+        spend({ ...state, combat: withTrial(combat, combat.at, { hinted: true }) }),
+        `${player.name} peeked. ${skill.title} is spent.`,
+      );
+
+    case "linger":
+      return note(
+        spend({
+          ...state,
+          combat: withTrial(combat, combat.at, {
+            seconds: playing.trial.seconds + LINGER_SECONDS,
+          }),
+        }),
+        `${player.name} bought the team ${LINGER_SECONDS} more seconds.`,
+      );
+
+    case "patch": {
+      const hurtFriend =
+        fighters(state).find((f) => f.id === toId && f.id !== playerId) ??
+        fighters(state).find((f) => f.id !== playerId && f.health < maxHealthOf(f));
+      if (!hurtFriend) return state;
+      const before = hurtFriend.health;
+      let next = spend({
+        ...state,
+        players: state.players.map((p) =>
+          p.id === hurtFriend.id
+            ? { ...p, health: Math.min(maxHealthOf(p), p.health + 1) }
+            : p,
+        ),
+      });
+      next = note(next, `${player.name} patched ${hurtFriend.name} up.`);
+      return before === 0
+        ? note(next, `${hurtFriend.name} has ${SKILLS[hurtFriend.role].title} back.`)
+        : next;
+    }
+
+    case "recast": {
+      const pull = drawCard(state.challengeDeck, state.rngState);
+      const team = fighters(state);
+      const enemy = state.enemies.find((e) => e.id === combat.enemyId);
+      const ground = enemy ? state.tiles[key(enemy.hex)] : undefined;
+      const shorter = enemy ? activeFeatures(enemy, ground).includes("forest") : false;
+      return note(
+        spend({
+          ...state,
+          challengeDeck: pull.deck,
+          rngState: pull.rngState,
+          combat: withTrial(combat, combat.at, {
+            card: pull.card,
+            seconds: secondsFor(challengeFor(pull.card), team, shorter),
+            hinted: false,
+          }),
+        }),
+        `${player.name} threw that one back.`,
+      );
+    }
+
+    default:
+      return state;
+  }
 }
 
 /* --------------------------------------------------------------------- loot */
@@ -717,99 +665,25 @@ export function discardSpoils(state: GameState): GameState {
   };
 }
 
-/* ------------------------------------------------------------------ leaving */
-
-/** Rulebook §7: escaping costs your turn, and the wounds you dealt stay dealt. */
 /**
- * How likely you are to get away, and why movement decides it.
+ * Close the fight and hand the state back to the turn machine.
  *
- * Running is the one thing boots should obviously be for. A player on one tile a turn
- * is slow and mostly has to see the fight through; a Scout in Roller Skates almost
- * always gets out. It is capped short of certain so that running is a gamble rather
- * than a free undo - `ESCAPE_CAP` is the number to move if fights start feeling
- * inescapable at the table.
- *
- * An ambush is easier than a fight you picked: you have not closed with it yet, you
- * are one step from where you came from, and walking into a hidden monster was not a
- * decision you got to make.
+ * On the last turn this is also where the evening ends. The final stand is the whole
+ * of turn 8 (`finalStand`), so once the table has looked at what came of it there is
+ * nothing left to play - and a half-turn of walking about after the dragon fight would
+ * be the worst possible note to finish on.
  */
-export const ESCAPE_BASE = 0.4;
-export const ESCAPE_PER_TILE = 0.2;
-export const ESCAPE_AMBUSH_BONUS = 0.25;
-export const ESCAPE_CAP = 0.9;
-
-export function escapeChance(player: Player, ambush: boolean): number {
-  const speed = moveRange(player);
-  const chance = ESCAPE_BASE + ESCAPE_PER_TILE * (speed - 1) + (ambush ? ESCAPE_AMBUSH_BONUS : 0);
-  return Math.min(ESCAPE_CAP, chance);
-}
-
-export function flee(state: GameState): GameState {
-  const pair = combatants(state);
-  if (!state.combat || state.combat.outcome !== "ongoing" || !pair) return state;
-  const { player, enemy } = pair;
-
-  const combat = state.combat;
-  const home = wayBack(state, player);
-  // Walking into a hidden monster is not a decision, so backing straight out of one
-  // costs no action: only the move already spent. Once you have swung at it you have
-  // chosen the fight, and leaving costs your action as usual.
-  const freeLook = combat.ambush && combat.round === 0;
-
-  // Getting away is not automatic any more. Fail it and you are still in the fight -
-  // no health lost for trying, because a failed escape that also hurt would make
-  // running strictly worse than swinging and nobody would ever do it.
-  const rng = makeRng(state.rngState);
-  const odds = escapeChance(player, freeLook);
-  if (rng.next() >= odds) {
-    return note(
-      { ...state, rngState: rng.state() },
-      `${player.name} tried to slip away and could not. The ${ENEMIES[enemy.kind].name} ${verb(
-        enemy.kind,
-        "is between them and the way back",
-        "are between them and the way back",
-      )}.`,
-    );
-  }
-  let away: GameState = {
-    ...state,
-    rngState: rng.state(),
-    combat,
-  };
-
-  if (freeLook) {
-    return note(
-      {
-        ...away,
-        players: away.players.map((p) =>
-          p.id === player.id ? { ...p, hex: home, actedThisTurn: false } : p,
-        ),
-        combat: { ...away.combat!, outcome: "playerEscaped" },
-      },
-      `${player.name} found ${nameWithArticle(enemy.kind)} and backed straight out again.`,
-    );
-  }
-
-  return note(
-    {
-      ...away,
-      players: away.players.map((p) =>
-        p.id === player.id ? { ...p, hex: home, actedThisTurn: true } : p,
-      ),
-      combat: { ...away.combat!, outcome: "playerEscaped" },
-    },
-    `${player.name} backed off. The ${ENEMIES[enemy.kind].name} ${verb(
-      enemy.kind,
-      "keeps its",
-      "keep their",
-    )} wounds.`,
-  );
-}
-
-/** Close the fight and hand the state back to the turn machine. */
 export function endCombat(state: GameState): GameState {
   if (!state.combat) return state;
-  return { ...discardSpoils(state), combat: null, phase: "playerMove" };
+  const settled: GameState = { ...discardSpoils(state), combat: null, phase: "playerMove" };
+  if (settled.ending || settled.turn < settled.turnLimit) return settled;
+
+  const dragon = settled.enemies.find((e) => e.kind === "finalboss");
+  if (!dragon || dragon.defeated) return settled;
+  return note(
+    { ...settled, phase: "gameOver", ending: "outOfTime" },
+    `The ${ENEMIES.finalboss.name} keeps the map. That was the last turn - closer next time.`,
+  );
 }
 
 /* ------------------------------------------------------------------ helpers */

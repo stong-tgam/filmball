@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { TURN_ORDER } from "../src/game/players";
 import {
   RANKS,
   SUITS,
@@ -14,8 +13,9 @@ import { EVENTS, applyEvent, createEventDeck } from "../src/game/events";
 import {
   ALL_FEATURES,
   activeFeatures,
-  attack,
-  attackValue,
+  FOREST_SECONDS,
+  noHints,
+  secondsFor,
   drawFeatures,
   startCombat,
 } from "../src/game/combat";
@@ -23,7 +23,8 @@ import { ENEMIES } from "../src/game/enemies";
 import { stepsLeft } from "../src/game/players";
 import { createInitialState, startGame } from "../src/game/setup";
 import { beginTurn, clearDraw, endTurn } from "../src/game/turn";
-import { healthLeft } from "../src/game/enemies";
+import { intoFight, loseIt, winAll } from "./fight";
+import { challengeFor } from "../src/game/challenges";
 import { FOOD, makeItem } from "../src/game/items";
 import { key } from "../src/game/hex";
 import type { Enemy, GameState, Tile } from "../src/game/types";
@@ -101,9 +102,9 @@ describe("the turn's draw", () => {
   it("draws once per turn of the whole party, not once per player", () => {
     let state = game();
     const startingDeck = state.pokerDeck.length;
-    // Everybody but the last player: the card comes when the turn rolls over, not
-    // when a player finishes.
-    for (let i = 0; i < TURN_ORDER.length - 1; i++) state = endTurn(clearDraw(state));
+    // Every team but the last: the card comes when the turn rolls over, not when a
+    // team finishes.
+    for (let i = 0; i < state.teams.length - 1; i++) state = endTurn(clearDraw(state));
 
     expect(state.turn).toBe(1);
     expect(state.pokerDeck).toHaveLength(startingDeck);
@@ -334,7 +335,7 @@ describe("boss features", () => {
     expect(enemy.features).toEqual([]);
     expect(enemy.featuresRevealed).toBe(false);
 
-    const met = startCombat(base, enemy, key(enemy.hex));
+    const met = startCombat(base, enemy, key(enemy.hex), [base.players[0].id]);
     const seen = met.enemies.find((e) => e.id === enemy.id)!;
     expect(seen.features).toHaveLength(ENEMIES.midboss.features);
     expect(new Set(seen.features).size).toBe(seen.features.length);
@@ -342,7 +343,7 @@ describe("boss features", () => {
     for (const feature of seen.features) expect(ALL_FEATURES).toContain(feature);
 
     // Meeting it again does not redraw.
-    const again = startCombat({ ...met, combat: null }, seen, key(seen.hex));
+    const again = startCombat({ ...met, combat: null }, seen, key(seen.hex), [base.players[0].id]);
     expect(again.enemies.find((e) => e.id === enemy.id)!.features).toEqual(seen.features);
   });
 
@@ -362,103 +363,77 @@ describe("boss features", () => {
     expect(activeFeatures(enemy, undefined)).toEqual([]);
   });
 
-  it("takes a point of attack off everyone in a forest fight - §9", () => {
-    const woods = { sides: ["forest", "forest", "field", "field", "field", "field"], rail: false } as Tile;
-    const armed = { ...createInitialState(4471).players[1], weapon: null };
-    const enemy = { features: ["forest"] } as Enemy;
-    // The rogue's own +1 is cancelled by the forest.
-    expect(attackValue(armed)).toBe(1);
-    expect(attackValue(armed, enemy, woods)).toBe(0);
+  it("takes ten seconds off every clock in a forest fight - §9", () => {
+    const team = [createInitialState(4471).players[1]];
+    const thing = challengeFor({ suit: "hearts", rank: "5" });
+    expect(secondsFor(thing, team, true)).toBe(secondsFor(thing, team, false) - FOREST_SECONDS);
+  });
+
+  it("shuts the hints off in a city fight - §9", () => {
+    const streets = { sides: ["city", "city", "field", "field", "field", "field"], rail: false } as Tile;
+    const open = { sides: ["field", "field", "field", "field", "field", "field"], rail: false } as Tile;
+    const enemy = { features: ["city"] } as Enemy;
+    expect(noHints(enemy, streets)).toBe(true);
+    expect(noHints(enemy, open)).toBe(false);
   });
 
   it("makes a boss hit harder on its own ground", () => {
     const { base, enemy } = bossState("midboss");
     const ground = base.tiles[key(enemy.hex)];
 
-    /** The same fight, with the boss at home on this tile and not. */
-    const fight = (features: Enemy["features"]) => {
+    /** The same lost fight, with the boss at home on this tile and not. */
+    const cost = (features: Enemy["features"]) => {
       const state: GameState = {
         ...base,
-        players: base.players.map((p, i) =>
-          i === 0 ? { ...p, hex: enemy.hex, health: 50, maxHealth: 50 } : { ...p, dead: true },
-        ),
+        players: base.players.map((p) => ({ ...p, hex: enemy.hex, health: 50, maxHealth: 50 })),
         enemies: base.enemies.map((e) =>
           e.id === enemy.id ? { ...e, features, featuresRevealed: true } : e,
         ),
-        combat: {
-          enemyId: enemy.id,
-          playerId: base.players[0].id,
-          allies: [],
-          support: [],
-          from: key(enemy.hex),
-          round: 0,
-          playerRoll: null,
-          toll: 0,
-          spoils: [],
-          picksLeft: 0,
-      ambush: false,
-          outcome: "ongoing",
-        },
       };
-      return attack(state).combat!.toll;
+      const fighting = intoFight(state, state.enemies.find((e) => e.id === enemy.id)!, [
+        state.players[0].id,
+      ]);
+      const was = fighting.players[0].health;
+      return was - loseIt(fighting).players[0].health;
     };
 
-    // Rulebook §9, field: the boss hits for one more per player in the fight.
+    // §9, field: it hits for one more out in the open.
     if (!ground.sides.includes("field")) return;
-    expect(fight(["field"])).toBe(fight([]) + 1);
+    expect(cost(["field"])).toBe(cost([]) + 1);
   });
+
 });
 
 describe("the water escape", () => {
-  /** A boss standing in water, one hit from going down. */
+  /** A boss standing in water, with the team about to win its last card. */
   function cornered() {
     const base = createInitialState(4471);
     const enemy = base.enemies.find((e) => e.kind === "midboss")!;
     const wet = Object.values(base.tiles).find((t) => t.river)!;
     const state: GameState = {
       ...base,
-      players: base.players.map((p, i) =>
-        i === 0 ? { ...p, hex: wet.hex, health: 50, maxHealth: 50 } : { ...p, dead: true },
-      ),
+      players: base.players.map((p) => ({ ...p, hex: wet.hex })),
       enemies: base.enemies.map((e) =>
         e.id === enemy.id
-          ? {
-              ...e,
-              hex: wet.hex,
-              damageTaken: e.maxHealth - 1,
-              features: ["water"],
-              featuresRevealed: true,
-            }
+          ? { ...e, hex: wet.hex, features: ["water"], featuresRevealed: true }
           : e,
       ),
-      combat: {
-        enemyId: enemy.id,
-        playerId: base.players[0].id,
-        allies: [],
-        support: [],
-        from: key(wet.hex),
-        round: 0,
-        playerRoll: null,
-        toll: 0,
-        spoils: [],
-        picksLeft: 0,
-      ambush: false,
-        outcome: "ongoing",
-      },
     };
-    return { state, enemyId: enemy.id, tile: wet };
+    const fighting = intoFight(state, state.enemies.find((e) => e.id === enemy.id)!, [
+      state.players[0].id,
+    ]);
+    return { state: fighting, enemyId: enemy.id, tile: wet };
   }
 
   it("lets a beaten water monster slip away instead of dying", () => {
     const { state, enemyId, tile } = cornered();
-    const after = attack(state);
+    const after = winAll(state);
     const beast = after.enemies.find((e) => e.id === enemyId)!;
 
     expect(after.combat?.outcome).toBe("enemyEscaped");
     expect(beast.defeated).toBe(false);
     expect(beast.escapedOnce).toBe(true);
-    // Rulebook §9: it becomes a new boss encounter - whole again, somewhere else.
-    expect(healthLeft(beast)).toBe(beast.maxHealth);
+    // §9: it becomes a new encounter, somewhere else, and everything is forgotten.
     expect(key(beast.hex)).not.toBe(key(tile.hex));
   });
 
@@ -468,7 +443,7 @@ describe("the water escape", () => {
       ...state,
       enemies: state.enemies.map((e) => (e.id === enemyId ? { ...e, escapedOnce: true } : e)),
     };
-    const after = attack(used);
+    const after = winAll(used);
     expect(after.combat?.outcome).toBe("enemyDefeated");
     expect(after.enemies.find((e) => e.id === enemyId)!.defeated).toBe(true);
   });
@@ -479,7 +454,7 @@ describe("the water escape", () => {
       ...state,
       enemies: state.enemies.map((e) => (e.id === enemyId ? { ...e, features: ["city"] } : e)),
     };
-    expect(attack(landlubber).combat?.outcome).toBe("enemyDefeated");
+    expect(winAll(landlubber).combat?.outcome).toBe("enemyDefeated");
   });
 });
 

@@ -147,6 +147,21 @@ export type Player = {
   joinedFightThisRound: boolean;
 };
 
+/**
+ * A team: a list of player ids, and nothing else.
+ *
+ * Deliberately not a position, a health, or an inventory. Everything a team appears to
+ * own is really owned by its members - they simply all stand on the same tile, which is
+ * `movePlayer`'s job to keep true. Keeping the team this thin is what let every rule
+ * written before teams existed carry on working untouched.
+ */
+export type Team = {
+  id: string;
+  /** The members' names, joined. A child looks for their own name, not for "Team 2". */
+  name: string;
+  memberIds: string[];
+};
+
 export type EnemyKind = "mob" | "midboss" | "finalboss" | "robber" | "pirates";
 
 export type Feature = "water" | "railway" | "city" | "forest" | "field";
@@ -155,9 +170,6 @@ export type Enemy = {
   id: string;
   kind: EnemyKind;
   hex: Hex;
-  maxHealth: number;
-  /** Damage accumulates across fights; the enemy dies when it reaches maxHealth. */
-  damageTaken: number;
   /**
    * Asleep somewhere else, and not on the board yet.
    *
@@ -293,14 +305,25 @@ export type LogEntry = {
 };
 
 /**
- * One roll: the dice that came up, and what they came to once the attacker's own
- * strength was added. Kept in state so the UI can show the dice that were actually
- * rolled rather than re-rolling its own for display.
+ * One card, and the mini-game it asked for.
+ *
+ * The card is stored and the challenge is looked up from it (`challengeFor`), so a
+ * saved game resumes on the same prompt with the same clock - and so a family who swap
+ * the fifty-two contents for generated ones later do not invalidate anybody's save.
  */
-export type Roll = {
-  dice: number[];
-  /** Dice total plus the attacker's weapon or claws. */
-  damage: number;
+export type Trial = {
+  card: Card;
+  /**
+   * Seconds on the clock, worked out when the card is dealt.
+   *
+   * Baked in rather than derived, because gear and the scout both change it and the
+   * team has to be able to see what they are actually playing for.
+   */
+  seconds: number;
+  /** The hint has been read. One per card, however it was paid for. */
+  hinted: boolean;
+  /** null while it is being played. */
+  result: "won" | "lost" | null;
 };
 
 export type CombatOutcome =
@@ -308,58 +331,55 @@ export type CombatOutcome =
   | "enemyDefeated"
   /** The water feature: a monster slipping away rather than going down. */
   | "enemyEscaped"
-  /** Rulebook §7: an exact tie does nothing at all. */
-  | "standoff"
-  | "playerEscaped"
-  | "playerDown";
+  /**
+   * The clock beat them. Costs health and nothing else - the monster is still there,
+   * still on that tile, and can be taken on again. **There is no losing outcome that
+   * takes anybody out of the game**: a team never wipes, and a player on no health is
+   * still at the table playing every game, just without their skill.
+   */
+  | "partyBeaten";
 
-/** A fight in progress. Only one runs at a time: it is the active player's turn. */
+/**
+ * A fight in progress: a run of mini-games against one monster.
+ *
+ * A monster deals **one card**, a mid boss two and the dragon three, and the team has
+ * to win **all of them**. There is no health bar and nothing carries over: lose one
+ * card and the whole fight is lost, and the monster is standing there tomorrow exactly
+ * as it was. That is deliberate. A wounded-enemy number was the thing that made a boss
+ * a siege spread over a dozen goes, and a siege is the opposite of a moment.
+ */
 export type Combat = {
   enemyId: string;
   /**
-   * Whoever started it. Rulebook §8 calls them the starter and §10 gives them the
-   * picks, so the distinction outlives the fight.
+   * Whoever walked into it. Rulebook §10 gives them the picks, so the distinction
+   * outlives the fight even though the whole team plays.
    */
   playerId: string;
-  /**
-   * Everybody else who piled in, in the order they joined. Rulebook §8: the starter
-   * may invite anyone inside their movement range, the invited move onto the tile and
-   * roll, and it does not cost them their turn.
-   */
+  /** Everybody else on the tile - the rest of the team. They all play, so they all pay. */
   allies: string[];
-  /**
-   * What each fighter is doing *instead of* swinging this round.
-   *
-   * Empty means everybody rolls, which is the common case and the whole of a solo
-   * fight. A doctor may patch somebody up rather than roll: they contribute no dice
-   * that round and the target gets a health back. Cleared when the round resolves.
-   *
-   * A list of `{ by, kind, to }` rather than a doctor-shaped field, because this is
-   * where weapon skills and gems will hang when they arrive — the shape is the point,
-   * `"heal"` is just the only one built.
-   */
-  support: { by: string; kind: "heal"; to: string }[];
-  /** Tile the player came from, so running away puts them back where they were. */
+  /** The cards it dealt, in order. One, two or three of them. */
+  trials: Trial[];
+  /** Which one is being played. */
+  at: number;
+  /** Hints the team has left to spend this fight, bought with boots. */
+  hintsLeft: number;
+  /** Players whose skill has fired in this fight. One each. */
+  skillsUsed: string[];
+  /** Tile the team came from. */
   from: string;
-  round: number;
-  /** The last roll, for the dice display. Null before the first one. */
-  playerRoll: Roll | null;
-  /** Health the party lost on the last failed roll. */
-  toll: number;
   /** Items on the ground, and how many of them the winner may keep. */
   spoils: Item[];
   picksLeft: number;
-  /**
-   * True when the player walked into a hidden monster rather than choosing the
-   * fight. An ambush is always free to back out of on the first round - you may
-   * not know what you have found until you have found it.
-   */
-  ambush: boolean;
   outcome: CombatOutcome;
 };
 
-/** Won, lost, or still going. Rulebook §14: beat the final boss inside the limit. */
-export type Ending = "victory" | "outOfTime" | "partyLost";
+/**
+ * Won or lost. Rulebook §14: beat the final boss inside the limit.
+ *
+ * `partyLost` is gone. A team never wipes - there is nothing left in the game that can
+ * end an evening early, which is the point of health only ever costing you your skill.
+ */
+export type Ending = "victory" | "outOfTime";
 
 export type Phase =
   | "setup"
@@ -384,6 +404,11 @@ export type GameState = {
   /** Keyed by tile label, e.g. "E5". */
   tiles: Record<string, Tile>;
   players: Player[];
+  /**
+   * Who walks with whom. Two to five people make one or two of these, and a team is
+   * what actually takes a turn (`src/game/teams.ts`).
+   */
+  teams: Team[];
   enemies: Enemy[];
   hazards: Hazard[];
   /** The fight on screen right now, or null when nobody is fighting. */
@@ -396,6 +421,14 @@ export type GameState = {
   pokerDeck: Card[];
   /** The second deck the spec calls for: this one drives searches. */
   searchDeck: Card[];
+  /**
+   * The third: the one monsters deal from.
+   *
+   * Its own shuffle, like the other two, and for the same reason - a fight and a
+   * search drawing off one deck would make the ground the party has turned over change
+   * which games they get, which is a rule nobody could hold in their head.
+   */
+  challengeDeck: Card[];
   /** This turn's card, waiting to be read. */
   draw: Draw | null;
   /** What the last search turned up, until the table has looked at it. */

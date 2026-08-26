@@ -33,11 +33,19 @@ import type { GameState, LogEntry, Player } from "./types";
 export const MIDDLE: Hex = { q: 0, r: 0 };
 
 /**
- * How far through the game each collapse lands: every quarter.
+ * When the rim goes, as a share of the game.
  *
- * A sixteen-turn game loses a ring on turns 4, 8 and 12.
+ * **Two marks, not three.** At a sixteen-turn limit the quarters were turns 4, 8 and
+ * 12 and every one of them had a turn's warning to spare. At eight they would be turns
+ * 2, 4 and 6 - a ring falling before anybody has walked anywhere, which is not a
+ * decision, it is a tax on being unlucky about where you started.
+ *
+ * So: **the rim falls halfway, the next ring three quarters of the way through, and
+ * the seven tiles in the middle are the arena for turn 8.** That is the collapse doing
+ * exactly one job now - getting everybody near the middle in time for the ending - and
+ * on a radius-3 board those two rings are the whole of the outside.
  */
-export const COLLAPSE_MARKS = [0.25, 0.5, 0.75];
+export const COLLAPSE_MARKS = [0.5, 0.75];
 
 /**
  * The smallest the board is ever allowed to get: the dragon's tile and the ring
@@ -167,20 +175,16 @@ export function collapseRim(state: GameState): GameState {
  * without them - `endTurn` picked them before the rim fell.
  */
 function handOn(state: GameState): GameState {
-  if (!state.players[state.activePlayerIndex]?.dead) return state;
+  const up = state.players[state.activePlayerIndex];
+  if (up && !up.gone) return state;
 
-  const living = state.players.filter((p) => !p.dead);
-  if (living.length === 0) {
-    return note(
-      { ...state, phase: "gameOver", ending: "partyLost" },
-      "The whole party went into the dark. The dragon keeps the place.",
-    );
-  }
-
+  // Whoever is left, in turn order. A whole team going over at once is possible and
+  // the game carries on with the other one; a party with nobody left is not something
+  // the collapse can produce, because `LAST_RING` never falls.
   let index = state.activePlayerIndex;
   for (let i = 0; i < state.players.length; i++) {
     index = (index + 1) % state.players.length;
-    if (!state.players[index].dead) break;
+    if (!state.players[index].gone) break;
   }
   const ready = state.players.map((p, i) =>
     i === index ? { ...p, stepsTaken: 0, actedThisTurn: false } : p,

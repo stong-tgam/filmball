@@ -23,6 +23,7 @@ import {
 } from "./hex";
 import { makeRng, type Rng } from "./rng";
 import { createPlayers } from "./players";
+import { createTeams } from "./teams";
 import { placeEnemies, spawnThieves } from "./enemies";
 import { placeHazards } from "./hazards";
 import { bridgeUp } from "./bridges";
@@ -55,18 +56,30 @@ export const FOREST_CLUSTERS = Math.round(TILE_COUNT / 9);
  *  in one corner and leaving whole rows as empty grass. */
 export const FOREST_MIN_DISTANCE = 3;
 /**
- * Turns in a game.
+ * **An evening is sixteen goes.** How many *turns* that is depends on how many teams.
  *
- * The whole target is **an evening under twenty minutes**. With five players that is
- * about 60 individual turns, so the limit has to sit near sixteen rounds - and on the
- * smaller board (`RADIUS` 3) sixteen is enough to cross the map several times over.
+ * The table asked for eight turns, two movements a turn, at most two fights - which is
+ * the four- and five-player game, where the party splits in two. Two or three players
+ * are one team and get **one** movement a turn, so eight turns would hand them half an
+ * evening: measured at three mini-games a game against six, and about half the ground
+ * covered. The thing being budgeted was never the turn, it was the go.
  *
- * It was 25 when the board was visible, then 32 when it went blind and finding things
- * became most of the job. Cutting it back only works *because* the board shrank with
- * it; raise one without the other and the ending becomes "we never found the dragon",
- * which is not a defeat, just a shrug. Re-tuned against the bot sim - see the README.
+ * So the limit is derived (`turnLimitFor`): one team plays sixteen turns, two play
+ * eight. Every table gets the same evening, and the four-player game is exactly the
+ * eight turns that was asked for.
  */
-export const DEFAULT_TURN_LIMIT = 16;
+export const GOES_IN_AN_EVENING = 16;
+
+/** The turn limit for a party split into this many teams. */
+export const turnLimitFor = (teams: number): number =>
+  Math.max(1, Math.round(GOES_IN_AN_EVENING / Math.max(1, teams)));
+
+/**
+ * The two-team game, which is the one the rules are written for: eight turns, and the
+ * eighth is the dragon (`finalStand`). Kept as a named constant because the tests, the
+ * sim and the README all talk about "eight turns".
+ */
+export const DEFAULT_TURN_LIMIT = turnLimitFor(2);
 
 type Draft = Map<string, Tile>;
 
@@ -374,21 +387,24 @@ export function createInitialState(seed: number, roster?: Role[]): GameState {
   // nobody chose, and the thieves are both at once.
   const monsters = placeEnemies(rng, players);
   const hazards = placeHazards(rng, players, tiles, monsters);
-  // Two poker decks, per the spec: events and searches never share a shuffle.
+  // Three poker decks, none sharing a shuffle: events, searches, and the one monsters
+  // deal their mini-games from.
   const poker = freshDeck(rng.state());
   // Rulebook §6: only the search deck carries jokers.
   const searches = freshDeck(poker.rngState, true);
-  const events = createEventDeck(searches.rngState);
+  const challenges = freshDeck(searches.rngState);
+  const events = createEventDeck(challenges.rngState);
 
   return {
     seed,
     rngState: events.rngState,
     turn: 1,
-    turnLimit: DEFAULT_TURN_LIMIT,
+    turnLimit: turnLimitFor(createTeams(players).length),
     phase: "playerMove",
     activePlayerIndex: 0,
     tiles,
     players,
+    teams: createTeams(players),
     enemies: [...monsters, ...spawnThieves(rng, hazards)],
     hazards,
     combat: null,
@@ -397,6 +413,7 @@ export function createInitialState(seed: number, roster?: Role[]): GameState {
     eventDeck: events.deck,
     pokerDeck: poker.deck,
     searchDeck: searches.deck,
+    challengeDeck: challenges.deck,
     draw: null,
     find: null,
     log: [

@@ -1,40 +1,13 @@
 import { describe, expect, it } from "vitest";
-import {
-  BASE_DICE,
-  DIE_FACES,
-  FAILED_ROLL_COST,
-  attack,
-  endCombat,
-  ESCAPE_CAP,
-  escapeChance,
-  flee,
-  rollDice,
-  startCombat,
-} from "../src/game/combat";
-import {
-  DRAGON_HEALTH_PER_PLAYER,
-  ENEMIES,
-  enemyAt,
-  healthLeft,
-  placeEnemies,
-  safeRadiusFor,
-} from "../src/game/enemies";
-import { TURN_ORDER } from "../src/game/players";
+import { FAILED_FIGHT_COST, endCombat, lostTrial, startCombat, wonTrial } from "../src/game/combat";
+import { ENEMIES, placeEnemies, safeRadiusFor } from "../src/game/enemies";
+import { canTakeOn, takeOn } from "../src/game/turn";
+import { intoFight, winAll } from "./fight";
 import { createInitialState } from "../src/game/setup";
-import { legalMoves, movePlayer, endTurn, activePlayer } from "../src/game/turn";
+import { legalMoves, movePlayer, endTurn } from "../src/game/turn";
 import { makeRng } from "../src/game/rng";
 import { allHexes, distance, key, label, neighbours } from "../src/game/hex";
 import type { Enemy, GameState, Tile } from "../src/game/types";
-
-/**
- * Run away, retrying until it works. Escape is a roll now, so a test that wants the
- * *consequences* of getting away has to keep trying rather than assume one go does it.
- */
-function fleeUntilAway(state: GameState, tries = 40): GameState {
-  let next = state;
-  for (let i = 0; i < tries && next.combat?.outcome === "ongoing"; i++) next = flee(next);
-  return next;
-}
 
 const SEEDS = [1, 7, 42, 4471, 90210];
 
@@ -68,47 +41,14 @@ function facing(
       // into while it does. These tests are about the fight, not about the calendar,
       // so they start the day it has landed.
       enemies: base.enemies.map((e) => ({ ...e, dormant: false })),
-      players: base.players.map((p, i) =>
-        i === 0 ? { ...p, hex: spot } : { ...p, hex: { q: 0, r: -4 }, dead: true },
-      ),
+      // One team, standing together, because a team is what fights.
+      teams: [{ id: "team-1", name: "solo", memberIds: [base.players[0].id] }],
+      players: base.players.map((p, i) => (i === 0 ? { ...p, hex: spot } : p)),
     };
     return { state, enemy: { ...enemy, dormant: false } };
   }
   throw new Error(`no seed near ${seed} leaves a free tile beside a ${kind}`);
 }
-
-describe("dice", () => {
-  it("reads 1, 1, 1, 2, 2, 3 - never a zero", () => {
-    expect([...DIE_FACES]).toEqual([1, 1, 1, 2, 2, 3]);
-    expect(Math.min(...DIE_FACES)).toBe(1);
-  });
-
-  it("rolls the number of dice asked for, all within range", () => {
-    const { dice } = rollDice(1234, BASE_DICE);
-    expect(dice).toHaveLength(BASE_DICE);
-    for (const d of dice) expect(DIE_FACES).toContain(d as 1 | 2 | 3);
-  });
-
-  it("advances the generator, so the next roll differs", () => {
-    const first = rollDice(99, 3);
-    const second = rollDice(first.rngState, 3);
-    expect(second.rngState).not.toBe(first.rngState);
-    expect(rollDice(99, 3)).toEqual(first);
-  });
-
-  it("comes out at the odds the faces imply: a 1 twice as often as a 2", () => {
-    let state = 7;
-    const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
-    for (let i = 0; i < 6000; i++) {
-      const roll = rollDice(state, 1);
-      counts[roll.dice[0]]++;
-      state = roll.rngState;
-    }
-    expect(counts[1] / 6000).toBeCloseTo(0.5, 1);
-    expect(counts[2] / 6000).toBeCloseTo(0.333, 1);
-    expect(counts[3] / 6000).toBeCloseTo(0.167, 1);
-  });
-});
 
 describe("placing enemies", () => {
   it("puts the dragon in the middle and the rest around it", () => {
@@ -119,21 +59,13 @@ describe("placing enemies", () => {
       expect(key(dragon[0].hex)).toBe(label({ q: 0, r: 0 }));
       expect(enemies.filter((e) => e.kind === "midboss")).toHaveLength(ENEMIES.midboss.count);
       expect(enemies.filter((e) => e.kind === "mob")).toHaveLength(ENEMIES.mob.count);
-      // Rulebook §7: health is rolled inside a band, not fixed. The dragon is the one
-      // that does not read its band straight off the table - it carries
-      // `DRAGON_HEALTH_PER_PLAYER` for every player at the table, because four people
-      // shouting for each other were killing it in a single round.
+      // How hard a thing is, is how many mini-games it takes, and that is on the
+      // profile rather than rolled per monster: two bandits that took different
+      // numbers of cards would be two bandits a child could not tell apart.
       for (const e of enemies) {
-        const [low, high] =
-          e.kind === "finalboss"
-            ? (DRAGON_HEALTH_PER_PLAYER.map((n) => n * TURN_ORDER.length) as [number, number])
-            : ENEMIES[e.kind].health;
-        expect(e.maxHealth, e.kind).toBeGreaterThanOrEqual(low);
-        expect(e.maxHealth, e.kind).toBeLessThanOrEqual(high);
+        expect(ENEMIES[e.kind].cards, e.kind).toBeGreaterThanOrEqual(1);
+        expect(ENEMIES[e.kind].cards, e.kind).toBeLessThanOrEqual(3);
       }
-      // A dragon that scales must still be beatable by the party it scaled to: three
-      // dice a head averages five, so a full party is worth about thirty a round.
-      expect(dragon[0].maxHealth).toBeLessThanOrEqual(18 * TURN_ORDER.length);
     }
   });
 
@@ -209,265 +141,130 @@ describe("meeting an enemy", () => {
 
     const moves = legalMoves(state, rogue);
     // Derived rather than written out: tile labels move whenever `RADIUS` does.
-    expect(moves.has(label({ q: 1, r: 0 }))).toBe(true); // onto it: that is the fight
+    expect(moves.has(label({ q: 1, r: 0 }))).toBe(true); // onto it: that is the offer
     expect(moves.has(label({ q: 2, r: 0 }))).toBe(false); // past it: blocked
   });
 
-  it("starts the fight the moment you step on", () => {
+  it("finds it but does not start the fight - the team gets asked", () => {
     const { state, enemy } = facing("mob");
     const after = movePlayer(state, key(enemy.hex));
 
-    expect(after.phase).toBe("combat");
-    expect(after.combat?.enemyId).toBe(enemy.id);
-    expect(after.combat?.outcome).toBe("ongoing");
-    expect(after.combat?.round).toBe(0);
-    expect(after.combat?.from).toBe(key(state.players[0].hex));
+    // The whole reason this is a button: a fight is three minutes of everybody's
+    // evening with a clock on it, so walking onto something must not spend it.
+    expect(after.combat).toBeNull();
+    expect(after.enemies.find((e) => e.id === enemy.id)?.found).toBe(true);
+    expect(canTakeOn(after)).toBe(true);
+    expect(after.players[0].actedThisTurn).toBe(false);
+  });
+
+  it("deals the monster's cards when the team takes it on", () => {
+    const { state, enemy } = facing("mob");
+    const fighting = takeOn(movePlayer(state, key(enemy.hex)));
+
+    expect(fighting.phase).toBe("combat");
+    expect(fighting.combat?.enemyId).toBe(enemy.id);
+    expect(fighting.combat?.trials).toHaveLength(ENEMIES.mob.cards);
+    expect(fighting.combat?.at).toBe(0);
+    // The fight is the turn's action, and there is only one a turn.
+    expect(fighting.players[0].actedThisTurn).toBe(true);
+    expect(canTakeOn(fighting)).toBe(false);
   });
 
   it("will not let the turn pass while a fight is on", () => {
     const { state, enemy } = facing("mob");
-    const fighting = movePlayer(state, key(enemy.hex));
+    const fighting = takeOn(movePlayer(state, key(enemy.hex)));
     expect(endTurn(fighting)).toBe(fighting);
   });
 });
 
-describe("a round of fighting", () => {
-  it("rolls, hurts the enemy, and costs exactly one health when it falls short", () => {
-    // Rulebook §7: a failed roll costs 1 health flat, not a roll's worth.
+describe("winning and losing a run of cards", () => {
+  it("takes every card, and the last one beats it", () => {
     const { state, enemy } = facing("midboss");
-    const opening = movePlayer(state, key(enemy.hex));
-    const before = opening.players[0];
-    const after = attack(opening);
-    const hurt = after.enemies.find((e) => e.id === enemy.id)!;
+    let fighting = intoFight(state, enemy);
+    expect(fighting.combat?.trials).toHaveLength(2);
 
-    expect(after.combat?.playerRoll?.dice).toHaveLength(BASE_DICE);
-    expect(hurt.damageTaken).toBe(after.combat!.playerRoll!.damage);
-    expect(hurt.damageTaken).toBeGreaterThanOrEqual(BASE_DICE);
-    expect(before.health - after.players[0].health).toBeGreaterThanOrEqual(FAILED_ROLL_COST);
-    expect(after.combat?.round).toBe(1);
-  });
+    fighting = wonTrial(fighting);
+    // One down, still going: a boss is not one card.
+    expect(fighting.combat?.outcome).toBe("ongoing");
+    expect(fighting.combat?.at).toBe(1);
 
-  it("spends donated dice on the swing they were donated for", () => {
-    const { state, enemy } = facing("midboss");
-    const generous: GameState = {
-      ...state,
-      players: state.players.map((p, i) => (i === 0 ? { ...p, bonusDiceNextFight: 2 } : p)),
-    };
-    const after = attack(movePlayer(generous, key(enemy.hex)));
-
-    expect(after.combat?.playerRoll?.dice).toHaveLength(BASE_DICE + 2);
-    expect(after.players[0].bonusDiceNextFight).toBe(0);
-  });
-
-  it("beats the enemy once the damage adds up, and takes it off the board", () => {
-    // Not on the water: §9's river feature lets a beaten monster slip away once,
-    // which is a different outcome and not the one under test here.
-    const { state, enemy } = facing("mob", 4471, (t) => !t.river);
-    // Wounded to its last point first, so three dice cannot possibly tie with it.
-    // Left to chance the fight sometimes ends in a standoff (§7: an exact tie does
-    // nothing at all), which is a real outcome and simply not this test's one.
-    const nearlyDone: GameState = {
-      ...state,
-      enemies: state.enemies.map((e) =>
-        e.id === enemy.id ? { ...e, damageTaken: e.maxHealth - 1 } : e,
-      ),
-    };
-    let fighting = movePlayer(nearlyDone, key(enemy.hex));
-    for (let i = 0; i < 6 && fighting.combat?.outcome === "ongoing"; i++) {
-      fighting = attack(fighting);
-    }
-
+    fighting = wonTrial(fighting);
     expect(fighting.combat?.outcome).toBe("enemyDefeated");
-    const beaten = fighting.enemies.find((e) => e.id === enemy.id)!;
-    expect(beaten.defeated).toBe(true);
-    expect(healthLeft(beaten)).toBe(0);
-    expect(enemyAt(fighting.enemies, key(enemy.hex))).toBeUndefined();
+    expect(fighting.enemies.find((e) => e.id === enemy.id)?.defeated).toBe(true);
   });
 
-  it("costs nothing on the roll that wins", () => {
-    const { state, enemy } = facing("mob");
-    let fighting = movePlayer(state, key(enemy.hex));
-    let health = fighting.players[0].health;
-    while (fighting.combat?.outcome === "ongoing") {
-      health = fighting.players[0].health;
-      fighting = attack(fighting);
-    }
-    if (fighting.combat?.outcome === "enemyDefeated") {
-      expect(fighting.players[0].health).toBe(health);
-      expect(fighting.combat?.toll).toBe(0);
-    }
+  it("loses the whole fight on one missed card, and costs a health", () => {
+    const { state, enemy } = facing("midboss");
+    const fighting = intoFight(state, enemy);
+    const before = fighting.players[0].health;
+
+    const after = lostTrial(fighting);
+    expect(after.combat?.outcome).toBe("partyBeaten");
+    expect(after.players[0].health).toBe(before - FAILED_FIGHT_COST);
+    // Nothing is remembered: it is standing there exactly as it was.
+    expect(after.enemies.find((e) => e.id === enemy.id)?.defeated).toBe(false);
   });
 
-  it("keeps the damage when you walk away, so you can come back for it", () => {
-    const { state, enemy } = facing("finalboss");
-    const from = key(state.players[0].hex);
-    const bruised = attack(movePlayer(state, key(enemy.hex)));
-    const dealt = bruised.enemies.find((e) => e.id === enemy.id)!.damageTaken;
-    const away = fleeUntilAway(bruised);
-
-    expect(dealt).toBeGreaterThan(0);
-    expect(away.combat?.outcome).toBe("playerEscaped");
-    expect(key(away.players[0].hex)).toBe(from);
-    expect(away.enemies.find((e) => e.id === enemy.id)!.damageTaken).toBe(dealt);
-    expect(away.enemies.find((e) => e.id === enemy.id)!.defeated).toBe(false);
-  });
-
-  it("lets you walk straight back out of an ambush for free", () => {
-    // Monsters are hidden, so this fight was not chosen - backing out costs the move
-    // that was already spent and nothing else.
-    const { state, enemy } = facing("finalboss");
-    // A feature may bite as the fight opens (§9), so compare against that, not full health.
-    const met = movePlayer(state, key(enemy.hex));
-    expect(met.combat?.ambush).toBe(true);
-    const away = fleeUntilAway(met);
-    expect(away.combat?.outcome).toBe("playerEscaped");
-    expect(away.players[0].health).toBe(met.players[0].health);
-    expect(away.players[0].actedThisTurn).toBe(false);
-  });
-
-  it("charges the action for running from a fight you picked", () => {
-    const { state, enemy } = facing("finalboss");
-    // Somebody has already found this one, so walking onto it is a decision.
-    const known: GameState = {
+  it("never takes anybody out of the game, however badly it goes", () => {
+    const { state, enemy } = facing("midboss");
+    let broke: GameState = {
       ...state,
-      enemies: state.enemies.map((e) => (e.id === enemy.id ? { ...e, found: true } : e)),
+      players: state.players.map((p) => ({ ...p, health: 1 })),
     };
-    const met = movePlayer(known, key(enemy.hex));
-    expect(met.combat?.ambush).toBe(false);
-    const away = fleeUntilAway(met);
-    expect(away.players[0].actedThisTurn).toBe(true);
+    broke = lostTrial(intoFight(broke, enemy));
+    // Zero health is the loss of a skill, not the loss of a player. This is the whole
+    // of the consequence model and there is deliberately nothing sharper behind it.
+    expect(broke.players[0].health).toBe(0);
+    expect(broke.ending).toBeNull();
+    expect(broke.players[0].gone).toBe(false);
   });
 
-  it("leaves a monster on the board once it has been walked into", () => {
-    const { state, enemy } = facing("finalboss");
-    const met = movePlayer(state, key(enemy.hex));
-    expect(met.enemies.find((e) => e.id === enemy.id)?.found).toBe(true);
-    expect(flee(met).enemies.find((e) => e.id === enemy.id)?.found).toBe(true);
-  });
-
-  it("puts a player down when the last of their health goes, and marks where they fell", () => {
-    const { state, enemy } = facing("finalboss");
-    const frail: GameState = {
-      ...state,
-      players: state.players.map((p, i) => (i === 0 ? { ...p, health: 1 } : p)),
-    };
-    const after = attack(movePlayer(frail, key(enemy.hex)));
-
-    // Three dice cannot take 20+ health off in one roll, so the roll always fails.
-    expect(after.players[0].health).toBe(0);
-    expect(after.players[0].dead).toBe(true);
-    expect(after.players[0].fellAt).not.toBeNull();
-    expect(after.combat?.outcome).toBe("playerDown");
-  });
-
-  it("stops accepting rolls once the fight is settled", () => {
+  it("stops accepting calls once the fight is settled", () => {
     const { state, enemy } = facing("mob");
-    let fighting = movePlayer(state, key(enemy.hex));
-    while (fighting.combat?.outcome === "ongoing") fighting = attack(fighting);
-    expect(attack(fighting)).toBe(fighting);
-    expect(flee(fighting)).toBe(fighting);
+    const done = winAll(intoFight(state, enemy));
+    expect(wonTrial(done)).toBe(done);
+    expect(lostTrial(done)).toBe(done);
   });
 
   it("hands the turn back when the fight closes", () => {
     const { state, enemy } = facing("mob");
-    const settled = flee(movePlayer(state, key(enemy.hex)));
-    const closed = endCombat(settled);
-    expect(closed.combat).toBeNull();
-    expect(closed.phase).toBe("playerMove");
-    expect(endTurn(closed)).not.toBe(closed);
+    const done = endCombat(winAll(intoFight(state, enemy)));
+    expect(done.combat).toBeNull();
+    expect(done.phase).toBe("playerMove");
+  });
+
+  it("leaves a monster on the board once it has been walked into", () => {
+    const { state, enemy } = facing("mob");
+    const after = movePlayer(state, key(enemy.hex));
+    expect(after.enemies.find((e) => e.id === enemy.id)?.found).toBe(true);
   });
 });
 
 describe("fighting is reproducible and does not mutate", () => {
   it("replays identically from the same state", () => {
     const { state, enemy } = facing("midboss");
-    const opening = movePlayer(state, key(enemy.hex));
-    expect(attack(opening)).toEqual(attack(opening));
+    expect(intoFight(state, enemy)).toEqual(intoFight(state, enemy));
   });
 
   it("leaves the state it was handed alone", () => {
     const { state, enemy } = facing("midboss");
-    const opening = movePlayer(state, key(enemy.hex));
+    const opening = intoFight(state, enemy);
     const before = JSON.stringify(opening);
-    attack(opening);
+    wonTrial(opening);
     expect(JSON.stringify(opening)).toBe(before);
   });
 
   it("stays serialisable through a whole fight", () => {
     const { state, enemy } = facing("mob");
-    let fighting = movePlayer(state, key(enemy.hex));
-    while (fighting.combat?.outcome === "ongoing") fighting = attack(fighting);
+    const fighting = winAll(intoFight(state, enemy));
     expect(JSON.parse(JSON.stringify(fighting))).toEqual(fighting);
   });
 
   it("does nothing when there is no fight to act on", () => {
     const quiet = createInitialState(4471);
-    expect(attack(quiet)).toBe(quiet);
-    expect(flee(quiet)).toBe(quiet);
+    expect(wonTrial(quiet)).toBe(quiet);
+    expect(lostTrial(quiet)).toBe(quiet);
     expect(endCombat(quiet)).toBe(quiet);
-    expect(startCombat(quiet, quiet.enemies[0], "E5").combat).not.toBeNull();
-  });
-
-  it("skips a downed player when the turn passes", () => {
-    const { state, enemy } = facing("finalboss");
-    const frail: GameState = {
-      ...state,
-      players: state.players.map((p, i) =>
-        i === 0 ? { ...p, health: 1 } : { ...p, dead: false, hex: { q: 0, r: -4 } },
-      ),
-    };
-    const down = attack(movePlayer(frail, key(enemy.hex)));
-    const next = endTurn(endCombat(down));
-    expect(activePlayer(next).dead).toBe(false);
-    expect(activePlayer(next).id).not.toBe(down.players[0].id);
-  });
-});
-
-describe("getting away", () => {
-  it("is likelier the faster you are", () => {
-    const base = createInitialState(4471);
-    const slow = base.players.find((p) => p.role === "knight")!;
-    const quick = base.players.find((p) => p.role === "scout")!;
-    const booted = { ...quick, boots: { id: "b", name: "Roller Skates", slot: "boots" as const, cost: 2, value: 2 } };
-
-    expect(escapeChance(slow, false)).toBeGreaterThan(0);
-    expect(escapeChance(quick, false)).toBeGreaterThan(escapeChance(slow, false));
-    expect(escapeChance(booted, false)).toBeGreaterThan(escapeChance(quick, false));
-  });
-
-  it("never becomes a certainty, however fast you are", () => {
-    const base = createInitialState(4471);
-    const flier = {
-      ...base.players.find((p) => p.role === "scout")!,
-      boots: { id: "b", name: "Flippers", slot: "boots" as const, cost: 2, value: 9 },
-    };
-    expect(escapeChance(flier, true)).toBeLessThanOrEqual(ESCAPE_CAP);
-    expect(ESCAPE_CAP).toBeLessThan(1);
-  });
-
-  it("is easier out of an ambush than out of a fight you picked", () => {
-    const player = createInitialState(4471).players[0];
-    expect(escapeChance(player, true)).toBeGreaterThan(escapeChance(player, false));
-  });
-
-  it("leaves you in the fight when it fails, and costs no health for trying", () => {
-    const { state, enemy } = facing("finalboss");
-    const met = movePlayer(state, key(enemy.hex));
-    // Hunt for a state whose next roll fails. The generator is seeded, so this is
-    // deterministic; it just may take a few advances to land on a failing draw.
-    let attempt = met;
-    let failed: GameState | null = null;
-    for (let i = 0; i < 60; i++) {
-      const after = flee(attempt);
-      if (after.combat?.outcome === "ongoing") {
-        failed = after;
-        break;
-      }
-      attempt = { ...attempt, rngState: after.rngState + 1 };
-    }
-    expect(failed).not.toBeNull();
-    expect(failed!.combat?.outcome).toBe("ongoing");
-    expect(failed!.players[0].health).toBe(met.players[0].health);
-    expect(failed!.log.at(-1)?.text).toMatch(/could not/i);
+    expect(startCombat(quiet, quiet.enemies[0], "E5", [quiet.players[0].id]).combat).not.toBeNull();
   });
 });

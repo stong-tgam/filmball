@@ -33,12 +33,13 @@ import {
   sellable,
   stockFor,
 } from "../src/game/actions";
-import { attack, endCombat, takeSpoil } from "../src/game/combat";
+import { endCombat, takeSpoil } from "../src/game/combat";
+import { intoFight, winAll } from "./fight";
 import { ENEMIES } from "../src/game/enemies";
 import { withMaxHealth } from "../src/game/players";
 import { hasMoved } from "../src/game/players";
 import { createInitialState } from "../src/game/setup";
-import { activePlayer, endTurn, moveRange, movePlayer } from "../src/game/turn";
+import { activePlayer, endTurn, moveRange, movePlayer, takeOn } from "../src/game/turn";
 import { makeRng } from "../src/game/rng";
 import { distance, key, label } from "../src/game/hex";
 import type { GameState, Player, Role, Terrain } from "../src/game/types";
@@ -512,29 +513,10 @@ describe("loot", () => {
     const state: GameState = {
       ...base,
       players: base.players.map((p, i) =>
-        i === at
-          ? { ...p, hex: enemy.hex, health: 99, maxHealth: 99 }
-          : { ...p, dead: true },
+        i === at ? { ...p, hex: enemy.hex, health: 99, maxHealth: 99 } : p,
       ),
-      enemies: base.enemies.map((e) =>
-        e.id === enemy.id ? { ...e, damageTaken: e.maxHealth - 1 } : e,
-      ),
-      combat: {
-        enemyId: enemy.id,
-        playerId: base.players[at].id,
-        allies: [],
-        support: [],
-        from: key(enemy.hex),
-        round: 0,
-        playerRoll: null,
-        toll: 0,
-        spoils: [],
-        picksLeft: 0,
-      ambush: false,
-        outcome: "ongoing",
-      },
     };
-    return { state: attack(state), enemyId: enemy.id };
+    return { state: winAll(intoFight(state, enemy, [base.players[at].id])), enemyId: enemy.id };
   }
 
   it("drops what §10 says, plus at most something to eat", () => {
@@ -546,8 +528,8 @@ describe("loot", () => {
       // §10's gear count is unchanged. A monster may also be carrying one piece of
       // food (`SUPPLY_DROP_CHANCE`), which never competes with gear and so cannot
       // unbalance the rule it sits on top of.
-      const gear = spoils.filter((i) => i.slot !== "supply");
-      const rations = spoils.filter((i) => i.slot === "supply");
+      const gear = spoils.filter((i: { slot: string }) => i.slot !== "supply");
+      const rations = spoils.filter((i: { slot: string }) => i.slot === "supply");
       expect(gear.length).toBeLessThanOrEqual(ENEMIES[kind].drops);
       expect(rations.length).toBeLessThanOrEqual(1);
 
@@ -633,7 +615,10 @@ describe("one action a turn", () => {
       ),
       activePlayerIndex: 1,
     };
-    const fighting = movePlayer(state, label(next));
+    // Walking on only *finds* it - the team gets asked. Taking it on is the action.
+    const met = movePlayer(state, label(next));
+    expect(met.players[1].actedThisTurn).toBe(false);
+    const fighting = takeOn(met);
     expect(fighting.players[1].actedThisTurn).toBe(true);
   });
 

@@ -18,6 +18,7 @@
 
 import { standing } from "./collapse";
 import { startCombat } from "./combat";
+import { activeMembers } from "./teams";
 import { distance, hexesInRange, key, neighbours, type Hex } from "./hex";
 import { slotKey } from "./items";
 import { PALETTE } from "../palette";
@@ -346,16 +347,17 @@ export function fightThief(state: GameState): GameState {
   // Standing on their tile already, so there is nowhere to be sent back to: `from` is
   // where they are, and backing out of this one leaves you exactly here with the thief
   // still in front of you.
+  const team = activeMembers(state);
   return startCombat(
     {
       ...state,
       players: state.players.map((p) =>
-        p.id === player.id ? { ...p, actedThisTurn: true } : p,
+        team.some((m) => m.id === p.id) ? { ...p, actedThisTurn: true } : p,
       ),
     },
     enemy,
     key(player.hex),
-    false,
+    team.map((p) => p.id),
   );
 }
 

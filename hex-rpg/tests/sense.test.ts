@@ -123,7 +123,7 @@ describe("the log gives nothing away", () => {
     // This walks a whole game and checks every line the players would ever see.
     const { startGame } = await import("../src/game/setup");
     const { activePlayer, endTurn, legalMoves, movePlayer, clearDraw } = await import("../src/game/turn");
-    const { attack, endCombat, flee } = await import("../src/game/combat");
+    const { endCombat, wonTrial, lostTrial } = await import("../src/game/combat");
     const { canSearch, search } = await import("../src/game/actions");
     const { makeRng } = await import("../src/game/rng");
 
@@ -133,7 +133,9 @@ describe("the log gives nothing away", () => {
       if (state.draw) state = clearDraw(state);
       if (state.combat && state.combat.outcome === "ongoing") {
         const who = state.players.find((p) => p.id === state.combat!.playerId)!;
-        state = who.health <= 1 ? flee(state) : attack(state);
+        // A bot cannot draw a dragon, so it wins or loses cards on a toss of the same
+        // seeded generator the rest of the game runs on.
+        state = who.health <= 1 || rng.next() < 0.4 ? lostTrial(state) : wonTrial(state);
         continue;
       }
       if (state.combat) {
@@ -156,7 +158,7 @@ describe("the log gives nothing away", () => {
       state = endTurn(state);
     }
 
-    expect(state.log.length).toBeGreaterThan(60);
+    expect(state.log.length).toBeGreaterThan(30);
     const leaks = state.log.filter((entry) => /\b[A-I]([1-9]|1[0-9])\b/.test(entry.text));
     expect(leaks.map((l) => l.text)).toEqual([]);
   });

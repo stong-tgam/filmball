@@ -31,6 +31,17 @@ type Props = {
   canDonate: boolean;
   canHeal: boolean;
   canPayOff: boolean;
+  /**
+   * There is something standing here and the team has a fight left this turn.
+   *
+   * A button rather than something that happens when you walk on. A fight is three
+   * minutes of everybody's evening with a clock on it, so the team gets asked - and
+   * "you do not have to fight every bandit" becomes true rather than merely stated.
+   */
+  canTakeOn: boolean;
+  /** What is standing here, for the button's own words. */
+  enemyHere: { name: string; cards: number } | null;
+  onTakeOn: () => void;
   /** Take a swing at the thief you are standing with, rather than buying your way past. */
   canFightThief: boolean;
   /** Which thief it is and how much of the party's money they have, for the prompt. */
@@ -62,6 +73,9 @@ export default function ActionBar({
   canDonate,
   canHeal,
   canPayOff,
+  canTakeOn,
+  enemyHere,
+  onTakeOn,
   canFightThief,
   thief,
   onSearch,
@@ -139,8 +153,18 @@ export default function ActionBar({
   return (
     <div className="actionbar">
       <p className="actionbar-ask">{prompt}</p>
-      {(canSearch || canFish || canHook || canGive || canTrade || canDonate || canHeal || canPayOff || canFightThief) && (
+      {(canTakeOn || canSearch || canFish || canHook || canGive || canTrade || canDonate || canHeal || canPayOff || canFightThief) && (
         <div className="actionbar-buttons">
+          {canTakeOn && enemyHere && (
+            <button
+              type="button"
+              className="fight-thief"
+              style={{ background: PALETTE.mob }}
+              onClick={onTakeOn}
+            >
+              Take on the {enemyHere.name} — {enemyHere.cards === 1 ? "one card" : `${enemyHere.cards} cards`}
+            </button>
+          )}
           {canFightThief && (
             <button
               type="button"

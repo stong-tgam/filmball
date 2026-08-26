@@ -18,7 +18,7 @@ import {
 } from "../src/game/collapse";
 import { createInitialState, startGame } from "../src/game/setup";
 import { endTurn, legalMoves, movePlayer } from "../src/game/turn";
-import { DRAGON_HEALTH_PER_PLAYER, DRAGON_WAKES_ON, mobArrivalChance } from "../src/game/enemies";
+import { DRAGON_WAKES_ON, ENEMIES, mobArrivalChance } from "../src/game/enemies";
 import { RADIUS, allHexes, distance, key } from "../src/game/hex";
 import { sense } from "../src/game/sense";
 import { TURN_ORDER } from "../src/game/players";
@@ -41,19 +41,25 @@ function on(turn: number, at: { q: number; r: number }, seed = 4471): GameState 
 }
 
 describe("the collapse clock", () => {
-  it("takes a ring every quarter of the game", () => {
-    expect(collapseTurns(16)).toEqual([4, 8, 12]);
-    expect(collapseTurns(16)).toHaveLength(COLLAPSE_MARKS.length);
+  it("takes the rim halfway and the next ring three quarters through", () => {
+    // Two marks, not three. On an eight-turn game the old quarters were turns 2, 4 and
+    // 6 - a ring falling before anybody had walked anywhere, which is a tax on where
+    // you happened to start rather than a decision.
+    expect(collapseTurns(8)).toEqual([4, 6]);
+    expect(collapseTurns(8)).toHaveLength(COLLAPSE_MARKS.length);
     // Never on turn 1: nobody loses a player before they have had a go.
     expect(Math.min(...collapseTurns(4))).toBeGreaterThanOrEqual(2);
   });
 
   it("shrinks the board one ring at a time, and never past the dragon's own ring", () => {
+    const [first, second] = collapseTurns(LIMIT);
     expect(liveRadius(1, LIMIT)).toBe(RADIUS);
-    expect(liveRadius(3, LIMIT)).toBe(RADIUS);
-    expect(liveRadius(4, LIMIT)).toBe(RADIUS - 1);
-    expect(liveRadius(8, LIMIT)).toBe(Math.max(LAST_RING, RADIUS - 2));
-    expect(liveRadius(LIMIT, LIMIT)).toBeGreaterThanOrEqual(LAST_RING);
+    expect(liveRadius(first - 1, LIMIT)).toBe(RADIUS);
+    expect(liveRadius(first, LIMIT)).toBe(RADIUS - 1);
+    expect(liveRadius(second, LIMIT)).toBe(Math.max(LAST_RING, RADIUS - 2));
+    // By the last turn the arena is the seven tiles round the dragon, which is what
+    // makes the ending happen wherever anybody had wandered off to.
+    expect(liveRadius(LIMIT, LIMIT)).toBe(LAST_RING);
     // Monotonic, and it stops rather than reaching nothing. A single tile would be
     // the dragon's own, which is not somewhere a player can stand.
     for (let turn = 2; turn <= LIMIT; turn++) {
@@ -123,7 +129,10 @@ describe("the rim going", () => {
     expect(after.players[after.activePlayerIndex].dead).toBe(false);
   });
 
-  it("ends the game if it takes the last of them", () => {
+  it("does not end the game even if it takes everybody", () => {
+    // There is no ending left that takes the party out. The rim is still the one
+    // permanent loss in the design, and it is fenced by a turn's warning and by never
+    // taking `LAST_RING` - but it cannot finish an evening on its own.
     const turn = collapseTurns(LIMIT)[0];
     const rim = allHexes().filter((h) => distance(h, MIDDLE) === RADIUS);
     const base = createInitialState(4471);
@@ -133,7 +142,7 @@ describe("the rim going", () => {
       turnLimit: LIMIT,
       players: base.players.map((p, i) => ({ ...p, hex: rim[i % rim.length] })),
     };
-    expect(collapseRim(state).ending).toBe("partyLost");
+    expect(collapseRim(state).ending).toBeNull();
   });
 
   it("backs the dragon up a tile rather than dropping it down the hole", () => {
@@ -261,25 +270,24 @@ describe("bandits keep coming", () => {
 });
 
 describe("the dragon itself", () => {
-  it("carries health for every player at the table, not a flat band", () => {
-    const [low, high] = DRAGON_HEALTH_PER_PLAYER;
+  it("is the same three cards whoever turns up", () => {
+    // Difficulty used to scale with the party, because dice damage did. Mini-games do
+    // not: five people guessing is not five times faster than two, it is louder. So
+    // the dragon is three cards at every table size, and bringing everybody helps
+    // because everybody is thinking - which is the point of the whole change.
     for (const size of [2, 3, 4, 5]) {
       const roster = TURN_ORDER.slice(0, size);
       const dragon = createInitialState(4471, roster).enemies.find((e) => e.kind === "finalboss")!;
-      expect(dragon.maxHealth, `${size} players`).toBeGreaterThanOrEqual(low * size);
-      expect(dragon.maxHealth, `${size} players`).toBeLessThanOrEqual(high * size);
+      expect(dragon, `${size} players`).toBeDefined();
     }
+    expect(ENEMIES.finalboss.cards).toBe(3);
   });
 
-  it("is a fight rather than a formality: a full party cannot roll it over in one go", () => {
-    // Three dice average five, and a good weapon adds two. Even five players rolling
-    // their best plausible round should not be able to end the game in one.
-    const dragon = createInitialState(4471).enemies.find((e) => e.kind === "finalboss")!;
-    const bestPlausibleRound = TURN_ORDER.length * (3 * 3 + 2);
-    expect(dragon.maxHealth).toBeGreaterThan(TURN_ORDER.length * 5);
-    expect(dragon.maxHealth, "still beatable by a party that turns up").toBeLessThan(
-      bestPlausibleRound * 4,
-    );
+  it("is the longest run in the game, and everything else is shorter", () => {
+    expect(ENEMIES.finalboss.cards).toBeGreaterThan(ENEMIES.midboss.cards);
+    expect(ENEMIES.midboss.cards).toBeGreaterThan(ENEMIES.mob.cards);
+    // One card is a moment; four would be a homework session.
+    expect(ENEMIES.finalboss.cards).toBeLessThanOrEqual(3);
   });
 });
 

@@ -1,55 +1,65 @@
 /**
- * Play the game a few hundred times with a bot and report how it ends.
+ * Play the game a few hundred times with a bot and report on its **shape**.
  *
- * The point is not that the bot plays well - it plays like a distracted child, which
- * is roughly the floor we care about. The point is the *shape* of the outcomes. A
- * build where nobody ever wins is not a hard game, it is a broken one; a build where
- * nobody ever loses is not a kind game, it is a boring one. Somewhere around a third
- * wins, a third out of time and a third wiped out is the band to stay inside.
+ * Read this before trusting a number out of it. **This tool can no longer measure
+ * whether the game is fun, and it never could.** For fifteen versions the win rate it
+ * printed was the thing being tuned, which meant the thing being optimised was a bot
+ * playing dice against itself - and nobody ever measured whether a family laughed. In
+ * v0.31 a fight became a mini-game, and **a bot cannot draw a dragon**. It tosses a
+ * coin (`CHILD_WINS_A_CARD`) and that is the honest most it can do.
  *
- * Run it after any change to the turn limit, sight, monster placement or the economy:
+ * So the win rate here is an artefact of that constant and means nothing. What it can
+ * still measure, and what is worth running it for:
  *
- *     npx vite-node tools/sim.ts [games]
+ * - **How long an evening is** - turns played, and how many fights a table sits
+ *   through. Every fight is a real minute of real people, so the fight count is the
+ *   number that decides whether this fits in an evening.
+ * - **Whether the board delivers the party to things.** A run where nobody ever meets
+ *   a mid boss is a board problem, not a difficulty problem.
+ * - **Whether the economy still moves** - money found, gear picked up.
+ * - **That a whole game runs to an ending** without stalling, from any seed.
+ *
+ *     npx vite-node tools/sim.ts [games] [party size]
  */
 
+/**
+ * How often the bot's imaginary family wins a card.
+ *
+ * A guess, and it is *only* here so that games finish. Do not tune it against the win
+ * rate and do not tune the game against it - the real number is a family at a table,
+ * and the only way to find it is to sit at one.
+ */
+const CHILD_WINS_A_CARD = 0.6;
+
 import { startGame } from "../src/game/setup";
-import { activePlayer, endTurn, legalMoves, movePlayer } from "../src/game/turn";
-import {
-  attack,
-  endCombat,
-  flee,
-  invitable,
-  invite,
-  inviteTargets,
-  takeSpoil,
-} from "../src/game/combat";
+import { activePlayer, canTakeOn, endTurn, legalMoves, movePlayer, takeOn } from "../src/game/turn";
+import { ENEMIES } from "../src/game/enemies";
+import { endCombat, lostTrial, takeSpoil, wonTrial } from "../src/game/combat";
 import { canFish, canSearch, eat, fish, search, tileMates } from "../src/game/actions";
 import { canFightThief, fightThief } from "../src/game/hazards";
 import { clearDraw } from "../src/game/turn";
-import { distance, fromLabel } from "../src/game/hex";
+import { distance, fromLabel, key } from "../src/game/hex";
 import { doomed, edgeFallsAfter } from "../src/game/collapse";
 import { makeRng } from "../src/game/rng";
 import { MAX_PARTY, MIN_PARTY, TURN_ORDER } from "../src/game/players";
 import type { GameState } from "../src/game/types";
 
 /**
- * Rulebook §8: pull in anybody within a shout who is not hurt enough to regret it.
+ * Play out a fight, one card at a time.
  *
- * The bot is deliberately dim, and this is about as clever as it gets - but a bot
- * that never invites cannot measure the rule at all, and the rule is the whole point
- * of the change. Only healthy friends: dragging somebody on one health into a dragon
- * fight is how you turn a timeout into a wipe.
+ * There is nothing clever to model here: a card is won or lost by people at a table,
+ * so the bot tosses `CHILD_WINS_A_CARD` and moves on. Everything the bot could
+ * meaningfully decide - whether to take the fight at all - happens before this.
  */
-function shoutForHelp(state: GameState): GameState {
+function playTheCards(state: GameState, roll: () => number): GameState {
   let next = state;
-  const before = next.combat?.allies.length ?? 0;
-  for (const who of inviteTargets(next)) {
-    if (who.health <= 2) continue;
-    next = invite(next, who.id);
+  let guard = 0;
+  while (next.combat && next.combat.outcome === "ongoing" && guard++ < 8) {
+    next = roll() < CHILD_WINS_A_CARD ? wonTrial(next) : lostTrial(next);
   }
-  stats.alliesJoined += (next.combat?.allies.length ?? 0) - before;
   return next;
 }
+
 
 /**
  * Eat when hurt, for everybody, not just whoever is up.
@@ -92,7 +102,7 @@ function eatIfHurt(state: GameState): GameState {
 const stats = {
   groupFights: 0,
   soloFights: 0,
-  alliesJoined: 0,
+  cardsDealt: 0,
   mealsEaten: 0,
   handOvers: 0,
   dragonFights: 0,
@@ -105,7 +115,7 @@ const stats = {
 export const resetStats = (): void => {
   stats.groupFights = 0;
   stats.soloFights = 0;
-  stats.alliesJoined = 0;
+  stats.cardsDealt = 0;
   stats.mealsEaten = 0;
   stats.handOvers = 0;
   stats.dragonFights = 0;
@@ -129,17 +139,13 @@ function botTurn(state: GameState, roll: () => number): GameState {
     if (!s.combat || s.combat.enemyId === fightAtStart) return;
     const enemy = s.enemies.find((e) => e.id === s.combat!.enemyId);
     if (enemy?.kind === "finalboss") stats.dragonFights++;
-    if (enemy && invitable(enemy)) stats.groupFights++;
+    stats.cardsDealt += s.combat.trials.length;
+    if (s.combat.allies.length > 0) stats.groupFights++;
     else stats.soloFights++;
   };
 
   // Fight, or get out if it is going badly.
-  let guard = 0;
-  while (next.combat && next.combat.outcome === "ongoing" && guard++ < 12) {
-    next = shoutForHelp(next);
-    const me = next.players.find((p) => p.id === next.combat!.playerId)!;
-    next = me.health <= 1 ? flee(next) : attack(next);
-  }
+  next = playTheCards(next, roll);
   // A finished fight still sits in state until it is closed; leaving it there stalls
   // the whole simulation, which is exactly the bug that made this read 100% timeouts.
   if (next.combat && next.combat.outcome !== "ongoing") next = endCombat(next);
@@ -189,14 +195,22 @@ function botTurn(state: GameState, roll: () => number): GameState {
     if (next.combat) stats.thiefFights++;
   }
 
+  // Take on whatever the walk turned up. A fight is a choice now: the bot skips a
+  // dragon it is in no state for, which is exactly the decision the button exists to
+  // offer a table.
+  if (canTakeOn(next)) {
+    const here = next.enemies.find((e) => !e.defeated && !e.dormant && key(e.hex) === key(activePlayer(next).hex));
+    const cards = here ? ENEMIES[here.kind].cards : 1;
+    const team = next.teams.find((t) => t.memberIds.includes(activePlayer(next).id));
+    const fit = (team?.memberIds ?? []).filter(
+      (id) => (next.players.find((p) => p.id === id)?.health ?? 0) > 0,
+    ).length;
+    if (cards <= 1 || fit >= 2) next = takeOn(next);
+  }
+
   countFight(next);
 
-  guard = 0;
-  while (next.combat && next.combat.outcome === "ongoing" && guard++ < 12) {
-    next = shoutForHelp(next);
-    const who = next.players.find((p) => p.id === next.combat!.playerId)!;
-    next = who.health <= 1 ? flee(next) : attack(next);
-  }
+  next = playTheCards(next, roll);
   if (next.ending) return next;
 
   const after = activePlayer(next);
@@ -224,7 +238,7 @@ function botTurn(state: GameState, roll: () => number): GameState {
 function play(
   seed: number,
   party: number,
-): { ending: GameState["ending"]; purse: number; dragonLeft: number } {
+): { ending: GameState["ending"]; purse: number; dragonFound: number } {
   const rng = makeRng(seed * 7919 + 13);
   let state = startGame(seed, TURN_ORDER.slice(0, party));
   for (let i = 0; i < 4000 && !state.ending; i++) state = botTurn(state, () => rng.next());
@@ -233,7 +247,7 @@ function play(
   stats.rounds += state.turn;
   stats.goes += state.log.filter((l) => l.text.includes("— Turn")).length;
   return {
-    dragonLeft: 1 - Math.min(1, dragon.damageTaken / dragon.maxHealth),
+    dragonFound: dragon.found ? 1 : 0,
     ending: state.ending ?? "outOfTime",
     // What the party is holding when the lights go up. The bot never shops, so this
     // is gross earnings rather than savings - which is the number a change to the
@@ -273,13 +287,13 @@ const games = Number(process.argv[2] ?? 200);
 const party = Math.min(Math.max(Number(process.argv[3] ?? TURN_ORDER.length), MIN_PARTY), MAX_PARTY);
 const tally: Record<string, number> = {};
 let purse = 0;
-let dragonLeft = 0;
+let dragonFound = 0;
 for (let seed = 1; seed <= games; seed++) {
   const result = play(seed, party);
   const ending = result.ending ?? "outOfTime";
   tally[ending] = (tally[ending] ?? 0) + 1;
   purse += result.purse;
-  dragonLeft += result.dragonLeft;
+  dragonFound += result.dragonFound;
 }
 
 console.log(`${games} games, ${party} players:`);
@@ -292,9 +306,9 @@ console.log(`  ${"purse".padEnd(12)} ${`$${(purse / games).toFixed(1)}`.padStart
 // co-operative rules were reachable at all - a party that never fights together and
 // one that always does can post identical win rates.
 const per = (n: number) => (n / games).toFixed(1);
-console.log(`  ${"together".padEnd(12)} ${per(stats.groupFights)} boss fights + ${per(stats.soloFights)} mobs a game, ${per(stats.alliesJoined)} friends joining`);
+console.log(`  ${"fights".padEnd(12)} ${per(stats.groupFights + stats.soloFights)} a game, ${per(stats.cardsDealt)} mini-games dealt`);
 console.log(`  ${"meals".padEnd(12)} ${per(stats.mealsEaten)} eaten a game`);
-console.log(`  ${"dragon".padEnd(12)} ${per(stats.dragonFights)} fights a game, ${((dragonLeft / games) * 100).toFixed(0)}% of it still standing at the end`);
+console.log(`  ${"dragon".padEnd(12)} ${per(stats.dragonFights)} fights a game, ${((dragonFound / games) * 100).toFixed(0)}% of parties met it`);
 console.log(`  ${"thieves".padEnd(12)} ${per(stats.thiefFights)} taken on a game`);
-console.log(`  ${"length".padEnd(12)} ${per(stats.rounds)} rounds, ${(stats.rounds / games * party).toFixed(0)} individual goes`);
+console.log(`  ${"length".padEnd(12)} ${per(stats.rounds)} turns played of ${startGame(1, TURN_ORDER.slice(0, party)).turnLimit}`);
 console.log(`  ${"abyss".padEnd(12)} ${per(stats.lostToAbyss)} lost over the edge a game`);

@@ -13,7 +13,7 @@
  */
 
 import { hexToPixel } from "../game/hex";
-import { ENEMIES, healthLeft } from "../game/enemies";
+import { ENEMIES } from "../game/enemies";
 import { CHIP, INK } from "./art/crayon";
 import MonsterArt from "./art/monsters";
 import type { Enemy } from "../game/types";
@@ -41,8 +41,9 @@ export default function EnemyLayer({
           const { x, y } = hexToPixel(enemy.hex, size);
           const beast = ENEMIES[enemy.kind];
           const r = size * 0.3 * beast.scale;
-          const left = healthLeft(enemy);
-          const hurt = enemy.damageTaken > 0;
+          // How many mini-games it takes. Drawn as pips under the chit, because that
+          // is a number a child reads at a glance and a health bar never was.
+          const cards = beast.cards;
           const purse = purses[enemy.kind] ?? 0;
 
           return (
@@ -66,15 +67,19 @@ export default function EnemyLayer({
                 </text>
               )}
 
-              {hurt && (
-                <g transform={`translate(${-r} ${r + size * 0.1})`}>
-                  <rect width={r * 2} height={size * 0.09} rx={size * 0.045} fill="#141a1f" />
-                  <rect
-                    width={(r * 2 * left) / enemy.maxHealth}
-                    height={size * 0.09}
-                    rx={size * 0.045}
-                    fill={beast.colour}
-                  />
+              {cards > 1 && (
+                <g transform={`translate(0 ${r + size * 0.14})`}>
+                  {Array.from({ length: cards }, (_, i) => (
+                    <circle
+                      key={i}
+                      cx={(i - (cards - 1) / 2) * size * 0.13}
+                      cy={0}
+                      r={size * 0.045}
+                      fill={beast.colour}
+                      stroke="#141a1f"
+                      strokeWidth={size * 0.012}
+                    />
+                  ))}
                 </g>
               )}
             </g>

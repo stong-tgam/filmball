@@ -22,7 +22,15 @@ export type EnemyProfile = {
   /** What a child should understand about it in one line. */
   blurb: string;
   /** Health is rolled in this band when the board is laid out. */
-  health: [number, number];
+  /**
+   * How many mini-games it takes to beat it.
+   *
+   * The whole of a monster's difficulty, and it is one small number on purpose: a
+   * child can be told "the dragon is three games" and hold that for a whole evening.
+   * It replaced a health band, a per-player scaling rule and an accumulating damage
+   * counter, none of which anybody at the table could ever see.
+   */
+  cards: number;
   /** How many go on the board at setup. */
   count: number;
   /** Rulebook §10: items dropped, and how many of them the winner keeps. */
@@ -62,7 +70,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
   mob: {
     name: "Bandit",
     blurb: "Trouble, but not much of it.",
-    health: [4, 8],
+    cards: 1,
     count: 6,
     drops: 2,
     picks: 1,
@@ -76,7 +84,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
   midboss: {
     name: "Ogre",
     blurb: "Hits hard. Bring a friend.",
-    health: [10, 16],
+    cards: 2,
     count: 2,
     drops: 4,
     picks: 2,
@@ -90,7 +98,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
   finalboss: {
     name: "Dragon",
     blurb: "Beat this one and the game is won.",
-    health: [20, 30],
+    cards: 3,
     count: 1,
     drops: 6,
     picks: 3,
@@ -106,7 +114,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
   robber: {
     name: "Robber",
     blurb: "Fights like an ogre. Beat him and he drops everything he has taken.",
-    health: [10, 16],
+    cards: 2,
     count: 0,
     drops: 2,
     picks: 2,
@@ -121,7 +129,7 @@ export const ENEMIES: Record<EnemyKind, EnemyProfile> = {
   pirates: {
     name: "Pirates",
     blurb: "River thieves. They take your gear as well as your money.",
-    health: [10, 16],
+    cards: 2,
     count: 0,
     drops: 2,
     picks: 2,
@@ -173,12 +181,10 @@ export function safeRadiusFor(players: Player[], monsters: number): number {
  */
 export const THIEVES: EnemyKind[] = ["robber", "pirates"];
 
-const spawn = (kind: EnemyKind, hex: Hex, n: number, health: number): Enemy => ({
+const spawn = (kind: EnemyKind, hex: Hex, n: number): Enemy => ({
   id: `${kind}-${n}`,
   kind,
   hex,
-  maxHealth: health,
-  damageTaken: 0,
   // The dragon is away for the opening (see `DRAGON_WAKES_ON`); everything else is
   // on the board from the first turn.
   dormant: kind === "finalboss",
@@ -201,11 +207,6 @@ export const nameWithArticle = (kind: EnemyKind): string => {
 /** "is beaten" or "are beaten", "keeps its wounds" or "keep their wounds". */
 export const verb = (kind: EnemyKind, singular: string, plural: string): string =>
   ENEMIES[kind].plural ? plural : singular;
-
-/** Health an enemy has left. Damage accumulates across fights (§7), so this is what a
- *  party is chipping away at over several turns. */
-export const healthLeft = (enemy: Enemy): number =>
-  Math.max(0, enemy.maxHealth - enemy.damageTaken);
 
 /** The enemy standing on a tile, if any is still up. */
 export const enemyAt = (enemies: Enemy[], label: string): Enemy | undefined =>
@@ -251,62 +252,11 @@ export function monsterCount(kind: "mob" | "midboss", party: number): number {
   return Math.max(2, Math.min(full, scaled));
 }
 
-/**
- * A boss's health, scaled to the party that has to bring it down.
- *
- * §7.4 is explicit that the health bands were worked out against a party rolling
- * together — "the boss maths assumes the four-player group fight in §8". Handing a
- * 20-30 health dragon to two children is not that game: their damage scales with the
- * party and so does their total health, so a fixed band means a pair grind twice as
- * long while bleeding at the same rate. The sim wiped them **62%** of the time.
- *
- * **Half the slope, not the full one.** Scaling health straight down with party size
- * was measured and overshot badly - two players went from 62% wipes to 69% *wins*,
- * because a party's damage is not purely linear in its size (each of them brings a
- * weapon bonus of their own, and the group only has to beat the remaining health once
- * however many are swinging). Meeting the difference halfway is what lands every party
- * size in the same band. The numbers are in the README; re-measure if you touch this.
- *
- * Mobs are left alone: they are meant to be a bump, they already scale in *number*
- * (`monsterCount`), and a 2-health bandit is not a fight.
- *
- * **The dragon is the exception, and takes the full slope and then some.** Half a
- * slope was measured for the ogres and it is right for them; for the dragon it meant
- * that four players who shouted for each other killed the game's ending **in a single
- * round** - a 25-health dragon against four people rolling three dice each is not a
- * fight, it is a formality, and it was reported from the table before the sim ever
- * caught it. `DRAGON_HEALTH_PER_PLAYER` is the number that fixes it: the dragon has
- * that much health for every player at the table, so a full party needs three or four
- * rounds and pays a health each for every round they fall short. Bringing everybody is
- * still right; it is no longer free.
- */
-export function bossHealth(kind: EnemyKind, party: number, rng: Rng): number {
-  if (kind === "finalboss") {
-    return rng.int(...DRAGON_HEALTH_PER_PLAYER) * Math.max(1, party);
-  }
-  const rolled = rng.int(...ENEMIES[kind].health);
-  if (kind !== "midboss") return rolled;
-  const full = 5;
-  const share = Math.min(party, full) / full;
-  return Math.max(4, Math.round(rolled * (0.5 + 0.5 * share)));
-}
-
-/**
- * Dragon health per player at the table, rolled once for the whole beast.
- *
- * Three dice average five, and a mid-game player adds a weapon on top, so a fighter is
- * worth roughly six or seven a round: fifteen a head is three rounds against any size
- * of party, which is two failed rolls and two health off everybody who turned up. That
- * is a fight a party can lose and can win, which is what the ending of the evening
- * has to be. `ENEMIES.finalboss.health` is left at its rulebook band and is what a
- * lone hero would have faced.
- */
-export const DRAGON_HEALTH_PER_PLAYER: [number, number] = [10, 14];
 
 export function placeEnemies(rng: Rng, players: Player[]): Enemy[] {
   const centre = { q: 0, r: 0 };
   const placed: Enemy[] = [
-    spawn("finalboss", centre, 1, bossHealth("finalboss", players.length, rng)),
+    spawn("finalboss", centre, 1),
   ];
 
   const wanted = {
@@ -323,7 +273,7 @@ export function placeEnemies(rng: Rng, players: Player[]): Enemy[] {
 
   for (const kind of ["midboss", "mob"] as const) {
     for (let n = 0; n < wanted[kind] && next < open.length; n++) {
-      placed.push(spawn(kind, open[next++], n + 1, bossHealth(kind, players.length, rng)));
+      placed.push(spawn(kind, open[next++], n + 1));
     }
   }
   return placed;
@@ -331,10 +281,10 @@ export function placeEnemies(rng: Rng, players: Player[]): Enemy[] {
 
 
 /** Fightable records for the robber and the pirates, standing where their hazards do. */
-export function spawnThieves(rng: Rng, hazards: { kind: string; hex: Hex }[]): Enemy[] {
+export function spawnThieves(_rng: Rng, hazards: { kind: string; hex: Hex }[]): Enemy[] {
   return THIEVES.flatMap((kind) => {
     const home = hazards.find((h) => h.kind === kind);
-    return home ? [spawn(kind, home.hex, 1, rng.int(...ENEMIES[kind].health))] : [];
+    return home ? [spawn(kind, home.hex, 1)] : [];
   });
 }
 
@@ -390,7 +340,7 @@ export function wanderIn(state: GameState, rng: Rng): GameState {
   // living would hand a fresh bandit the id of one the rim swallowed, and two enemies
   // with one id is a fight that picks the wrong monster.
   const mob = {
-    ...spawn("mob", rng.pick(room), 0, rng.int(...ENEMIES.mob.health)),
+    ...spawn("mob", rng.pick(room), 0),
     id: `mob-turn${state.turn}`,
   };
   return {

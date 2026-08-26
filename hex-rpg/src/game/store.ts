@@ -6,20 +6,19 @@
 import { create } from "zustand";
 import { startGame } from "./setup";
 import { randomSeed } from "./rng";
-import { activePlayer, clearDraw, endTurn, legalMoves, movePlayer } from "./turn";
+import { activePlayer, canTakeOn, clearDraw, endTurn, enemyHere, legalMoves, movePlayer, takeOn } from "./turn";
+import { activeMembers, activeTeam } from "./teams";
 import {
-  attack,
-  canInvite,
+  canUseSkill,
   combatants,
   endCombat,
   fighters,
-  flee,
-  invite,
-  inviteTargets,
-  pledgeSupport,
-  supportOptions,
+  lostTrial,
+  nowPlaying,
   takeSpoil,
-  withdrawSupport,
+  useHint,
+  useSkill,
+  wonTrial,
 } from "./combat";
 import {
   buy,
@@ -44,7 +43,7 @@ import {
 } from "./actions";
 import { canDonate, canFightThief, canPayOff, donate, fightThief, payOff, thiefFacing } from "./hazards";
 import { clearSave, readSave, saveGame } from "./save";
-import type { Enemy, GameState, Item, Player, Role, Tile } from "./types";
+import type { Enemy, GameState, Item, Player, Role, Team, Tile } from "./types";
 
 type Store = {
   game: GameState;
@@ -58,8 +57,14 @@ type Store = {
   tile: (label: string) => Tile | undefined;
   moveTo: (label: string) => void;
   endTurn: () => void;
-  attack: () => void;
-  flee: () => void;
+  /** Take on whatever is standing here. Everybody in the team plays it. */
+  takeOn: () => void;
+  /** The table says they did it. Nothing else can say it. */
+  wonTrial: () => void;
+  /** The clock beat them, or the table says it was not close enough. */
+  lostTrial: () => void;
+  useHint: () => void;
+  useSkill: (playerId: string, toId?: string) => void;
   search: () => void;
   fish: () => void;
   hook: (targetId: string, how: "pull" | "cross") => void;
@@ -76,11 +81,6 @@ type Store = {
   fightThief: () => void;
   eat: (playerId: string, itemId: string) => void;
   takeLoot: (itemId: string, toId?: string) => void;
-  /** Rulebook §8: shout somebody into the fight. It does not cost them their turn. */
-  invite: (playerId: string) => void;
-  /** Patch somebody up this round instead of rolling. */
-  pledgeSupport: (byId: string, toId: string) => void;
-  withdrawSupport: (byId: string) => void;
   /** Put the turn's card away once the table has read it. */
   clearDraw: () => void;
   /** Put away what the last search turned up. */
@@ -104,8 +104,11 @@ export const useGame = create<Store>((set, get) => ({
   tile: (label) => get().game.tiles[label],
   moveTo: (label) => set({ game: movePlayer(get().game, label), selected: null }),
   endTurn: () => set({ game: endTurn(get().game), selected: null }),
-  attack: () => set({ game: attack(get().game) }),
-  flee: () => set({ game: flee(get().game) }),
+  takeOn: () => set({ game: takeOn(get().game), selected: null }),
+  wonTrial: () => set({ game: wonTrial(get().game) }),
+  lostTrial: () => set({ game: lostTrial(get().game) }),
+  useHint: () => set({ game: useHint(get().game) }),
+  useSkill: (playerId, toId) => set({ game: useSkill(get().game, playerId, toId) }),
   closeCombat: () => set({ game: endTurn(endCombat(get().game)), selected: null }),
   search: () => set({ game: search(get().game) }),
   fish: () => set({ game: fish(get().game) }),
@@ -122,9 +125,6 @@ export const useGame = create<Store>((set, get) => ({
   fightThief: () => set({ game: fightThief(get().game) }),
   eat: (playerId, itemId) => set({ game: eat(get().game, playerId, itemId) }),
   takeLoot: (itemId, toId) => set({ game: takeSpoil(get().game, itemId, toId) }),
-  invite: (playerId) => set({ game: invite(get().game, playerId) }),
-  pledgeSupport: (byId, toId) => set({ game: pledgeSupport(get().game, byId, toId) }),
-  withdrawSupport: (byId) => set({ game: withdrawSupport(get().game, byId) }),
   clearDraw: () => set({ game: clearDraw(get().game) }),
   clearFind: () => set({ game: clearFind(get().game) }),
 }));
@@ -183,16 +183,18 @@ export const useHealTargets = (): Player[] =>
 
 /** Everybody swinging in the fight on screen, starter first. */
 export const useFighters = (): Player[] => useGame((s) => fighters(s.game));
-/** Who the starter could still shout to, per §8. */
-export const useInviteTargets = (): Player[] => useGame((s) => inviteTargets(s.game));
-export const useCanInvite = (): boolean => useGame((s) => canInvite(s.game));
-/** For each fighter who could do something other than swing, who they could do it to. */
-export const useSupportChoices = (): { who: Player; targets: Player[] }[] =>
-  useGame((s) =>
-    fighters(s.game)
-      .map((who) => ({ who, targets: supportOptions(s.game, who) }))
-      .filter((o) => o.targets.length > 0),
-  );
+/** The team whose go it is, as people. Their tokens all sit on one tile. */
+export const useActiveTeam = (): Team | undefined => useGame((s) => activeTeam(s.game));
+export const useActiveMembers = (): Player[] => useGame((s) => activeMembers(s.game));
+
+/** The card in play, the game it asks for, and where it sits in the run. */
+export const useNowPlaying = () => useGame((s) => nowPlaying(s.game));
+/** Whatever is standing on this tile, and whether the team may take it on. */
+export const useEnemyHere = (): Enemy | undefined => useGame((s) => enemyHere(s.game));
+export const useCanTakeOn = (): boolean => useGame((s) => canTakeOn(s.game));
+/** Each fighter, and whether their own skill is pressable right now. */
+export const useSkillChoices = (): { who: Player; ready: boolean }[] =>
+  useGame((s) => fighters(s.game).map((who) => ({ who, ready: canUseSkill(s.game, who) })));
 
 /** The two sides of the fight on screen, or null when nobody is fighting. */
 export const useCombatants = (): { player: Player; enemy: Enemy } | null =>

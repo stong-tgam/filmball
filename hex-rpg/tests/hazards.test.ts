@@ -16,7 +16,7 @@ import {
 import { hasMoved } from "../src/game/players";
 import { createInitialState, startGame } from "../src/game/setup";
 import { activePlayer, beginTurn, clearDraw, endTurn, legalMoves, movePlayer } from "../src/game/turn";
-import { attack } from "../src/game/combat";
+import { intoFight, winAll } from "./fight";
 import { makeRng } from "../src/game/rng";
 import { distance, fromLabel, key, neighbours } from "../src/game/hex";
 import { EQUIPMENT, FOOD, makeItem } from "../src/game/items";
@@ -245,16 +245,23 @@ describe("the tornado", () => {
     }
   });
 
-  it("skips the turn of anyone who owed one, once", () => {
+  it("skips the turn of a team that owed one, once", () => {
+    // A tornado costs the whole team their go now, because the whole team was on the
+    // tile it went through. One team is skipped and its debt is paid by the skipping.
     const state = startGame(4471);
+    const owing = state.teams[1];
     const flattened: GameState = {
       ...state,
-      players: state.players.map((p, i) => (i === 1 ? { ...p, stunned: true } : p)),
+      players: state.players.map((p) =>
+        owing.memberIds.includes(p.id) ? { ...p, stunned: true } : p,
+      ),
     };
     const after = endTurn(clearDraw(flattened));
 
-    expect(activePlayer(after).id).toBe(state.players[2].id);
-    expect(after.players[1].stunned).toBe(false);
+    expect(owing.memberIds).not.toContain(activePlayer(after).id);
+    for (const id of owing.memberIds) {
+      expect(after.players.find((p) => p.id === id)!.stunned).toBe(false);
+    }
     expect(after.log.some((e) => e.text.includes("picking themselves up"))).toBe(true);
   });
 });
@@ -298,7 +305,7 @@ describe("the thieves", () => {
     };
     const after = payOff(armed);
     expect(activePlayer(after).weapon).toBeNull();
-    expect(after.enemies.find((e) => e.kind === "pirates")!.loot.map((i) => i.id)).toContain(
+    expect(after.enemies.find((e) => e.kind === "pirates")!.loot.map((i: { id: string }) => i.id)).toContain(
       "blade",
     );
   });
@@ -321,37 +328,27 @@ describe("catching a thief", () => {
       hazards: state.hazards.map((h) => (h.kind === kind ? { ...h, carrying } : h)),
       enemies: state.enemies.map((e) =>
         e.id === thief.id
-          ? { ...e, hex: player.hex, damageTaken: e.maxHealth - 1, loot: [makeItem(EQUIPMENT[0], "taken")] }
+          ? { ...e, hex: player.hex, loot: [makeItem(EQUIPMENT[0], "taken")] }
           : e,
       ),
       players: state.players.map((p, i) => (i === 0 ? { ...p, health: 9, maxHealth: 9 } : p)),
-      combat: {
-        enemyId: thief.id,
-        playerId: player.id,
-        allies: [],
-        support: [],
-        from: key(player.hex),
-        round: 0,
-        playerRoll: null,
-        toll: 0,
-        spoils: [],
-        picksLeft: 0,
-      ambush: false,
-        outcome: "ongoing" as const,
-      },
     };
   }
 
+  /** Into the fight with that thief, and through it. */
+  const beat = (state: GameState, kind: "robber" | "pirates") =>
+    winAll(intoFight(state, state.enemies.find((e) => e.kind === kind)!, [state.players[0].id]));
+
   it("puts what they stole on the ground with the rest of the loot", () => {
     const state = cornered("pirates");
-    const after = attack(state);
+    const after = beat(state, "pirates");
     expect(after.combat?.outcome).toBe("enemyDefeated");
-    expect(after.combat?.spoils.map((i) => i.id)).toContain("taken");
+    expect(after.combat?.spoils.map((i: { id: string }) => i.id)).toContain("taken");
   });
 
   it("lets the winner keep only as many as the rulebook allows", () => {
     const state = cornered("robber");
-    const after = attack(state);
+    const after = beat(state, "robber");
     expect(after.combat?.picksLeft).toBeLessThanOrEqual(ENEMIES.robber.picks);
     expect(after.combat!.picksLeft).toBeLessThanOrEqual(after.combat!.spoils.length);
   });
@@ -395,7 +392,7 @@ describe("the pirates", () => {
 
     expect(activePlayer(after).weapon).toBeNull();
     expect(activePlayer(after).money).toBe(0);
-    expect(after.enemies.find((e) => e.kind === "pirates")!.loot.map((i) => i.id)).toContain(
+    expect(after.enemies.find((e) => e.kind === "pirates")!.loot.map((i: { id: string }) => i.id)).toContain(
       "sword-x",
     );
     expect(after.hazards.find((h) => h.kind === "pirates")!.carrying).toBe(before.money);

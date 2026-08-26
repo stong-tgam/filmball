@@ -16,7 +16,8 @@
  * failed roll matters and a single piece of food is worth carrying.
  */
 
-import { boardCorners, distance, neighbours, type Hex } from "./hex";
+import { teamSizes } from "./teams";
+import { boardCorners, type Hex } from "./hex";
 import { PALETTE } from "../palette";
 import { ROD_TEMPLATE, makeItem } from "./items";
 import type { Rng } from "./rng";
@@ -283,42 +284,18 @@ const spawn = (role: Role, hex: Hex): Player => {
  * first four turns walking towards somebody.
  */
 export function startingSpots(rng: Rng, count: number): Hex[] {
-  // Two to a corner, and an odd party makes one trio rather than leaving somebody on a
-  // corner of their own - stranding the fifth player is the exact thing this is for.
-  const sizes: number[] = [];
-  for (let left = count; left > 0; left -= 2) sizes.push(2);
-  if (count % 2 === 1) {
-    sizes.pop();
-    if (sizes.length === 0) sizes.push(1);
-    else sizes[sizes.length - 1] = 3;
-  }
-
-  const MIDDLE: Hex = { q: 0, r: 0 };
+  // One corner per team, and **everybody in a team stands on it**. A team moves as one
+  // thing, so it has to start as one thing - and a hex with three tokens on it is the
+  // first thing the table sees about how this game is played.
+  //
+  // The corners themselves are shuffled and never adjacent, so two teams open on
+  // opposite sides of a board neither of them can see, which is what keeps the
+  // exploring worth talking about.
   const corners = rng.shuffle(boardCorners());
-  const spots: Hex[] = [];
-  const taken = (h: Hex) => spots.some((s) => s.q === h.q && s.r === h.r);
-
-  sizes.forEach((size, i) => {
-    const corner = corners[i % corners.length];
-    spots.push(corner);
-    // Everybody in a group hangs off the corner itself, so a trio is a huddle rather
-    // than a line and nobody is two tiles from where their group started. Corners sit
-    // on the rim, so `neighbours` only ever offers tiles that are on the board - three
-    // of them, which is one more than the biggest group needs.
-    //
-    // Furthest from the middle first, which picks the two *rim* neighbours over the one
-    // that steps inwards. That keeps the whole party the same distance from the dragon
-    // as one-to-a-corner did: a partner on the inner tile would start two tiles from
-    // the middle, inside the smoke, and both open the game a move ahead of everybody
-    // else and be handed the one thing the hidden board is meant to make them look for.
-    const beside = rng
-      .shuffle(neighbours(corner))
-      .filter((h) => !taken(h))
-      .sort((a, b) => distance(b, MIDDLE) - distance(a, MIDDLE));
-    spots.push(...beside.slice(0, size - 1));
-  });
-
-  return spots.slice(0, count);
+  const sizes = teamSizes(count);
+  return sizes.flatMap((size, i) =>
+    Array.from({ length: size }, () => corners[i % corners.length]),
+  ).slice(0, count);
 }
 
 export function createPlayers(rng: Rng, roster: Role[] = TURN_ORDER): Player[] {
