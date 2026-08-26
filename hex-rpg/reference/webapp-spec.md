@@ -1,5 +1,12 @@
 # Hex RPG — Web App Spec
 
+> **Note added in v0.31.** This is the original build plan and has not been rewritten.
+> Two parts of it are now historical rather than current: `combat.ts` is no longer
+> "dice, damage, features" — a fight is a run of mini-games the table plays (see
+> `src/game/challenges.ts`) — and the combat sub-machine in the phase diagram is a run
+> of cards rather than a roll/reroll/escape loop. "Animate the dice" survives in
+> spirit as the card turning over. Everything else here still describes the build.
+
 A hotseat (one device, passed around) digital version of the tabletop game.
 Companion to `hex-rpg-rulebook.md`, which is the authoritative rules document.
 

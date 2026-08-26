@@ -1,8 +1,10 @@
 # Hex RPG
 
 A hex-crawl board game for kids, played hotseat on one device passed around the
-table. Players roam a 91-tile map, fight bosses, buy and loot equipment, and get
-knocked sideways by random events.
+table. Two to five people split into **teams**, roam a 37-tile map, loot equipment,
+get knocked sideways by random events - and **fight by playing mini-games together**:
+a monster deals a poker card, a clock runs, and the table draws, acts, argues or works
+it out.
 
 **The goal is family time, not simulation depth.** Every decision below serves that:
 a game a 7-year-old can play without an adult reading rules aloud, that an adult
@@ -20,8 +22,13 @@ These are the tiebreakers when a design question comes up mid-task:
 - **A 7-year-old is the primary player.** Never make them compute. Highlight legal
   moves, grey out what they cannot do, name things in plain words. If a rule needs a
   paragraph to explain, it is the wrong rule.
-- **Protect the exciting moments.** The dice roll, the boss reveal, the loot drop,
-  the event card. These get animation and space. Everything else gets out of the way.
+- **Protect the exciting moments.** The card turning over, the boss reveal, the loot
+  drop, the event card. These get animation and space; everything else gets out of the
+  way.
+- **The app poses and times; the family judges.** No machine can tell whether a drawing
+  looked enough like a dragon, and one that tried would be wrong in front of a child.
+  Every mini-game ends with the table tapping *we did it* or *we could not*. That
+  button is the whole adjudication system and it is meant to be.
 - **Nobody waits.** It is one device: the player whose turn it is not should still be
   able to act (eat food, watch the roll). Dead time at the table kills the evening.
 - **Losing must not feel like punishment.** Setbacks are funny — a tornado, a robber
@@ -41,10 +48,13 @@ These are the tiebreakers when a design question comes up mid-task:
   dice, direction rolls, card draws, feature draws — comes from it. Never call
   `Math.random()` in game logic. A game must be reproducible from its seed, so bugs
   arrive as "seed 4471, turn 6".
-- **Anything rolling dice mid-game reads and writes `GameState.rngState`.** The
-  generator's whole state is one number, so it saves with the game and a reloaded
-  game rolls the sequence it would have rolled. `rollDice` returns the new value;
-  put it back in the state you return.
+- **Anything drawing mid-game reads and writes `GameState.rngState`.** The generator's
+  whole state is one number, so it saves with the game and a reloaded game draws the
+  sequence it would have drawn. Return the new value in the state you return.
+- **Clocks live in the view, never in `GameState`.** The turn hourglass and the
+  mini-game countdown are both `useState` in a component. A wall clock in the state
+  would make a saved game resume differently from the one that was put down, and the
+  whole design rests on a game being reproducible from its seed.
 - **Axial coordinates for maths, row-letter labels for display.** Never do geometry on the
   labels; row widths change direction at the middle row.
 
@@ -70,15 +80,16 @@ milestone.
 ```
 src/palette.ts  every colour that names a character or an event, in one place
 src/artslots.ts the name of every picture, in one place - same argument
-src/game/     pure logic, no React - hex, rng, setup, turn, combat, actions,
-              hazards, events, items, gems, enemies, collapse, vision, sense,
-              save, store
+src/game/     pure logic, no React - hex, rng, setup, teams, turn, combat,
+              challenges, skills, actions, hazards, events, items, enemies,
+              collapse, vision, sense, save, store
 src/ui/       TitleScreen.tsx (who is playing), Compass.tsx (what a player
-              sees), Tile.tsx (one hex), Board.tsx (the grown-up's map peek),
-              CombatModal.tsx (the fight, invitations and loot), FindCard.tsx
-              (what a search turned up), HookModal/GiveModal (the fisherman's
-              rope, and handing things over), ArtRoom.tsx (swap any picture for
-              one of your own), art/ (the drawings, and the upload store)
+              sees), Tile.tsx (one hex), Board.tsx (the map you remember),
+              CombatModal.tsx (the mini-game, the clock and the loot),
+              Hourglass.tsx (the turn clock), FindCard.tsx (what a search
+              turned up), HookModal/GiveModal (the fisherman's rope, and
+              handing things over), ArtRoom.tsx (swap any picture for one of
+              your own), art/ (the drawings, and the upload store)
 tools/        sim.ts (bot playtests), inline.mjs (single-file build)
 tests/        vitest, node environment, no rendering
 reference/    the rulebook, the build spec, and the token art prompt
@@ -94,27 +105,82 @@ you have not published.
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 434 tests
+npm test           # 400 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html, plus the artifact fragment
-npx vite-node tools/sim.ts 800 5 # bot playtest: how do 800 five-player games end?
+npx vite-node tools/sim.ts 800 5 # bot playtest: pacing, not balance - read the header
 ```
 
-## Current state: v0.30
+## Current state: v0.31
 
-Every system is in, and every earlier placeholder has been replaced with what the
-rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
-a failed roll costs exactly one health.** Do not inflate them without a playtest —
-the whole game is legible to a child because it runs on single digits.
+**v0.31 is the version where this stopped being a dice game.** Read the next four
+paragraphs before changing anything in `src/game/`; most of what was here before them
+was tuned against a number that turned out not to matter.
+
+For fifteen versions every constant in this game was set by `tools/sim.ts` - a bot
+playing eight hundred games of dice against itself. That meant the thing being
+optimised was **the win rate**, and nobody ever measured whether a family laughed. The
+stated goal at the top of this file was always "family time, not simulation depth". A
+dice roll is simulation depth.
+
+So **a fight is now a mini-game the table plays together** (`src/game/challenges.ts`,
+`src/game/combat.ts`). A monster deals one poker card, a mid boss two, the dragon
+three. The **suit** says which game - ♥ Quick Draw, ♠ Act It Out, ♣ True or Poo,
+♦ Puzzle - and the **rank** says how hard the thing is. A clock runs, and then the
+table taps whether they did it. Win every card and the monster is beaten; miss one and
+the fight is lost, which costs a health and nothing else.
+
+What that change dragged with it, in one list, because half of these look like
+regressions if you meet them cold: the board went back to 37 tiles, the party plays in
+teams, the evening is a fixed number of goes, health only ever costs you your skill,
+gear buys time and hints instead of damage, the stones are gone, and the sim can no
+longer measure fun and says so at the top of its own file.
 
 Key rules, so nothing gets "improved" back to a guess:
 
-- **Roles**: knight +1 health, **rogue +1 attack**, **scout +1 movement and +1
-  sight**, doctor heals and revives, **fisherman fishes and hooks**. Everyone starts on
-  3 health and $2. The scout's sight is the bonus that matters most now the board is
-  hidden — one extra ring is roughly triple what a turn tells you. Four are rulebook
-  §3; the fisherman is this build's own. The party is **whichever two to five of them
-  the table picked**, starting in pairs on the corners — see the roster bullet below.
+- **Teams are the piece that moves** (`src/game/teams.ts`). Two or three players are
+  one team; four split into two of two; five into three and two. **A team walks as one
+  tile-stack, and everybody in it plays every mini-game** — which is why it has to be
+  one stack, and why a hex with three tokens on it is the first thing the table sees
+  about how this game works. `Team` is deliberately a list of ids and nothing else: no
+  position, no health, no kit. Everything a team appears to own is owned by its members
+  standing on the same tile, and keeping it that thin is what let every rule written
+  before teams existed carry on working untouched.
+  - **Turn order is still an index into `players`**, and it only ever lands on a team's
+    first member. `endTurn` walks teams, not people.
+  - **Two is a real minimum**, not a default. Every game in the box needs somebody to
+    guess, to argue, or to be drawn for. One child and a timer is homework.
+- **An evening is `GOES_IN_AN_EVENING` (16), however it divides** (`turnLimitFor`). The
+  table asked for eight turns with two movements each, which is the four- and
+  five-player game. At a flat eight, a two-player party — one team, one movement a turn
+  — got **half an evening**: measured at three mini-games against six, and half the
+  ground covered. The thing being budgeted was never the turn, it was the go. So one
+  team plays 16 turns and two play 8, and every size measures at 6-8 mini-games.
+- **Skills are what health is for** (`src/game/skills.ts`). One each, one use per fight,
+  and every one of them helps the *team* through a challenge without touching the
+  challenge itself.
+
+  | | skill | what it does |
+  |---|---|---|
+  | knight | Take the hit | wears a lost fight alone, so nobody else pays |
+  | rogue | Peek | reads the hint, free |
+  | scout | Keep looking | `LINGER_SECONDS` more, on the clock that is running |
+  | doctor | Patch up | a health back for a friend — **and their skill with it** |
+  | fisherman | Cast again | throws this card back and draws another |
+
+  - **Only the knight's is not a button.** A child asked "do you want to save your
+    sister?" every time says yes every time, so the question is not a decision, it is a
+    tax on the moment. It fires by itself and is fenced by `whoTakesTheHit`: never while
+    it would put the knight down, because heroism that swaps one child for another is a
+    trade nobody chose.
+  - **One use per fight, not per game.** A power that fires once an evening gets hoarded
+    and then forgotten, and five children hoarding five buttons is five buttons nobody
+    presses.
+- **Roles**: knight +1 health, scout +1 sight, doctor patches people up, **fisherman
+  fishes and hooks**. Everyone starts on 3 health and $2. Four are rulebook §3; the
+  fisherman is this build's own. The rogue's old +1 attack and the scout's +1 movement
+  went with the dice and the per-player turn — their character now lives in their
+  skill, which is the better place for it.
 - **The fisherman's bargain** (v0.30): they cross open water at will and can never lose
   the rod, and in exchange **they hand nothing to the party**
   (`RoleProfile.tradesWithTheParty`). One-way, not exile — they can still be given to. A
@@ -134,13 +200,10 @@ Key rules, so nothing gets "improved" back to a guess:
     `tile.searched`; that split is what lets the fisherman always eat without letting
     them farm one bend.
   - **The hook** (`hookTargets`, `hook`) reaches one tile and either reels a friend
-    onto your tile or hauls you onto theirs. Dragging a downed friend to the doctor is
-    the best thing it does, so `fellAt` moves with the body. It is now a shortcut
-    rather than the only way onto a shared tile — see below.
-- **Players stack.** Walking onto a friend is legal, and getting the party onto one
-  tile is something the game wants: it is where you trade face to face, where the
-  fisherman's hook puts you, and where a group fight will have to happen. The old
-  blocking rule made the party five people who could never quite meet. Monsters are
+    onto your tile or hauls you onto theirs. Dragging a friend with no health left to
+    the doctor is the best thing it does — a health back is a **skill** back.
+- **Players stack**, and since v0.31 a team always does: it is where you trade face to
+  face, where the fisherman's hook puts you, and where the mini-game happens. Monsters are
   unchanged — onto one, never past it (§5).
 - **Handing things over** (`tileMates`, `giveTargets`, `give`) costs **nothing**, not
   the turn's action: walking to each other already cost both players turns, and a child
@@ -158,6 +221,11 @@ Key rules, so nothing gets "improved" back to a guess:
   every legal tile got one and all six tiles round the dragon were a wall. The radius
   now gives ground to keep at least `MIN_OPEN_PER_MONSTER` tiles free per monster, so
   the board stays a scatter. There is a test on the packing ratio.
+- **Walking onto a monster finds it and *offers* the fight** (`canTakeOn`, `takeOn`). It
+  does not start one. A fight is three minutes of everybody's evening with a clock
+  running, so the team gets asked — and it is what makes "you do not have to kill every
+  bandit" true rather than merely stated. One fight per team per turn, and a fight is
+  that team's action. This is the rule the thieves always had (§5.5), generalised.
 - **`src/palette.ts` owns every colour that names a thing.** A child learns this game
   by colour before they learn it by name — "the pink one" is how a seven-year-old
   refers to the knight for the first hour — so a thing's colour has to be identical on
@@ -204,29 +272,32 @@ Key rules, so nothing gets "improved" back to a guess:
 - **A turn is two tiles, and you can see two** (`BASE_MOVE`, `BASE_SIGHT`, both 2 as of
   v0.30). They are deliberately equal: you can always see the whole of where you might
   go, so a turn is a *route* rather than a poke at the next hex. **Movement is still
-  spent one tile at a time**, which is what keeps an ambush able to interrupt you
-  halfway and keeps "push on or stop?" a real question — and it is why there is no route
-  in state to go stale. If sight ever falls behind movement the last step becomes a
-  guess again; there is a test.
-- **The board is 91 tiles (`RADIUS` 5), and the turn limit is 16** — but the
-  board **falls in as the game runs** (`src/game/collapse.ts`), so what the party
-  actually plays on is 91 tiles, then 61, then 37, then 19. v0.22 had cut the ring off
-  to get an evening under twenty minutes; v0.24 puts it back because the collapse is a
-  better version of the same lever - it shortens the game by **closing the distance**
-  rather than by never having had any. Measured at five players: **10.7 rounds, 53
-  individual goes** — *shorter* than the 61-tile board, because two tiles a turn covers
-  ground faster than the board grew.
+  spent one tile at a time**, which keeps "push on or stop?" a real question and is why
+  there is no route in state to go stale. If sight ever falls behind movement the last
+  step becomes a guess again; there is a test.
+- **The board is 37 tiles (`RADIUS` 3)**, and it **falls in as the game runs**
+  (`src/game/collapse.ts`): 37 tiles, then 19, then the 7 round the dragon. It went to
+  91 in v0.30 to hold more exploring and came back in v0.31 when the evening stopped
+  being about exploring. **Sixteen goes of two tiles is sixteen tiles of walking for a
+  whole game**; on ninety-one tiles most of the map would be scenery nobody ever stood
+  on, which is a worse map than a small one. At radius 3 a corner is three steps from
+  the middle, so a team crosses the board twice and still has turns left for the things
+  worth stopping for.
 - **`ROWS` is sized off `RADIUS`.** It was the literal `"ABCDEFGHI"` — nine letters,
   which is exactly a radius-4 board and no more. Growing the board did not produce a
   bigger map, it produced `undefined` row letters, keys reading `"undefined3"`, and a
   crash three layers down in `distance`.
-- **The rim falls in every quarter of the game** (`COLLAPSE_MARKS`, `collapseRim`), and
-  anybody standing on it is **out of the game for good** (`Player.gone`). This is the
-  one permanent loss in a design that otherwise refuses them, so it is fenced:
-  a full turn's warning on the banner, the doomed ring drawn cracked, and one step is
-  always enough to get clear — falling in is a mistake, never bad luck. The exception
-  is a player who is *down* when the warning comes, who needs the doctor or the hook;
-  that is the sharpest thing in the game and it is meant to be.
+- **The rim falls twice: halfway, and three quarters through** (`COLLAPSE_MARKS`,
+  `collapseRim`), and anybody standing on it is **out of the game for good**
+  (`Player.gone`). It was three quarter-marks; on an eight-turn game those land on turns
+  2, 4 and 6, and a ring falling before anybody has walked anywhere is not a decision,
+  it is a tax on where you happened to start. Two marks leave the last turn fought in
+  the seven tiles round the dragon, which is the collapse doing exactly one job now:
+  getting everybody near the middle in time for the ending. Measured at **0.1-0.4
+  players lost a game**.
+  - This is the **only** permanent loss left in the design, so it stays fenced: a full
+    turn's warning on the banner, the doomed ring drawn cracked, and one step is always
+    enough to get clear. Falling in is a mistake, never bad luck.
   - **It tells you where the middle is**, which the hidden board otherwise withholds.
     Deliberate: a game that ends in a fight has to let the party find the fight, and a
     crumbling edge is the one honest way to say "the middle is that way" without
@@ -236,21 +307,39 @@ Key rules, so nothing gets "improved" back to a guess:
     starts a fight, and only one fight runs at a time. Seven tiles is the arena.
   - Monsters and hazards on the ring go with it; the **dragon backs up a tile instead**,
     because an ending that falls down a hole is not one.
-- **The dragon sleeps through the opening** (`DRAGON_WAKES_ON`, turn 6): `Enemy.dormant`
-  means no smoke, no blip, nothing to walk into, and the middle is an ordinary mountain
-  until it lands on it. It is left on the board rather than held back, so nothing else
-  can be placed on the middle tile. The opening exists so the party meets the bandits
-  **first** — you should arrive at the ending carrying what the middle of the game gave
-  you.
+- **Turn 8 is the dragon, for everybody, wherever they were standing** (`finalStand`).
+  The table asked for this in as many words, and it is the best rule in the game: it
+  removes the two worst endings a hex crawl has — "we never found it" and "we found it
+  and stood next to it while the clock ran out". Everybody is carried to the middle and
+  the last three cards are dealt to the whole table at once. It is also why nobody has
+  to be efficient: a team that spent the evening searching woods and losing to bandits
+  still gets the ending, and gets it with everybody in it. Measured: **100% of parties
+  meet the dragon**, at every size.
+  - `endCombat` ends the evening once the table has looked at how it went. A half-turn
+    of walking about after the dragon fight would be the worst possible note to finish
+    on.
+- **The dragon sleeps through the opening** (`dragonWakesOn`, about a third in):
+  `Enemy.dormant` means no smoke, no blip, nothing to walk into, and the middle is an
+  ordinary mountain until it lands on it. It is left on the board rather than held back,
+  so nothing else can be placed on the middle tile. A **share** of the limit rather than
+  the literal turn 6 it used to be: at eight turns that would land it two turns before
+  the last stand drags everybody to it anyway, and the loudest beat in the game would be
+  a footnote.
 - **Bandits keep arriving, more often the later it gets** (`mobArrivalChance`,
   `wanderIn`). The board used to be laid out once and then only ever empty out. Only
   bandits: an ogre appearing out of nowhere is a boss nobody could have planned for.
-- **The dragon carries `DRAGON_HEALTH_PER_PLAYER` (10-14) for every player at the
-  table**, which is the full slope and then some, while mid bosses keep the half slope.
-  Reported from the table: four players who shouted for each other killed the game's
-  ending **in a single round**. A dragon is now three or four rounds against any size of
-  party, and every round they fall short costs each of them a health. Bringing everybody
-  is still right; it is no longer free.
+- **How hard a monster is, is how many cards it takes** (`EnemyProfile.cards`): mob 1,
+  mid boss 2, thieves 2, dragon 3. One small number, and a child can be told "the dragon
+  is three games" and hold it for a whole evening. It replaced a health band, an
+  accumulating damage counter and a per-player scaling rule, none of which anybody at
+  the table could ever see.
+  - **It does not scale with the party**, and that is not an oversight. Dice damage did,
+    because five people rolling is five times the dice. Five people *guessing* is not
+    five times faster than two, it is louder. Bringing everybody helps because everybody
+    is thinking, which is the entire point of the change.
+  - **Nothing carries between fights.** Lose to the ogre and it is standing there
+    tomorrow exactly as it was. A wounded-enemy number was what turned the dragon into a
+    siege spread over a dozen goes, and a siege is the opposite of a moment.
 - **Board furniture is counted off `TILE_COUNT`**, not written down: cities /12, forests
   /9, chests /15. Those divisors reproduce every hand-tuned number this file has ever
   had at both board sizes, which is the point — the hand-tuned ones went stale the
@@ -263,14 +352,17 @@ Key rules, so nothing gets "improved" back to a guess:
   under `prefers-reduced-motion`, and **none of it carries information that is not also
   written down** — these fire dozens of times an evening, so an effect you have to sit
   through is a tax rather than a moment.
-- **The hourglass is not part of the game** (`src/ui/Hourglass.tsx`). Ninety seconds a
-  turn, and when the sand runs out it calls the same `endTurn` the button does. It lives
-  in the **view and never in `GameState`**, and that matters more than it looks: the
-  whole design rests on a game being reproducible from its seed, and a wall clock in the
-  state would make a saved game resume differently from the one that was put down. It
-  pauses behind a card and during a fight — a timer that ran while a child read the
-  event card would be punishing them for the app's own theatre — and it can be switched
-  off, because some evenings the point is the talking.
+- **Two clocks, and neither is part of the game.** The turn hourglass
+  (`src/ui/Hourglass.tsx`, 90 seconds, calls the same `endTurn` the button does) and the
+  mini-game countdown (`useCountdown` in `CombatModal`). Both live in the **view and
+  never in `GameState`** — a wall clock in the state would make a saved game resume
+  differently from the one that was put down. The hourglass **pauses behind a card and
+  during a fight**, which now matters twice over: the mini-game has its own clock, and
+  two clocks running at once on one screen is a thing nobody can play.
+  - The mini-game clock's timeout is its **own effect**, not something the tick does
+    inline. Calling the store from inside a `setState` updater is a side effect in the
+    render phase, and React is entitled to run it twice — which would cost the team two
+    health for one clock.
 - **Games are saved after every change** (`src/game/save.ts`, and a `useGame.subscribe`
   in the store rather than a call in each of twenty setters — the twenty-first would be
   the one somebody forgot, and a save that is right most of the time loses an evening
@@ -282,50 +374,57 @@ Key rules, so nothing gets "improved" back to a guess:
   five, and **turn order is the order they were tapped** — going first is a real
   advantage on a board where the good ground is found rather than seen, so the picker
   numbers them. `TURN_ORDER` is now the menu and the fallback, not the roster.
-- **The board scales to the party** (`monsterCount`, `bossHealth`). Handing five
-  players' worth of board to two children is a different game, not a harder one: the
-  sim wiped two-player parties **62%** of the time. Monster *counts* scale linearly;
-  boss *health* scales at **half** the slope, because scaling it fully overshot and
-  flipped two-player games to 69% wins — a party's damage is not purely linear in its
-  size, since each brings their own weapon bonus and the group only has to beat the
-  remaining health once. Every size now lands in a 40-51% win band. Re-measure if you
-  touch either.
-- **A fighter may do something other than swing** (`Combat.support`, `supportOptions`,
-  `pledgeSupport`). Only the doctor has one — patch somebody up instead of rolling, at
-  the cost of their dice that round, which is exactly the trade worth making when a
-  failed roll costs everybody a health. The shape is `{ by, kind, to }` rather than a
-  doctor-shaped field **because this is where weapon skills and gems will hang**;
-  `"heal"` is simply the only kind built.
-- **Group fights (§8) are in.** The starter of a fight may shout for anybody inside
-  **their own** movement range (`inviteTargets`) — so a scout who picks the fight pulls
-  from further away, which is a second reason to send them first. Invited players move
-  onto the tile and roll, and it **does not spend their turn**. Every participant's
-  dice are totalled into one number against the monster, and a failed roll costs
-  **every one of them** a health.
-  - Both of §8's balance guards are enforced: **mobs stay solo** (`invitable`) and a
-    player joins **one fight per round** (`joinedFightThisRound`, cleared when the turn
-    rolls over). The rulebook is explicit that without these the party clusters on
-    every bandit and turn order stops mattering.
-  - **If the starter falls with friends still up, the fight carries on** and the next
-    one along takes over as starter — the party is standing right there, and ending it
-    because one of them went down would be the app overruling the table. The picks go
-    with the job. The fight ends only when everybody in it is down.
-  - **§9's field feature is +1 to each**, not +1 per player. §9's wording ("+1 to the
-    toll per player in the fight") reads both ways and has only ever been exercised
-    solo; the other reading is a five-player wipe on one bad roll. A §15-style choice,
-    made in `extraToll`.
+- **The board scales to the party** (`monsterCount`). Handing five players' worth of
+  board to two children is a different game, not a harder one. Monster *counts* scale
+  linearly; monster *difficulty* does not scale at all any more (see the cards bullet
+  above), and the turn limit does the balancing instead (`turnLimitFor`).
+- **Gear buys time, hints and health — never damage**, because there is no damage to
+  buy. The team's **best** weapon buys `SECONDS_PER_WEAPON` a point on every clock (the
+  best, not everybody's added together: five children with frying pans must not get
+  three minutes to draw a cat). **Boots buy hints**, one a pair, spent across the fight.
+  **A coat is still a health**, which is now the number of lost fights the team can
+  absorb.
+  - **Every one of the 52 challenges has a hint, including the two games with no right
+    answer.** A hint on a drawing is not a step towards an answer — there is no answer —
+    it is a second thing to draw that makes the first guessable, which is exactly what
+    an older sibling would lean over and whisper. A help that only worked on half the
+    deck would make gear feel broken on the other half.
+- **§8's group fight is the team, and the invitation system is gone**
+  (`inviteTargets`, `invite`, `Combat.support`, `pledgeSupport` — all removed). There is
+  nobody left to shout for: everybody standing on the tile is about to be shouting
+  guesses anyway. The starter is still named on `Combat.playerId` because §10 gives them
+  the picks, and that outlives the fight.
 - **Loot distribution (§10)**: `takeSpoil(state, itemId, toId?)`. The starter keeps a
   pick or hands it to **anybody who fought** — the rulebook's own words. Deliberately
   the starter's call and not a vote: five children negotiating a dragon's hoard is not
   a mechanic, it is an evening. The purse is paid to **each** participant rather than
   split, because splitting $2 two ways is one argument and two disappointments.
-- **Combat (§7)**: roll 3 dice + attack against the enemy's *remaining* health. Over
-  it, beaten. Under it, the damage sticks and you lose **1 health, flat**. Exactly
-  equal, **nothing happens and you go back where you started**.
-- **Features (§9)**: every monster draws one, the dragon two, before the encounter.
-  Water = escape once on a river; railway = a health at the start; forest = −1 attack
-  for everyone; field = +1 to the toll per player; city = $1 on a city tile, else a
-  health.
+- **Combat (§7) is a run of mini-games.** `startCombat` deals the monster's cards from
+  a **third poker deck** (`challengeDeck` — its own shuffle, like events and searches,
+  because a fight and a search drawing off one deck would make the ground the party has
+  turned over decide which games they get). Then `wonTrial` / `lostTrial`, and **only the
+  table can call either**. The whole hand is dealt up front so the team can see what it
+  has taken on before the first clock starts — three cards is the dragon telling you
+  what the next five minutes are.
+  - **Time is flat per game kind; only the content gets harder with rank** (`SECONDS`,
+    `secondsFor`). Taking the clock away *and* making the thing harder is two
+    punishments for one card, and the one a table actually feels is the content. This is
+    a deliberate reading of "the number is the difficulty level".
+  - **Quick Draw and Act It Out hide the prompt from everybody but the performer.** The
+    device is on the table with four people round it, so the card goes face down, the
+    person doing it taps to look, and taps again to hide it before the clock starts.
+    Without that step those two games do not work at all — the sort of thing that is
+    obvious at a table and invisible in a spec.
+  - **The answer is always shown when the fight ends**, on the two games that have one.
+    A puzzle nobody was ever told the answer to is the one thing at a table that
+    genuinely annoys a child, and it is the difference between a hard question and an
+    unfair one.
+- **Features (§9)**: every monster draws one, the dragon two, before the encounter — and
+  **all five now bite the mini-game** rather than the dice (`FEATURE_BITE`). Water =
+  slips away downriver once; railway = a health before the first card; forest = ten
+  seconds off every clock; field = losing costs a second health; city = no hints, it
+  knows these streets. §9 named five and specified only the water escape; the rest was
+  always a guess, and re-pointing it is the same guess aimed at the game that exists.
 - **Search (§6)**: on field or forest, red finds gear, **black 2-6 turns up something
   to eat**, higher black finds nothing, the joker is a thief who takes the bone if you
   have one. The food is this build's own addition to §6: every black card being a
@@ -362,13 +461,10 @@ Key rules, so nothing gets "improved" back to a guess:
   **mob 0%, mid boss 30%, dragon 50%, river chest 50%** (`ENEMIES[kind].fineChance`,
   `FINE_CHEST_CHANCE`). A chest must stay at or above a mid boss or the river stops
   being worth the walk. There is a test on the ordering.
-- **Escaping (§7)**: no longer free. `escapeChance` is `ESCAPE_BASE` plus
-  `ESCAPE_PER_TILE` per tile of movement over one, plus `ESCAPE_AMBUSH_BONUS` if you
-  walked into it blind, capped at `ESCAPE_CAP` — never certain, so running is a gamble
-  rather than an undo. **A failed attempt costs no health**: if running could hurt you
-  it would be strictly worse than swinging and nobody would ever do it. This is what
-  makes boots matter twice, and `ESCAPE_CAP` is the dial to move if fights start
-  feeling inescapable at the table.
+- **There is nothing to escape from.** The escape roll is gone with the dice, because
+  the decision moved to *before* the fight (`canTakeOn`). A choice up front beats a
+  gamble after, and it is a better one: you know what you are taking on, and how many
+  cards it is, when you make it.
 - **Searches can go wrong** (`MISHAPS`): a black **face** card is a mishap keyed to the
   ground — a snake in the woods, wire across a city alley, a wasps' nest in a field.
   Roughly one search in nine. They cost a health or a piece of gear, never a turn, and
@@ -384,57 +480,11 @@ Key rules, so nothing gets "improved" back to a guess:
   an empty river chest has something floating in it. Both are consolation on the rounds
   where the gear pile hands over nothing anybody wants, which late in a game is most of
   them. Neither competes with gear, so neither can unbalance §10.
-- **Stones give verbs, not numbers** (`src/game/gems.ts`). This is the equipment-depth
-  system and it is deliberately not more arithmetic: gear owns the numbers, and by turn
-  six everybody holds the best of all three slots and a find is a shrug. A stone gives
-  you **a button you did not have**. All three colours are built.
-  - **One stone per player, three meanings.** It may be moved between weapon, coat and
-    boots for **nothing** on your turn — that is the whole decision, and it is re-made
-    whenever the game changes shape. **Never mid-fight** (`canSetGem`): switching to the
-    coat after seeing a roll fall short would turn a once-a-game save into a save every
-    fight, which is the one way this could quietly become a number again.
-  - **Green is *keep going*, red is *you, now*, blue is *everybody else*.** Nine
-    abilities from three objects, and the rows mean the same thing in every colour:
-    weapon is the fight, coat is surviving, boots are reach.
-
-    | | weapon | coat | boots |
-    |---|---|---|---|
-    | **green** | Spoils — everyone who swung eats | Second wind — a blow that would down you leaves you on one | Dig again — search spent ground |
-    | **red** | Second swing — throw twice, keep the better | Grit — a round that falls short costs you nothing | Slip away — backing out is certain |
-    | **blue** | Carry — your shout reaches one tile further | Take the hit — a friend's blow lands on you | Long arm — hand something a tile away |
-  - **Three limits, and they are the shape of the colours** (`GemPower.limit`).
-    `"always"` never runs out; `"game"` fires once an evening and is tracked per setting
-    on `Gem.spent`, so the coat's save and the boots' dig are separate; `"fight"` comes
-    back with the next fight and is tracked on `Combat.stonesSpent`, which disappears
-    with the fight so there is nothing to reset. Red's whole set is `"fight"` — small,
-    and there every time — which is what makes it the *now* stone.
-  - **`stone(player, kind, setting, combat)` is the only question any power asks.** One
-    call site per power. A new colour is a row in the table and a call here, and the
-    rules about what counts as available cannot drift between the nine of them.
-  - Three rules the next two colours must also hold to. **No stone may show you the
-    board** — the hidden map is what the note-taking is for. **No stone may do a role's
-    job better than the role** — none heals, sees further, or hits harder. **No
-    invisible passives** — either it is a button, or it is drawn where a child can see
-    it, and a spent power is greyed out on the strip and in the party list.
-  - **Drops are low and only ever to somebody empty-handed** (`maybeAStone`): a body
-    `GEM_FROM_A_BODY`, ground `GEM_FROM_THE_GROUND`, a chest `GEM_FROM_A_CHEST`, and the
-    colour is its own even roll. That one rule replaces a whole pile of "you already
-    have one" handling and spreads stones round the party by itself. A search rolls for
-    one **on top of** its card, never instead of it. Measured at **1.9 a game with five
-    players**; that is the dial if the table wants them commoner.
-  - **Dig again never opens a chest twice** (`canDigAgain`). `Tile.searched` is what a
-    chest spends, so without that guard the stone would be the best find in the game
-    rather than a nice one.
-  - **Take the hit only fires when the holder stays standing.** Heroism that swaps one
-    child for another is a trade nobody chose, and this one fires by itself — a player
-    asked "do you want to save your sister?" every round says yes every round, so the
-    automatic version is the honest one, but only while it cannot backfire.
-  - **The dragon carries a stone too** (`DRAGON_STONE`, green): once in the fight, the
-    blow that should finish it leaves it on one health. Added as the counter to the
-    party's three colours and **measured at doing nothing to the win rate** — the dragon
-    fight is a siege spread over a dozen attempts, so one health is a rounding error. It
-    is kept for the beat, not for the balance; `DRAGON_HEALTH_PER_PLAYER` is what
-    actually moved (9-13 to **10-14**).
+- **The stones are gone, and they are on the backlog to be redesigned.** Nine powers
+  hung off dice rolls, rounds and escape odds, and none of those exist any more. Better
+  removed than reinterpreted: a stone that gave +15 seconds would be a stone in name
+  only, and the redesign should start from what a mini-game needs rather than from what
+  nine existing buttons could be bent into.
 - **Loot (§10)**: items, **plus a small purse** — $1 mob, $2 mid boss, $5 dragon. This
   bends §10, which is items-only, on purpose. Keep the amounts under `GEAR_PRICE`:
   the moment a mob out-earns a sale, the shop stops mattering and so does the
@@ -442,22 +492,35 @@ Key rules, so nothing gets "improved" back to a guess:
   Money reaches the party three ways and no others — a body, the ground, and selling
   what you do not need. `tools/sim.ts` reports the party's purse alongside the
   endings; run it after touching any of the three.
-- **Winning (§14)**: kill the dragon before the turn limit. `GameState.ending`.
+- **Winning (§14)**: beat the dragon. `GameState.ending` is `"victory"` or
+  `"outOfTime"` — **`partyLost` is gone**, because a team never wipes. Health only ever
+  costs a player their skill (`hasSkill`), a player with no skill still plays every
+  mini-game, and the abyss is the one thing that removes anybody at all. There is
+  nothing left that can end an evening early.
+  - `Player.dead`, `fellAt`, `fellOn` and the whole get-up-after-a-turn subsystem went
+    with it. Nothing could set them any more, and a field that can only ever be true
+    alongside `gone` is a field the next reader has to puzzle out.
 
 What is left is listed under "Still open" in the README.
 
-- `turn.ts` — `legalMoves`, `movePlayer`, `endTurn`. One move per turn; moving onto
-  an enemy starts a fight, and the turn cannot pass while one is running.
-- `combat.ts` — `startCombat`, `attack`, `flee`, `endCombat`. A round is one
-  exchange: you swing, it swings back if it is still up.
-- `enemies.ts` — profiles, placement, `healthLeft`, `enemyAt`.
+- `teams.ts` — `teamSizes`, `createTeams`, `membersOf`, `activeMembers`. Who walks with
+  whom, and nothing else.
+- `turn.ts` — `legalMoves`, `movePlayer`, `endTurn`, `canTakeOn`/`takeOn`, `finalStand`.
+  The whole team walks; walking onto an enemy finds it and offers the fight; the turn
+  passes to the next *team*; the last turn is the dragon.
+- `combat.ts` — `startCombat`, `nowPlaying`, `wonTrial`, `lostTrial`, `useHint`,
+  `useSkill`, `endCombat`. A fight is a run of cards, and the table calls each one.
+- `challenges.ts` — the fifty-two mini-games, one per card. Hand-written, and shaped
+  like what an LLM would return so the backlog swap is a source change, not a redesign.
+- `skills.ts` — one per role, one use per fight, and what health is for.
+- `enemies.ts` — profiles (`cards`, not health), placement, `enemyAt`.
 - `items.ts` — the gear list, the pile, `equip`, `consume`. One pile for the whole
   game; food is the only unlimited thing.
 - `actions.ts` — `search`, `openShop`, `buy`, `eat`, `takeLoot`. One action a turn
   and a fight counts as it; `eat` deliberately ignores whose turn it is. `search`
   also leaves a `Find` in the state for the screen to show; see below.
-- `cards.ts` — two poker decks, drawn down and reshuffled. Events and searches never
-  share a shuffle; the spec is explicit about that.
+- `cards.ts` — three poker decks, drawn down and reshuffled. Events, searches and
+  mini-games never share a shuffle.
 - `events.ts` — the deck and every card's effect. Add new events here.
 - `hazards.ts` — the four wanderers, their movement, what happens when they land on
   somebody, and the tornado's tile destruction. `moveHazards` is the only thing that
@@ -524,10 +587,15 @@ is deliberately gone. Do not put it back without reading this.**
 
 It was written for a 37-tile board with five kinds of terrain, where a child could hold
 the shape of the map in their head or on one sheet of paper. It stopped being true when
-the board grew to 91 tiles and started carrying things worth remembering — a bridge, a
-shop, a chest, and eventually a mountain. At that size nobody takes notes; they simply
-forget, and then the exploring is *wasted* rather than banked, which is worse than
-either version of the rule intended.
+the board grew to 91 tiles and started carrying things worth remembering — a shop, a
+chest, and eventually a mountain. At that size nobody takes notes; they simply forget,
+and then the exploring is *wasted* rather than banked.
+
+**The board came back to 37 in v0.31 and the memory stayed.** Not an oversight: what
+the old rule protected — telling your sister where the shop is — is protected by memory
+being **per player** (`Player.seen`), not by there being no memory. And a party that now
+plays as one or two teams has fewer pairs of eyes on the map than five separate
+walkers did, so forgetting costs more, not less.
 
 **What the old rule was protecting is still protected, by a different mechanism:**
 memory is **per player, not per party** (`Player.seen`). You still have to tell your
@@ -548,16 +616,23 @@ Read `src/game/vision.ts` before touching any of it. The rules that still hold:
 - **Hazards are always visible to everyone**; monsters never are. A tornado you cannot
   see coming is not a funny setback, and the three players who are not moving need
   something to watch.
-- **Monsters are hidden until somebody walks into one** (`Enemy.found`), which makes
-  that an ambush, so `flee` lets you straight back out of a first-round ambush for
-  free. Once found, a monster stays on the board — the party paid a turn for that.
-- **The dragon smokes** (`SMOKE_RADIUS`, one ring **further than sight**) and sits at
-  the centre. One monster on one tile in ninety, blind, is never found inside the turn
-  limit, and "we never found it" is not a defeat, it is a shrug. It is derived from
-  `BASE_SIGHT` rather than written down: it was a flat 2 while sight was a flat 1, and
-  raising sight to 2 in v0.30 made the smoke reach exactly as far as ordinary eyesight
-  and quietly stop being a clue at all. **A hint that is not better than looking is not
-  a hint.**
+- **Monsters are hidden until somebody walks into one** (`Enemy.found`). Walking on
+  finds it and offers the fight rather than starting one, so there is no ambush to back
+  out of any more — the decision is up front. Once found, a monster stays on the board:
+  the party paid a step for that.
+- **The dragon smokes** (`SMOKE_RADIUS`) and sits at the centre. Two bounds, and it
+  needs both: **at least a ring past sight**, so the smell arrives before the sight of
+  the tile does; and **never the whole board** (`RADIUS - 1`), because at radius 3 a
+  reach of 3 touches all four corners and every player would be told "the dragon is
+  close" from the moment it lands. A hint that is always on is wallpaper.
+  - On the small board those two bounds make it **equal** to sight, and that is still a
+    real clue: **eyesight never reveals an unfound monster at all** (`enemyVisible`).
+    Seeing the middle tile tells you it is a mountain; smelling it tells you what is on
+    it. The older note here said a clue no better than looking is no clue — that was
+    written about *tiles* and does not hold for the one thing eyesight is forbidden to
+    show. Both bounds are derived from constants rather than written down, because a
+    hand-set number here has now gone stale twice: once when sight rose, and once when
+    the board shrank.
 - **There is no in-app notepad.** There was one; it was removed because players keep
   notes on paper or a phone, and a text box in the sidebar was a worse version of that.
   The point stands regardless: the app remembers nothing, so the map lives outside it.
@@ -567,55 +642,49 @@ right when you could see them coming; hidden, it makes every tile equally likely
 hold something, so exploring tells you nothing. Clumps and empty runs are what the
 notes are for.
 
-## Balance, and how to check it
+## Pacing, and what the sim can and cannot tell you
 
-`npx vite-node tools/sim.ts 800 5` plays 800 five-player games with a bot and prints
-how they end; the second argument is the party size, and every size wants its own run.
-**Use 800, not 200** — at 200 the standard error is about 3 points, which is wide
-enough to invent an improvement that is not there. That happened: v0.17 read 20% on 200
-games and 25% on 800.
+**Read this before quoting a number out of `tools/sim.ts`.**
 
-At v0.27, five players: **45% wins, 43% out of time, 12% wipes**, and every party size
-from two to five lands in a **43-48% win band**. The per-size
-table is in the README. v0.23 had drifted to 85% wins after the sim bot was taught to
-eat (which was a measurement fix, not a game change, and which made every wipe figure
-printed before it fiction); v0.24's harder dragon, sleeping opening and collapsing board
-are what brought it back.
+The sim can no longer measure whether this game is fun, and the honest reading is that
+it never could. For fifteen versions the win rate it printed was the thing being tuned
+— which meant the thing being optimised was a bot playing dice against itself, and
+nobody ever measured whether a family laughed. In v0.31 a fight became a mini-game, and
+**a bot cannot draw a dragon**. It tosses `CHILD_WINS_A_CARD` and that is the honest
+most it can do. **The win rate it prints is an artefact of that constant. Do not tune
+the game against it, and do not tune the constant.** The real number is a family at a
+table and the only way to find it is to sit at one.
 
-Two numbers that come with it: the dragon is **fought about thirteen times a game** at
-five players, because the arena delivers the party to it over and over and a bot flees
-at one health — damage accumulates across those attempts, which is what makes the siege
-work. And **"we never found the dragon" is gone** as an ending; timeouts are now parties
-who found it and could not finish it.
+What it still measures, and what it is worth running for:
 
-How it got here, because the shape of the story is the useful part:
+- **How long an evening is.** Turns played, and how many fights the table sits through.
+  Every fight is a real several minutes of real people, so the fight count is the number
+  that decides whether this fits in an evening.
+- **Whether the board delivers the party to things.** A run where nobody meets a mid
+  boss is a board problem, not a difficulty problem.
+- **Whether the economy still moves** — money found, gear picked up.
+- **That a whole game runs to an ending from any seed**, without stalling.
 
-| | win | timeout | wipe | what moved it |
-|---|---|---|---|---|
-| v0.13 | 20% | 55% | 26% | — |
-| v0.18 | 32% | 49% | 20% | food from searches, rogue's extra pick, **and the bot finally taking loot** |
-| v0.19 | 38% | 45% | 17% | **group fights** |
-| v0.20 | 40% | 34% | 26% | more events late on |
-| v0.22 | 40% | 34% | 26% | half the board, half the turns - length changed, difficulty did not |
-| v0.23 | 74% | 21% | 5% | **the bot learned to eat** - a sim fix, not a game change |
-| v0.23 | 85% | 12% | 3% | the party starting in pairs |
-| v0.24 | 48% | 35% | 17% | **a dragon that scales per player**, a board that falls in, and the dragon sleeping through the opening |
-| v0.26 | 46% | 39% | 15% | the green stone — inside the noise, which is the point: it adds a decision, not a number |
-| v0.27 | 45% | 43% | 12% | red and blue stones (**+6 on their own**), paid for with a dragon at 10-14 a head |
+At v0.31, `npx vite-node tools/sim.ts 800 <size>`:
 
-Two things worth keeping in mind before you trust a number here:
+| players | teams | turns | fights | mini-games | met the dragon | lost to the abyss |
+|---|---|---|---|---|---|---|
+| 2 | 1 | 16 | 3.5 | 7.8 | 100% | 0.1 |
+| 4 | 2 | 8 | 3.8 | 8.5 | 100% | 0.2 |
+| 5 | 2 | 8 | 3.8 | 8.4 | 100% | 0.4 |
 
-- **The bot is deliberately worse than a family.** It never buys gear, never sells
-  anything, and coordinates only as far as shouting for help in a fight. Treat every
-  figure as a floor. It **does** eat as of v0.23; it went twenty-two versions without,
-  which made every wipe figure before that badly pessimistic.
-- **Fixing the bot moves the numbers without the game changing.** It went a dozen
-  versions never picking up loot, which made every change to what monsters drop
-  invisible to the sim; fixing that alone was worth three points. When a jump follows a
-  change to `tools/sim.ts`, say so rather than banking it as balance.
+**About eight mini-games an evening, one of them the three-card dragon, at every party
+size.** That is the shape the whole version is aiming at, and it is what the derived
+turn limit (`turnLimitFor`) exists to hold flat — at a fixed eight turns the two-player
+game got three.
 
-Run it after any change to the turn limit, sight, monster placement, the economy, or
-anything in `bossHealth` / `monsterCount`.
+Still true of the bot, and still worth knowing: it is **deliberately worse than a
+family** (never buys gear, never sells anything), so treat every figure as a floor. And
+**fixing the bot moves the numbers without the game changing** — when a jump follows a
+change to `tools/sim.ts`, say so rather than banking it as balance.
+
+Run it after any change to the turn limit, the board radius, sight, monster placement,
+the collapse, or the economy.
 
 ## Artwork
 
@@ -651,7 +720,7 @@ Four things about that worth not rediscovering:
   Before v0.28 only the round `Token` honoured uploads, so a photographed frying pan
   showed on the find card and nowhere else — fifteen call sites drew the art directly
   and never asked. If you add a place a drawing appears, wrap it.
-- **`art/catalogue.ts` reads the slots off the game's own data**, so a new stone, a new
+- **`art/catalogue.ts` reads the slots off the game's own data**, so a new
   monster or a new piece of gear appears in the art room by itself. **Only list slots
   something actually reads** — a slot the room offers and nothing honours is a promise
   the app breaks, and a child who draws a picture that never appears will not draw a
@@ -746,31 +815,36 @@ evening is a tax, not a moment.
 
 Still genuinely undecided, from the rulebook's §15:
 
-- **Must mid bosses die before the dragon?** Nothing stops a party running at it on
-  turn one. The dice punish that, but no rule forbids it.
-- **How much should a group fight cost?** §8 is built, and the win rate says it was
-  the missing piece (32% to 38%). What is still a guess is the *price*: everybody in
-  the fight pays a health per failed roll, which is the rulebook's rule, but with five
-  players that is five health a round off the party. Watch whether big fights start
-  feeling like a tax on turning up.
+- **Are eight mini-games an evening the right number?** The sim says that is what a
+  game delivers at every party size. Whether that is a good night out is the one thing
+  the sim cannot tell you, and the only way to find out is to play it. If it is thin,
+  the dial is the turn limit (`GOES_IN_AN_EVENING`); if it drags, it is the same dial
+  the other way.
+- **Is a fight lost on one missed card too sharp?** It keeps a fight to a few minutes
+  and keeps a monster worth thinking twice about, and losing costs a single health and
+  never a player. But nobody has watched a seven-year-old miss the first card of a
+  three-card dragon yet.
+- **The mini-game content will repeat.** Fifty-two hand-written challenges is a few
+  evenings before a family sees one twice. Generating them from an LLM is on the
+  backlog, and `Challenge` is deliberately shaped like what a model would return.
 
 Choices the rulebook leaves open (its §15), all marked in the code where they are made:
 
-- **A downed player gets up on their own after a full turn, at 1 health**, and a
-  doctor reaching them is instant — §7's suggested compromise, not both rules at once.
-  Nobody is out of the game for good; a child knocked out on turn 8 of 32 with nothing
-  to do for the rest of the evening is the failure this avoids.
+- **Nobody is ever knocked out.** §7's compromise (get up after a turn, or a doctor
+  gets you up at once) is gone because there is nothing left to get up from: health at
+  zero costs you your skill and nothing else, and you keep playing every mini-game. The
+  failure that rule avoided — a child with nothing to do for the rest of the evening —
+  is now avoided by there being no state in which that can happen.
 - **Wrecked ground recovers as soon as the tornado moves on** — §15's own suggestion.
 - **A beaten thief is gone for good.**
-- **Two poker decks**, one for events and one for searches.
+- **Three poker decks**: events, searches, and the one monsters deal mini-games from.
 - **A city never runs out of food**, and sells gear only from the undrawn pile.
-- **Hazards are placed before the party**, as §5.5 says; the party starts **in pairs on
-  the corners** (`startingSpots`), which is this build's choice, not the rulebook's (its
-  sample setup clusters them at the top edge). One to a corner was the older choice and
-  it meant nobody was ever beside anybody, which quietly disabled the doctor, the hook,
-  handing things over and half of §8's invitations. Partners take the *rim* neighbours,
-  so everybody still starts three tiles from the dragon; an odd party makes a trio
-  rather than leaving its last member on a corner alone.
+- **Hazards are placed before the party**, as §5.5 says; each **team** starts together
+  on its own corner (`startingSpots`), which is this build's choice, not the rulebook's
+  (its sample setup clusters them at the top edge). It went one-to-a-corner, then pairs,
+  and now the whole team on one tile — because a team is the thing that moves. The old
+  note said partners take the *rim* neighbours so nobody starts inside the
+  smoke; a whole team on the corner does that by itself.
 - **The tornado picks which piece of gear it takes and where it drops you.** The
   rulebook makes both the player's choice; automating them keeps a turn moving, and it
   takes the least useful piece.

@@ -1,5 +1,18 @@
 # Dorfromantik Hex RPG — Rulebook
 
+> **Note added in v0.31 — the app has departed from §7, §8 and §9.**
+>
+> This document is still the authoritative statement of the *tabletop* game and has not
+> been edited. The web build no longer resolves a fight with dice: a monster deals a
+> poker card (one for a mob, two for a mid boss, three for the dragon), the suit picks a
+> mini-game the whole team plays against a clock, and the table says whether they did
+> it. That replaced §7's rolling, §7's escape, §8's invitations, and the dice half of
+> §9's features. §10's loot, §6's search, §5's movement and §5.5's hazards are
+> unchanged and still built to this text.
+>
+> Every departure is written down, with its reason, in `CLAUDE.md` under
+> "Current state" — read that before assuming the code is wrong and this is right.
+
 A cooperative-ish tabletop RPG played on a hexagonal board of Dorfromantik tiles.
 **Goal:** defeat the final boss within the turn limit.
 

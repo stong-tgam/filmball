@@ -347,7 +347,7 @@ export function lostTrial(state: GameState): GameState {
     ...state,
     combat: { ...withTrial(combat, combat.at, { result: "lost" }), outcome: "partyBeaten" },
   };
-  next = hurt(next, cost, `Out of time. The ${beatenBy} got the better of them.`);
+  next = hurt(next, cost, `That one got away from them. The ${beatenBy} had the better of it.`);
   return note(next, `${beatenBy} ${verb(enemy.kind, "is", "are")} still there. They can try again.`);
 }
 

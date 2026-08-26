@@ -4,10 +4,12 @@ Hotseat (one device, passed around) digital version of the Hex RPG tabletop game
 Built to `reference/hex-rpg-rulebook.md`, with `reference/webapp-spec.md` as the build
 plan.
 
-**This build is v0.30.** Every system the spec asks for is in, every placeholder from
-the early builds has been replaced with what the rulebook actually says, and the two
-rules the rulebook leans on hardest — the hidden board and the group fight — are both
-built. **The goal: kill the dragon before the board falls out from under you.**
+**This build is v0.31, and it is the one where the game changed shape.** A fight used
+to be three dice against a health bar. It is now **a mini-game the table plays
+together**: a monster deals a poker card, the suit picks the game — Quick Draw, Act It
+Out, True or Poo, Puzzle — the rank picks how hard, a clock runs, and *the family*
+decides whether they did it. Everything else in this list is downstream of that.
+**The goal: beat the dragon on the last turn, together.**
 
 The version is `v0.<milestone>`, and it stays below 1 on purpose: `v1.0` is reserved
 for the first build worth handing to somebody outside the family, and that is a
@@ -27,16 +29,21 @@ npx vite-node tools/sim.ts 800   # bot playtest: how do 800 games end?
 
 ## The game, in one paragraph
 
-Two to five players — knight, rogue, scout, doctor, fisher, chosen at the table — start
-on **3 health and $2** on the corners of a 91-tile board **they cannot see** — a board
-that loses its outermost ring every quarter of the game. Each round
-a poker card turns over and a high one brings an event, more often the later it gets.
-Then everyone moves a tile at a time (the scout gets two) and takes one action: search
-the ground, fish a river, trade in a city, hand something to whoever they are standing
-with, or fight what they walked into. Nobody fights a boss alone if they can help it —
-you shout, your friends run in, and all the dice count. Four hazards wander the board.
-Bandits, ogres and one dragon stand between the party and turn 16, and how many of each
-depends on how many of you sat down.
+Two to five players — knight, rogue, scout, doctor, fisher, chosen at the table — split
+into **teams** (two or three make one; four make two; five make three and two) and start
+on **3 health and $2** on the corners of a 37-tile board **they cannot see**, which
+loses its outer ring halfway through and the next one at three quarters. Each turn a
+poker card turns over and a high one brings an event, more often the later it gets. Then
+each team walks two tiles, one at a time, and takes one action: search the ground, fish
+a river, trade in a city, hand something over, or **take on** whatever they have found.
+
+A fight is a run of mini-games — one card for a bandit, two for an ogre, three for the
+dragon — and the team has to win **all** of them. Miss one and the fight is lost: a
+health off everybody, and the monster is standing there tomorrow exactly as it was.
+Health at zero costs a player their **skill**, never their place at the table. Gear buys
+seconds, hints and health rather than damage. Four hazards wander the board. **On the
+last turn everybody is carried to the dragon whatever they are holding**, and that is
+the evening.
 
 ## What the rulebook changed
 
@@ -793,35 +800,137 @@ shape moving from timeouts to wipes (five players: 52/27/22 against 45/43/12). G
 around better means finding more trouble. `DRAGON_HEALTH_PER_PLAYER` is the dial if the
 table wants it tighter.
 
+## v0.31: the game the family plays
+
+The pivot, and the reason for it is worth writing down because it is not a balance
+note. For fifteen versions every number in this game was set by `tools/sim.ts` — a bot
+playing eight hundred games of dice against itself. **The thing being optimised was a
+win rate, and nobody ever measured whether a family laughed.** The stated goal was
+always family time rather than simulation depth, and a dice roll is simulation depth.
+
+**A fight is now a mini-game.** A bandit deals one poker card, an ogre two, the dragon
+three, and the team has to win all of them.
+
+| suit | game | how |
+|---|---|---|
+| ♥ hearts | Quick Draw | one of you draws it, the rest shout guesses |
+| ♠ spades | Act It Out | one of you acts it, no words, no noises |
+| ♣ clubs | True or Poo | the whole team calls it, together |
+| ♦ diamonds | Puzzle | the whole team works it out |
+
+The **rank** says how hard the thing is. The **clock** is flat per game kind: taking
+time away *and* making the task harder is two punishments for one card, and the one a
+table feels is the content. Fifty-two challenges are hand-written in
+`src/game/challenges.ts`, every one of them attemptable by a seven-year-old, and every
+one carries a hint — including the two games with no right answer, where a hint is a
+second thing to draw rather than a step towards an answer.
+
+**The app poses and times; the family judges.** There is no scoring and there never
+will be. No machine can tell whether a drawing looked enough like a dragon, and one
+that tried would be wrong in front of a child. The screen ends every challenge with
+*We did it!* and *We could not*, and those two buttons are the whole adjudication
+system.
+
+One piece of stagecraft that turned out to be load-bearing: **Quick Draw and Act It Out
+hide the card from everybody but the performer.** The device sits on the table with
+four people round it, so the card goes face down, the person doing it taps to look, and
+taps again to hide it before the clock starts. Without that step those two games do not
+work at all.
+
+**Teams, not players.** Two or three make one team, four make two of two, five make
+three and two. A team walks as one tile-stack and everybody in it plays every card —
+which is why the tokens fan out on one hex, and why the banner names the team rather
+than a person.
+
+**An evening is sixteen goes, however it divides.** The table asked for eight turns
+with two movements each, which is the four- and five-player game. At a flat eight a
+two-player party — one team, one movement a turn — got half an evening: three
+mini-games against six. The thing being budgeted was never the turn, it was the go. So
+one team plays 16 turns and two play 8, and every size now measures at **six to eight
+mini-games a game, with 100% of parties reaching the dragon**.
+
+**Nobody can lose their place at the table.** Losing a fight costs a health; health at
+zero costs a player their **skill** and nothing else. They keep drawing, keep acting,
+keep shouting the answer. `partyLost` is gone as an ending, and so are `Player.dead`,
+`fellAt`, `fellOn` and the whole get-up-after-a-turn subsystem — nothing could set them
+any more. The abyss at the board's edge is the one thing that removes anybody at all.
+
+**One skill each, and they are what health is for.**
+
+| | skill | does |
+|---|---|---|
+| knight | Take the hit | wears a lost fight alone, so nobody else pays |
+| rogue | Peek | reads the hint, free |
+| scout | Keep looking | fifteen more seconds on the clock that is running |
+| doctor | Patch up | a health back for a friend — and their skill with it |
+| fisherman | Cast again | throws this card back and draws another |
+
+Only the knight's fires by itself. A child asked "do you want to save your sister?"
+every time says yes every time, so the question is not a decision — and it is fenced so
+it can never trade one of them for the other.
+
+**Gear buys time, hints and health.** The team's best weapon buys ten seconds a point
+(the best, not everybody's added together — five children with frying pans must not get
+three minutes to draw a cat). Boots buy hints, one a pair. A coat is still a health,
+which is now the number of lost fights a team can absorb.
+
+**Turn 8 is the dragon, for everybody, wherever they were standing.** This removes the
+two worst endings a hex crawl has — "we never found it", and "we found it and stood
+next to it while the clock ran out" — and it is why nobody has to play efficiently. A
+team that spent the evening searching woods and losing to bandits still gets the
+ending, and gets it with everybody in it.
+
+**The board came back to 37 tiles.** Sixteen goes of two tiles is sixteen tiles of
+walking; spread over ninety-one that is mostly scenery nobody stands on. The collapse
+re-times to two marks — halfway, and three quarters — so the last turn is fought in the
+seven tiles round the dragon.
+
+Gone with the dice, all of it deliberately rather than by neglect: escape rolls,
+§8's invitations, support pledges, enemy health bands, damage that accumulated between
+fights, per-party boss scaling, and the three stones (which need redesigning from
+scratch, not reinterpreting).
+
+**The sim can no longer measure whether this is fun**, and now says so at the top of
+its own file. A bot cannot draw a dragon; it tosses a constant. The win rate it prints
+is an artefact of that constant and should not be tuned against. What it still measures
+honestly is pacing:
+
+| players | teams | turns | fights | mini-games | met the dragon | lost to the abyss |
+|---|---|---|---|---|---|---|
+| 2 | 1 | 16 | 3.5 | 7.8 | 100% | 0.1 |
+| 4 | 2 | 8 | 3.8 | 8.5 | 100% | 0.2 |
+| 5 | 2 | 8 | 3.8 | 8.4 | 100% | 0.4 |
+
 ## Still open
+
+- **Nobody has played v0.31 at a table yet.** Every number below the mini-games is a
+  guess until a family sits down with it, and the sim cannot help: a bot cannot draw a
+  dragon. The three things to watch are whether **eight mini-games is a good evening**,
+  whether **losing a fight on one missed card** is too sharp for a seven-year-old, and
+  whether the flat clocks are the right length.
+- **The 52 mini-games will repeat.** A few evenings and a family has seen one twice.
+  Generating them from an LLM is the fix, and `Challenge` is deliberately shaped like
+  what a model would return, so it is a source change rather than a redesign.
+- **The stones need redesigning from scratch.** They gave verbs that hung off dice
+  rolls, rounds and escape odds; none of those exist. Removed in v0.31 rather than bent
+  into something that would be a stone in name only.
+- **Skills for the mini-game are one each and untested.** Take the hit, Peek, Keep
+  looking, Patch up, Cast again. They are the entire consequence model for health, so
+  if they turn out to be dull, health stops meaning anything.
+- **Bridges are half built.** `src/game/bridges.ts` generates them and keeps the board
+  in one piece; nothing calls `canWade`, so water is not yet a barrier and a bridge is
+  not yet worth anything.
+- **Mountains**, from the same conversation as the bridges. Not started.
 - **River and rail travel (§5)** — the optional $1 fast travel.
 - **Four event cards** that need effects lasting beyond the moment they are read:
   *Foggy morning*, *Trade caravan*, *Scarecrow*, *Lost puppy*. They need a modifier
   system; the other ~28 cards are in.
 - **Special supply (§12)** — the rulebook's tier-2 consumables. Tier-2 *gear* is in as
   the +1/+2 grades; this is the other half.
-- **Must mid bosses die first? (§15)** — nothing stops a party running at the dragon
-  on turn one. The dice make that a bad idea, but no rule forbids it.
-- **Random skills on monsters**, the other half of the equipment direction. The dragon
-  carries a stone as of v0.27 and it turned out to be a beat rather than a lever; giving
-  the ogres and the late-arriving bandits one is the version that might actually change
-  a fight. A fourth stone colour is the other obvious way to widen the system.
 - **Undo is unbuilt.** Autosave is in as of v0.21 and rests on the same groundwork, so
   this is now the cheap half of the pair. The seed is visible and typeable in the header.
 - **The bot never spends its money**, so the sim's purse line is gross earnings, not
-  savings. It says money is reaching the party; it says nothing about whether the
-  shop is worth walking to.
-- **Two-player games are the hardest by some way** — 36% wipes against 17% at five. A
-  pair *should* struggle, so this may be right rather than wrong; it is the number to
-  watch if the kids play in twos.
-- **A dragon fought thirteen times.** At five players the sim picks a fight with the
-  dragon about thirteen times a game: the arena delivers the party to it, and a bot
-  flees at one health. Damage accumulates across attempts, so the siege works — but
-  watch whether it *reads* as a siege at the table or as the same fight on a loop.
-- **The group-fight UI is verified by construction, not by eye.** The rules underneath
-  it have 20-odd tests and the owner has played it, but the invite and loot-handout
-  buttons have never been driven in an automated browser run: the random-walking bot
-  cannot reliably get a party to a mid boss, and two attempts timed out.
+  savings.
 - **The art is two hands.** The drawings are cream paper; the app shell around them is
   dark slate, and the hex tiles use their own older SVG renderer. Moving the shell onto
   the paper theme is the remaining art job.
@@ -834,7 +943,8 @@ table wants it tighter.
 - **Tiles are compositions.** Each carries one element per side — field, forest, city
   or water — and holds up to three, which is what the rulebook means by "a tile may
   carry more than one". `Tile.base` is the dominant terrain the rules key off.
-- **Two poker decks**, resolving §15's open question the way the spec suggested: one
-  for events, one for searches, so a run of face cards cannot skew both at once.
+- **Three poker decks**, resolving §15's open question the way the spec suggested and
+  then some: one for events, one for searches, and one the monsters deal mini-games
+  from, so no two of them can skew each other.
 - **Where the rulebook leaves a choice, the code says so in a comment** at the place
   the choice is made.

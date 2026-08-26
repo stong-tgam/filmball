@@ -15,7 +15,7 @@
  * a spec.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ENEMIES } from "../game/enemies";
 import { GAME_HOW, GAME_NAME, challengeFor, difficultyOf, type Challenge } from "../game/challenges";
 import { FEATURE_BITE, activeFeatures } from "../game/combat";
@@ -64,21 +64,25 @@ type Props = {
  */
 function useCountdown(seconds: number, running: boolean, onOut: () => void) {
   const [left, setLeft] = useState(seconds);
+  // Held in a ref so the interval never closes over a stale callback: `lostTrial` comes
+  // off the store and is a new function on every render. Same trick as the hourglass.
+  const ring = useRef(onOut);
+  ring.current = onOut;
 
   useEffect(() => {
     if (!running) return;
-    const id = window.setInterval(() => {
-      setLeft((was) => {
-        if (was <= 1) {
-          window.clearInterval(id);
-          onOut();
-          return 0;
-        }
-        return was - 1;
-      });
-    }, 1000);
+    const id = window.setInterval(() => setLeft((was) => Math.max(0, was - 1)), 1000);
     return () => window.clearInterval(id);
-  }, [running, onOut]);
+  }, [running]);
+
+  // Running out is its own effect, not something the tick does inline. Calling the
+  // store from inside a `setState` updater is a side effect in the render phase, and
+  // React is entitled to run that twice - which would cost the team two health for one
+  // clock.
+  useEffect(() => {
+    if (!running || left > 0) return;
+    ring.current();
+  }, [running, left]);
 
   return { left, setLeft };
 }
@@ -295,7 +299,10 @@ export default function CombatModal({
                 ? "Beaten!"
                 : combat.outcome === "enemyEscaped"
                   ? "It got away!"
-                  : "Out of time"}
+                  : // Not "out of time": the table may have tapped "we could not"
+                    // with thirty seconds left, and telling a child the clock beat
+                    // them when it did not is the app getting the story wrong.
+                    "Not this time"}
             </p>
             {/* The answers, always, on the games that have one. A puzzle nobody was
                 ever told the answer to is the one thing at a table that genuinely
