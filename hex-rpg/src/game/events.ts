@@ -45,7 +45,7 @@ function standingOn(state: GameState, player: Player, terrain: Terrain | "river"
   return tile.sides.includes(terrain);
 }
 
-const living = (state: GameState): Player[] => state.players.filter((p) => !p.dead);
+const living = (state: GameState): Player[] => state.players.filter((p) => !p.gone);
 
 /** Apply a change to every living player who passes the filter. */
 const each = (
@@ -54,22 +54,16 @@ const each = (
   change: (p: Player, s: GameState) => Player,
 ): GameState => ({
   ...state,
-  players: state.players.map((p) => (p.dead || !who(p) ? p : change(p, state))),
+  players: state.players.map((p) => (p.gone || !who(p) ? p : change(p, state))),
 });
 
 const onlyDrawer = (state: GameState, change: (p: Player) => Player): GameState =>
   each(state, (p) => p.id === active(state).id, change);
 
-const damage = (player: Player, amount: number, turn: number): Player => {
-  const health = Math.max(0, player.health - amount);
-  return {
-    ...player,
-    health,
-    dead: health === 0,
-    fellAt: health === 0 ? player.hex : player.fellAt,
-    fellOn: health === 0 ? turn : player.fellOn,
-  };
-};
+const damage = (player: Player, amount: number, _turn: number): Player => ({
+  ...player,
+  health: Math.max(0, player.health - amount),
+});
 
 const healed = (player: Player, amount: number): Player => ({
   ...player,
@@ -103,7 +97,7 @@ const feed = (state: GameState, who: (p: Player) => boolean, helpings = 1): Game
   const rng = makeRng(state.rngState);
   let next: GameState = { ...state, rngState: 0 };
   const players = state.players.map((p) => {
-    if (p.dead || !who(p)) return p;
+    if (p.gone || !who(p)) return p;
     let fed = p;
     for (let i = 0; i < helpings; i++) {
       fed = equip(fed, randomFood(rng, `event-${state.turn}-${p.id}-${i}`)).player;
@@ -334,11 +328,11 @@ export const EVENTS: EventDefinition[] = [
     target: "everyone",
     apply: (s) => {
       const crew = s.players;
-      const given: (Item | null)[] = crew.map((p) => (p.dead ? null : (p.supply[0] ?? null)));
+      const given: (Item | null)[] = crew.map((p) => (p.gone ? null : (p.supply[0] ?? null)));
       if (given.every((g) => g === null)) return note(s, "Nobody had anything to pass on.");
 
       const players = crew.map((p, i) => {
-        if (p.dead) return p;
+        if (p.gone) return p;
         const passedOn = given[i];
         const received = given[(i - 1 + crew.length) % crew.length];
         let hands = passedOn
@@ -393,7 +387,7 @@ export const EVENTS: EventDefinition[] = [
     title: "Wild Goose Chase",
     text: "Everyone is dragged one tile along by it.",
     target: "everyone",
-    apply: (s) => ({ ...s, players: s.players.map((p) => (p.dead ? p : { ...p, stepsTaken: 0 })) }),
+    apply: (s) => ({ ...s, players: s.players.map((p) => (p.gone ? p : { ...p, stepsTaken: 0 })) }),
   },
 ];
 

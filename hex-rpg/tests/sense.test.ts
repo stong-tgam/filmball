@@ -21,7 +21,7 @@ function standing(at: { q: number; r: number }, seed = 4471): GameState {
     ...base,
     activePlayerIndex: 0,
     players: base.players.map((p, i) =>
-      i === 0 ? { ...p, hex: at } : { ...p, hex: { q: 0, r: -4 }, dead: true },
+      i === 0 ? { ...p, hex: at } : { ...p, hex: { q: 0, r: -4 }, gone: true },
     ),
   };
 }

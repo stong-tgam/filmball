@@ -34,7 +34,8 @@ type Props = {
   turn: number;
   /** With the turn, which rings of the board have fallen in. See `collapse.ts`. */
   turnLimit: number;
-  activeId: string;
+  /** The team whose go it is: every one of their tokens pulses. */
+  activeIds: string[];
   /**
    * Whose eyes the board is drawn through. There is no bird's-eye view: everything
    * outside this player's sight is blank paper, and it goes blank again the moment
@@ -76,7 +77,7 @@ export default function Board({
   hazards,
   turn,
   turnLimit,
-  activeId,
+  activeIds,
   viewer,
   activeColour,
   onSelect,
@@ -178,7 +179,7 @@ export default function Board({
       <HazardLayer hazards={hazards} size={SIZE} />
       <TokenLayer
         players={players.filter((p) => playerVisible(p, viewer))}
-        activeId={activeId}
+        activeIds={activeIds}
         size={SIZE}
       />
     </svg>

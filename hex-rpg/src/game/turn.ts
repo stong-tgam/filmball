@@ -10,7 +10,7 @@
 import { draw as drawCard, isFace, rankValue } from "./cards";
 import { startCombat } from "./combat";
 import { activeMembers, membersOf, teamOf } from "./teams";
-import { DRAGON_WAKES_ON, ENEMIES, enemyAt, wanderIn } from "./enemies";
+import { ENEMIES, dragonWakesOn, enemyAt, wanderIn } from "./enemies";
 import { applyEvent, createEventDeck } from "./events";
 import { hazardMoves, isDestroyed, meet, moveHazards } from "./hazards";
 import { fromLabel, key, reachable } from "./hex";
@@ -57,7 +57,7 @@ const note = (state: GameState, text: string): GameState => ({
  * you cannot see; taking one step and looking again is what extra movement is *for*.
  */
 export function legalMoves(state: GameState, player: Player): Map<string, number> {
-  if (player.dead || stepsLeft(player) === 0 || state.phase === "gameOver") return new Map();
+  if (player.gone || stepsLeft(player) === 0 || state.phase === "gameOver") return new Map();
 
   // **You may stand on a friend.** Players stack, and getting the party onto one tile
   // is now something the game wants: it is how you trade face to face, it is where the
@@ -290,7 +290,7 @@ export function beginTurn(state: GameState): GameState {
 }
 
 /**
- * The dragon lands on the mountain in the middle, on `DRAGON_WAKES_ON` and not before.
+ * The dragon lands on the mountain in the middle, on `dragonWakesOn` and not before.
  *
  * Until then its record sits on the centre tile `dormant`: nothing can be placed
  * there, nobody can walk into it, and it neither smokes nor senses. This is the beat
@@ -298,7 +298,7 @@ export function beginTurn(state: GameState): GameState {
  */
 function wakeTheDragon(state: GameState): GameState {
   const dragon = state.enemies.find((e) => e.kind === "finalboss");
-  if (!dragon?.dormant || state.turn < DRAGON_WAKES_ON) return state;
+  if (!dragon?.dormant || state.turn < dragonWakesOn(state.turnLimit)) return state;
   return note(
     {
       ...state,
@@ -324,33 +324,6 @@ function createDeck(state: GameState): EventCard[] {
 /** Put the turn's card away. */
 export const clearDraw = (state: GameState): GameState => ({ ...state, draw: null });
 
-/**
- * Rulebook §7, the suggested compromise: a fallen player gets back up on their own
- * after one full turn, at 1 health, on the tile where they fell. A doctor reaching
- * them first is instant - that lives in `actions.ts`.
- */
-function tendTheFallen(state: GameState): GameState {
-  let next = state;
-  for (const player of state.players) {
-    // `gone` is the abyss (`collapse.ts`) and there is no getting up from it. Their
-    // `fellOn` is already null, so this is the same test said in plain words.
-    if (!player.dead || player.gone || player.fellOn === null) continue;
-    if (state.turn <= player.fellOn) continue;
-
-    next = note(
-      {
-        ...next,
-        players: next.players.map((p) =>
-          p.id === player.id
-            ? { ...p, dead: false, health: 1, hex: p.fellAt ?? p.hex, fellAt: null, fellOn: null }
-            : p,
-        ),
-      },
-      `${player.name} picked themselves up, on one health.`,
-    );
-  }
-  return next;
-}
 
 /**
  * Hand the turn to the next living player, rolling the turn counter over when the
@@ -367,10 +340,6 @@ export function endTurn(state: GameState): GameState {
   if (!hasMoved(player)) {
     next = note(next, `${teamOf(state, player.id)?.name ?? player.name} held position.`);
   }
-
-  // Rulebook §7: the fallen can pick themselves up after a full turn, and a doctor
-  // reaching them is instant. Nobody is out of the game for good.
-  next = tendTheFallen(next);
 
   // **The turn passes to the next team, not the next player.** Turn order is still an
   // index into `players` - every rule written before teams reads it - but it only ever

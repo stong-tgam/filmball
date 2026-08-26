@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BASE_SIGHT, SMOKE_RADIUS, canSee, enemyVisible, playerVisible, sightOf, smellsSmoke, visibleFrom } from "../src/game/vision";
 import { createInitialState } from "../src/game/setup";
-import { distance, key } from "../src/game/hex";
+import { RADIUS, distance, key } from "../src/game/hex";
 import { movePlayer } from "../src/game/turn";
 import type { GameState } from "../src/game/types";
 
@@ -78,12 +78,22 @@ describe("who is on the board", () => {
   });
 
   it("lets the dragon be smelled from two tiles out, so it can be found at all", () => {
-    const state = createInitialState(4471);
+    // Awake: a dormant dragon is somewhere else entirely and smells of nothing, which
+    // is why the banner used to say "the dragon is close" on turn one.
+    const fresh = createInitialState(4471);
+    const state = {
+      ...fresh,
+      enemies: fresh.enemies.map((e) => (e.kind === "finalboss" ? { ...e, dormant: false } : e)),
+    };
     const dragon = state.enemies.find((e) => e.kind === "finalboss")!;
     const near = { ...at(state, 0), hex: dragon.hex };
     expect(smellsSmoke(state, near)).toBe(true);
     expect(enemyVisible(dragon, near)).toBe(true);
-    expect(SMOKE_RADIUS).toBeGreaterThan(BASE_SIGHT);
+    // The clue is real because **eyesight never shows an unfound monster at all**.
+    // Seeing the middle tile says it is a mountain; smelling it says what is on it.
+    expect(SMOKE_RADIUS).toBeGreaterThanOrEqual(BASE_SIGHT);
+    // ...and it must not cover the whole board, or every player smells it always.
+    expect(SMOKE_RADIUS).toBeLessThan(RADIUS);
   });
 
   it("hides other players until they are in sight", () => {

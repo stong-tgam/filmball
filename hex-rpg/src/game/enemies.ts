@@ -289,18 +289,23 @@ export function spawnThieves(_rng: Rng, hazards: { kind: string; hex: Hex }[]): 
 }
 
 /**
- * The turn the dragon comes home.
+ * The turn the dragon comes home, as a share of the game.
  *
  * For the opening it is somewhere else: not on the board, not sensed, no smoke, and
- * the middle of the map is an ordinary mountain you can walk over. Five quiet turns
+ * the middle of the map is an ordinary mountain you can walk over. The quiet turns
  * exist so the party meets the bandits **first** - the whole progression of this game
- * is that you arrive at the ending carrying what the middle of the game gave you, and
- * a dragon that is findable on turn two lets a lucky party skip that and a hasty one
- * throw the evening away in one roll.
+ * is that you arrive at the ending carrying what the middle of the game gave you.
  *
- * It is also the loudest beat in the game when it lands, which is worth having.
+ * It was the literal turn 6, which was five quiet turns out of sixteen and is **six
+ * out of eight** now: the dragon would land two turns before the last stand drags
+ * everybody to it anyway, and the loudest beat in the game would be a footnote. A
+ * share of the limit keeps it where it belongs - about a third in, with half the
+ * evening left to go and find it.
  */
-export const DRAGON_WAKES_ON = 6;
+export const DRAGON_WAKES_SHARE = 0.375;
+
+export const dragonWakesOn = (turnLimit: number): number =>
+  Math.max(2, Math.round(turnLimit * DRAGON_WAKES_SHARE));
 
 
 /**
@@ -332,7 +337,7 @@ export function wanderIn(state: GameState, rng: Rng): GameState {
     (h) =>
       standing(state, h) &&
       !busy.has(key(h)) &&
-      state.players.every((p) => p.dead || distance(p.hex, h) > 1),
+      state.players.every((p) => p.gone || distance(p.hex, h) > 1),
   );
   if (room.length === 0) return state;
 

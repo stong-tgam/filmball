@@ -201,7 +201,7 @@ function resolve(state: GameState, kind: HazardKind): GameState {
   let next = kind === "tornado" ? flatten(state, hazard) : state;
 
   for (const player of next.players) {
-    if (player.dead || key(player.hex) !== key(hazard.hex)) continue;
+    if (player.gone || key(player.hex) !== key(hazard.hex)) continue;
     if (hazard.resolvedWith.includes(player.id)) continue;
     next = meet(next, kind, player.id);
   }
@@ -216,7 +216,7 @@ function resolve(state: GameState, kind: HazardKind): GameState {
 export function meet(state: GameState, kind: HazardKind, playerId: string): GameState {
   const hazard = state.hazards.find((h) => h.kind === kind);
   const player = state.players.find((p) => p.id === playerId);
-  if (!hazard || !player || player.dead) return state;
+  if (!hazard || !player || player.gone) return state;
   if (hazard.resolvedWith.includes(playerId)) return state;
 
   const marked: GameState = {
@@ -331,7 +331,7 @@ function confront(state: GameState, player: Player, kind: "robber" | "pirates"):
  * when *they* walked onto *you*. Now both are buttons, and this is the other one.
  */
 export const canFightThief = (state: GameState, player: Player): boolean =>
-  !player.dead &&
+  !player.gone &&
   state.combat === null &&
   state.ending === null &&
   !player.actedThisTurn &&
@@ -411,7 +411,7 @@ export function thiefFacing(state: GameState, player: Player): "robber" | "pirat
 }
 
 export const canPayOff = (state: GameState, player: Player): boolean =>
-  !player.dead &&
+  !player.gone &&
   state.combat === null &&
   state.ending === null &&
   !player.actedThisTurn &&
@@ -450,7 +450,7 @@ export function donate(state: GameState): GameState {
 export function canDonate(state: GameState, player: Player): boolean {
   const traveller = state.hazards.find((h) => h.kind === "homeless");
   return (
-    !player.dead &&
+    !player.gone &&
     state.combat === null &&
     state.ending === null &&
     // Once only, per §5.5: an extra die is not something you stack.

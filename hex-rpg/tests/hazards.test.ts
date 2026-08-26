@@ -504,7 +504,7 @@ describe("a game with hazards in it stays sound", () => {
     let state = startGame(29);
     for (let i = 0; i < 40 && state.phase !== "gameOver"; i++) {
       const player = activePlayer(state);
-      if (!player.dead) {
+      if (!player.gone) {
         // Either somewhere to move, or standing on something to do.
         const stuck = legalMoves(state, player).size === 0;
         if (stuck) expect(state.tiles[key(player.hex)]).toBeDefined();

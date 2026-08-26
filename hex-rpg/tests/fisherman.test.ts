@@ -284,23 +284,18 @@ describe("the hook", () => {
     expect(fisher(after).actedThisTurn).toBe(true);
   });
 
-  it("drags a fallen friend, which is the best thing it does", () => {
+  it("drags a friend with no health left to the doctor, which is the best thing it does", () => {
     const state = paired();
-    const fallen = state.players[0];
+    const flat = state.players[0];
     const down: GameState = {
       ...state,
-      players: state.players.map((p) =>
-        p.id === fallen.id ? { ...p, dead: true, health: 0, fellAt: p.hex, fellOn: 1 } : p,
-      ),
+      players: state.players.map((p) => (p.id === flat.id ? { ...p, health: 0 } : p)),
     };
     expect(hookTargets(down, fisher(down)).map((p) => p.id)).toEqual(["knight"]);
 
     const hauled = hook(down, "knight", "pull");
     const moved = hauled.players[0];
-    // The body and the spot the doctor has to reach move together, or a revive would
-    // put them back where they fell.
     expect(key(moved.hex)).toBe(key(fisher(hauled).hex));
-    expect(key(moved.fellAt!)).toBe(key(fisher(hauled).hex));
   });
 
   it("costs the action, so it is the turn's one thing", () => {

@@ -35,7 +35,7 @@ export default function HookModal({
               <span className="hook-name">
                 <span className="blip-dot" style={{ background: ROLES[who.role].colour }} />
                 <strong>{who.name}</strong>
-                {who.dead && <em className="hook-down"> — down. Bring them to the Doctor.</em>}
+                {who.health === 0 && <em className="hook-down"> — no health, no skill. Bring them to the Doctor.</em>}
               </span>
               <span className="hook-ways">
                 <button type="button" className="ghost" onClick={() => onCast(who.id, "pull")}>

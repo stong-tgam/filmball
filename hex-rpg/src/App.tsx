@@ -28,6 +28,7 @@ import {
   useCanGive,
   useFighters,
   useNowPlaying,
+  useActiveTeam,
   useCanTakeOn,
   useEnemyHere,
   useSkillChoices,
@@ -113,6 +114,7 @@ export default function App() {
   const [hooking, setHooking] = useState(false);
   const canGive = useCanGive();
   const fightParty = useFighters();
+  const activeTeam = useActiveTeam();
   const skillChoices = useSkillChoices();
   const enemyHere = useEnemyHere();
   const canTakeOn = useCanTakeOn();
@@ -188,7 +190,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.30 — the map you remember</span>
+          <span className="version">v0.31 — the game the family plays</span>
         </div>
         <button
           type="button"
@@ -261,6 +263,7 @@ export default function App() {
           // has to be impossible to miss.
           key={player.id}
           player={player}
+          team={activeTeam}
           moves={legalMoves.size}
           smoke={smellsSmoke(game, player)}
           rim={rimWarning(game, player)}
@@ -279,7 +282,7 @@ export default function App() {
             hazards={game.hazards}
             turn={game.turn}
             turnLimit={game.turnLimit}
-            activeId={player.id}
+            activeIds={activeTeam?.memberIds ?? [player.id]}
             viewer={player}
             activeColour={ROLES[player.role].colour}
             onSelect={tapTile}
@@ -343,7 +346,7 @@ export default function App() {
       <aside className="sidebar">
         <section className="panel">
           <h2>Party</h2>
-          <PartyList players={game.players} activeId={player.id} onEat={eat} />
+          <PartyList players={game.players} teams={game.teams} activeId={player.id} onEat={eat} />
         </section>
 
         {overhead && (

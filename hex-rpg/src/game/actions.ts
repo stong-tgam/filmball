@@ -77,7 +77,7 @@ const busy = (state: GameState, player: Player): boolean =>
   state.ending !== null ||
   state.combat !== null ||
   player.actedThisTurn ||
-  player.dead;
+  player.gone;
 
 /**
  * Where you can have a poke about, and only the once per tile.
@@ -696,8 +696,7 @@ export function hookTargets(state: GameState, fisher: Player): Player[] {
   if (!ROLES[fisher.role].canFish || !isRod(fisher.weapon)) return [];
   return state.players.filter((p) => {
     if (p.id === fisher.id || p.gone) return false;
-    const spot = p.dead ? p.fellAt : p.hex;
-    return spot !== null && distance(spot, fisher.hex) === HOOK_RANGE;
+    return distance(p.hex, fisher.hex) === HOOK_RANGE;
   });
 }
 
@@ -723,7 +722,7 @@ export function hook(state: GameState, targetId: string, how: "pull" | "cross"):
   if (!target) return state;
 
   const moving = how === "pull" ? target : fisher;
-  const landing = how === "pull" ? fisher.hex : (target.dead ? target.fellAt ?? target.hex : target.hex);
+  const landing = how === "pull" ? fisher.hex : target.hex;
   const bearing = compassName(bearingBetween(moving.hex, landing));
 
   let next: GameState = {
@@ -731,9 +730,7 @@ export function hook(state: GameState, targetId: string, how: "pull" | "cross"):
     players: state.players.map((p) => {
       if (p.id === fisher.id && how === "cross") return { ...p, hex: landing, actedThisTurn: true };
       if (p.id === fisher.id) return { ...p, actedThisTurn: true };
-      if (p.id === target.id && how === "pull") {
-        return { ...p, hex: landing, fellAt: p.dead ? landing : p.fellAt };
-      }
+      if (p.id === target.id && how === "pull") return { ...p, hex: landing };
       return p;
     }),
   };
@@ -819,13 +816,7 @@ function robbedWhileSearching(state: GameState, player: Player): GameState {
   }
   const health = Math.max(0, player.health - 1);
   return note(
-    withPlayer(state, {
-      ...player,
-      health,
-      dead: health === 0,
-      fellAt: health === 0 ? player.hex : player.fellAt,
-      fellOn: health === 0 ? state.turn : player.fellOn,
-    }),
+    withPlayer(state, { ...player, health }),
     `A thief! Nothing to take, so they took it out on ${player.name}.`,
   );
 }
@@ -857,7 +848,7 @@ export function stockFor(state: GameState): { gear: Item[]; food: Item[] } {
  */
 export function buy(state: GameState, itemId: string): GameState {
   const player = activePlayer(state);
-  if (state.phase === "gameOver" || state.combat || player.dead) return state;
+  if (state.phase === "gameOver" || state.combat || player.gone) return state;
 
   const stock = stockFor(state);
   const food = stock.food.find((i) => i.id === itemId);
@@ -886,7 +877,7 @@ export function buy(state: GameState, itemId: string): GameState {
  */
 export function sell(state: GameState, itemId: string): GameState {
   const player = activePlayer(state);
-  if (state.phase === "gameOver" || state.combat || player.dead) return state;
+  if (state.phase === "gameOver" || state.combat || player.gone) return state;
 
   const gear = carriedGear(player).find((i) => i.id === itemId);
   const food = player.supply.find((i) => i.id === itemId);
@@ -923,7 +914,7 @@ export const sellable = (player: Player): Item[] => [...carriedGear(player), ...
  */
 export const tileMates = (state: GameState, player: Player): Player[] =>
   state.players.filter(
-    (p) => p.id !== player.id && !p.dead && key(p.hex) === key(player.hex),
+    (p) => p.id !== player.id && !p.gone && key(p.hex) === key(player.hex),
   );
 
 /**
@@ -939,7 +930,7 @@ export const tileMates = (state: GameState, player: Player): Player[] =>
  * receiver their better coat is exactly the kind of thing that starts an argument.
  */
 export function canGive(state: GameState, player: Player): boolean {
-  if (state.phase === "gameOver" || state.ending !== null || player.dead) return false;
+  if (state.phase === "gameOver" || state.ending !== null || player.gone) return false;
   return giveTargets(state, player).length > 0;
 }
 
@@ -983,15 +974,10 @@ export function canHeal(state: GameState, player: Player): boolean {
 /** Rulebook §3 and §7: patch up a neighbour, or put a fallen one back on their feet. */
 export function healTargets(state: GameState, healer: Player): Player[] {
   if (!ROLES[healer.role].canHeal) return [];
-  return state.players.filter((p) => {
-    // Nobody reaches into the abyss. `fellAt` is already null for them, so this is
-    // saying out loud what the next line would do quietly.
-    if (p.gone) return false;
-    const spot = p.dead ? p.fellAt : p.hex;
-    if (!spot) return false;
-    const near = distance(spot, healer.hex) <= 1;
-    return near && (p.dead || p.health < p.maxHealth);
-  });
+  return state.players.filter(
+    // Nobody reaches into the abyss.
+    (p) => !p.gone && distance(p.hex, healer.hex) <= 1 && p.health < p.maxHealth,
+  );
 }
 
 export function heal(state: GameState, targetId: string): GameState {
@@ -1000,14 +986,12 @@ export function heal(state: GameState, targetId: string): GameState {
   const target = healTargets(state, healer).find((p) => p.id === targetId);
   if (!target) return state;
 
-  const revived = target.dead;
+  // A health back, and at zero that is a **skill** back - which is the whole of what
+  // the doctor is for now. There is nothing to revive any more: nobody was ever down.
+  const skillBack = target.health === 0;
   const patched: Player = {
     ...target,
-    dead: false,
-    fellAt: null,
-    fellOn: null,
-    hex: revived ? (target.fellAt ?? target.hex) : target.hex,
-    health: revived ? 1 : Math.min(target.maxHealth, target.health + 1),
+    health: Math.min(target.maxHealth, target.health + 1),
   };
 
   let next = withPlayer(state, patched);
@@ -1020,8 +1004,8 @@ export function heal(state: GameState, targetId: string): GameState {
   next = withPlayer(next, { ...after, actedThisTurn: true });
   return note(
     next,
-    revived
-      ? `${healer.name} got ${target.name} back on their feet.`
+    skillBack
+      ? `${healer.name} patched ${target.name} up. ${target.name} has their skill back.`
       : `${healer.name} patched ${target.name} up to ${patched.health} health.`,
   );
 }

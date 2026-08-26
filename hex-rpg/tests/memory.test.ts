@@ -11,7 +11,7 @@ import { createInitialState, startGame } from "../src/game/setup";
 import { endTurn, legalMoves, movePlayer } from "../src/game/turn";
 import { BASE_SIGHT, SMOKE_RADIUS, canSee, hasSeen, remember, sightOf } from "../src/game/vision";
 import { BASE_MOVE, moveRange } from "../src/game/players";
-import { allHexes, distance, key } from "../src/game/hex";
+import { RADIUS, allHexes, distance, key } from "../src/game/hex";
 import type { GameState } from "../src/game/types";
 
 describe("what a player remembers", () => {
@@ -95,11 +95,13 @@ describe("seeing and walking, now that they are two rings", () => {
     expect(BASE_SIGHT).toBe(BASE_MOVE);
   });
 
-  it("keeps the dragon's smoke reaching further than eyesight", () => {
-    // The smoke is the one clue the fog ever gives, and a clue that reaches no further
-    // than looking is not a clue. It was a flat 2 against a flat 1 of sight; raising
-    // sight to 2 silently made it useless until it was derived instead.
-    expect(SMOKE_RADIUS).toBeGreaterThan(BASE_SIGHT);
+  it("keeps the dragon's smoke a clue rather than wallpaper", () => {
+    // It reaches at least as far as eyesight - and that is already more than looking
+    // gives you, because sight never reveals an unfound monster. What it must not do
+    // is cover the board: on the radius-3 map a reach of 3 touches all four corners,
+    // so every player would be told "the dragon is close" for the whole game.
+    expect(SMOKE_RADIUS).toBeGreaterThanOrEqual(BASE_SIGHT);
+    expect(SMOKE_RADIUS).toBeLessThan(RADIUS);
   });
 
   it("still spends movement one tile at a time", () => {

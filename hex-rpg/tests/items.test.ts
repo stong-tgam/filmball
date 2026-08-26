@@ -35,6 +35,7 @@ import {
 } from "../src/game/actions";
 import { endCombat, takeSpoil } from "../src/game/combat";
 import { intoFight, winAll } from "./fight";
+import { hasSkill } from "../src/game/skills";
 import { ENEMIES } from "../src/game/enemies";
 import { withMaxHealth } from "../src/game/players";
 import { hasMoved } from "../src/game/players";
@@ -181,7 +182,7 @@ describe("eating", () => {
 
   it("does nothing for food nobody is carrying, or for the dead", () => {
     expect(consume(hungry(), "nope").used).toBeNull();
-    expect(consume({ ...hungry(), dead: true }, "cake").used).toBeNull();
+    expect(consume({ ...hungry(), gone: true }, "cake").used).toBeNull();
   });
 
   it("works on another player's turn - it is not an action", () => {
@@ -458,26 +459,19 @@ describe("the doctor", () => {
     expect(activePlayer(after).actedThisTurn).toBe(true);
   });
 
-  it("brings a fallen player back at one health, on the tile where they fell", () => {
+  it("gives somebody out of health their skill back, which is the whole job", () => {
     const state = doctorsTurn();
     const doctor = state.players[3];
-    const fallen = {
-      ...state.players[0],
-      dead: true,
-      health: 0,
-      hex: doctor.hex,
-      fellAt: doctor.hex,
-      fellOn: state.turn,
-    };
+    const flat = { ...state.players[0], health: 0, hex: doctor.hex };
     const staged: GameState = {
       ...state,
-      players: state.players.map((p) => (p.id === fallen.id ? fallen : p)),
+      players: state.players.map((p) => (p.id === flat.id ? flat : p)),
     };
-    const after = heal(staged, fallen.id);
+    const after = heal(staged, flat.id);
 
-    expect(after.players[0].dead).toBe(false);
     expect(after.players[0].health).toBe(1);
-    expect(after.players[0].fellAt).toBeNull();
+    expect(hasSkill(after.players[0])).toBe(true);
+    expect(after.log.at(-1)?.text).toContain("skill back");
   });
 
   it("is the only role that can", () => {
@@ -611,7 +605,7 @@ describe("one action a turn", () => {
     const state: GameState = {
       ...base,
       players: base.players.map((p, i) =>
-        i === 1 ? { ...p, hex: { q: next.q - 1, r: next.r } } : { ...p, dead: true },
+        i === 1 ? { ...p, hex: { q: next.q - 1, r: next.r } } : { ...p, gone: true },
       ),
       activePlayerIndex: 1,
     };

@@ -21,7 +21,8 @@ import type { Player } from "../game/types";
 
 type Props = {
   players: Player[];
-  activeId: string;
+  /** Everybody in the team whose go it is. The whole team pulses, because it all moves. */
+  activeIds: string[];
   size: number;
 };
 
@@ -35,10 +36,10 @@ function offsets(count: number, size: number): { x: number; y: number }[] {
   });
 }
 
-export default function TokenLayer({ players, activeId, size }: Props) {
-  const alive = players.filter((p) => !p.dead);
+export default function TokenLayer({ players, activeIds, size }: Props) {
+  const here = players.filter((p) => !p.gone);
   const byTile = new Map<string, Player[]>();
-  for (const p of alive) {
+  for (const p of here) {
     const k = `${p.hex.q},${p.hex.r}`;
     byTile.set(k, [...(byTile.get(k) ?? []), p]);
   }
@@ -54,7 +55,7 @@ export default function TokenLayer({ players, activeId, size }: Props) {
             hex={player.hex}
             size={size}
             nudge={spread[i]}
-            active={player.id === activeId}
+            active={activeIds.includes(player.id)}
           />
         ));
       })}

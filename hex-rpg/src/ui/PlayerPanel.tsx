@@ -6,23 +6,27 @@
  * read from the other side of the table.
  */
 
+import { SKILLS, hasSkill } from "../game/skills";
 import { ROLES } from "../game/players";
 import ItemArt from "./art/items";
 import RoleArt from "./art/roles";
 import { roleSlot } from "../artslots";
 import { gearLabel } from "../game/items";
 import { moveRange, stepsLeft } from "../game/turn";
-import type { Player } from "../game/types";
+import type { Player, Team } from "../game/types";
 import Art from "./art/Art";
 
 export function ActivePlayerBanner({
   player,
+  team,
   moves,
   smoke,
   rim,
   standingOnIt,
 }: {
   player: Player;
+  /** The team whose go it is. All of them walk; all of them play the mini-game. */
+  team?: Team;
   moves: number;
   /** The dragon is within smelling distance. The one hint the fog ever gives. */
   smoke?: boolean;
@@ -48,7 +52,9 @@ export function ActivePlayerBanner({
           </svg>
         </span>
         <div>
-          <h2>{player.name}&rsquo;s turn</h2>
+          {/* The team's turn, not the player's - the name on the banner has to be
+              the thing that moves, or a child will move their own piece. */}
+          <h2>{team ? `${team.name}\u2019s turn` : `${player.name}\u2019s turn`}</h2>
           <p className="banner-blurb">
             {smoke ? "Smoke on the wind. The dragon is close." : role.blurb}
           </p>
@@ -104,20 +110,34 @@ export function ActivePlayerBanner({
 export function PartyList({
   players,
   activeId,
+  teams,
   onEat,
 }: {
   players: Player[];
   activeId: string;
+  /** Who walks with whom. The list is grouped by it, because the team is the piece. */
+  teams: Team[];
   onEat: (playerId: string, itemId: string) => void;
 }) {
   return (
     <ul className="party">
-      {players.map((player) => {
+      {teams.flatMap((team) => [
+        // The team's own line, so a child can see at a glance which two or three
+        // names move together - which is the first rule of the game.
+        <li key={team.id} className="party-team">
+          {team.name}
+        </li>,
+        ...players
+          .filter((p) => team.memberIds.includes(p.id))
+          .map((player) => {
         const role = ROLES[player.role];
+        const skill = SKILLS[player.role];
         return (
           <li
             key={player.id}
-            className={`party-row${player.id === activeId ? " is-active" : ""}${player.dead ? " is-dead" : ""}${player.gone ? " is-gone" : ""}`}
+            className={`party-row${player.id === activeId ? " is-active" : ""}${
+              player.health === 0 ? " is-flat" : ""
+            }${player.gone ? " is-gone" : ""}`}
             style={{ ["--who" as string]: role.colour }}
           >
             <span className="party-dot" aria-hidden="true">
@@ -128,6 +148,14 @@ export function PartyList({
               </svg>
             </span>
             <span className="party-name">{player.name}</span>
+            {/* What health is actually for now. A struck-through skill says why it
+                matters far better than a number does. */}
+            <span
+              className={`party-skill${hasSkill(player) ? "" : " is-spent"}`}
+              title={hasSkill(player) ? skill.text : `${skill.title} is gone until somebody gives them a health.`}
+            >
+              {skill.title}
+            </span>
             <span className="party-health" title={player.gone ? "Over the edge" : "Health"}>
               {player.gone ? "lost" : `${player.health}/${player.maxHealth}`}
             </span>
@@ -157,7 +185,7 @@ export function PartyList({
               </span>
             )}
 
-            {player.supply.length > 0 && !player.dead && (
+            {player.supply.length > 0 && !player.gone && (
               <span className="party-supply">
                 {player.supply.map((item) => (
                   <button
@@ -184,7 +212,8 @@ export function PartyList({
             )}
           </li>
         );
-      })}
+      }),
+      ])}
     </ul>
   );
 }

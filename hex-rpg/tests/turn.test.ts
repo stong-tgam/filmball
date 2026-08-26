@@ -66,7 +66,7 @@ describe("the party", () => {
 
   it("starts everyone alive, at full health, and empty-handed but for the rod", () => {
     for (const p of game().players) {
-      expect(p.dead).toBe(false);
+      expect(p.gone).toBe(false);
       expect(p.health).toBe(p.maxHealth);
       expect(p.health).toBe(BASE_HEALTH + ROLES[p.role].healthBonus);
       expect([p.armor, p.boots]).toEqual([null, null]);
@@ -196,7 +196,7 @@ describe("legal moves", () => {
     const state = game();
     const player = activePlayer(state);
     expect(legalMoves(state, { ...player, stepsTaken: moveRange(player) }).size).toBe(0);
-    expect(legalMoves(state, { ...player, dead: true }).size).toBe(0);
+    expect(legalMoves(state, { ...player, gone: true }).size).toBe(0);
     expect(legalMoves({ ...state, phase: "gameOver" }, player).size).toBe(0);
   });
 });

@@ -82,7 +82,6 @@ export type Player = {
   armor: Item | null;
   boots: Item | null;
   supply: Item[];
-  dead: boolean;
 /**
    * Tiles walked so far this turn. Cleared when the player's next turn begins.
    *
@@ -97,13 +96,6 @@ export type Player = {
   actedThisTurn: boolean;
   /** Owes a turn - looking after the traveller, per rulebook §5.5. */
   stunned: boolean;
-  /**
-   * Where they fell. A doctor reaching this tile revives them on the spot; left
-   * alone they pick themselves up after a full turn (rulebook §7's compromise).
-   */
-  fellAt: Hex | null;
-  /** Turn they died on, for the self-revive clock. */
-  fellOn: number | null;
   /**
    * Every tile this player has laid eyes on, by label.
    *
@@ -122,11 +114,11 @@ export type Player = {
   /**
    * Went into the abyss when the rim fell (`collapse.ts`), and is out of the game.
    *
-   * Separate from `dead`, which is temporary by design - §7's compromise gets a downed
-   * player back up after a turn and a doctor gets them up at once, because a child
-   * with nothing to do for the rest of the evening is the failure that rule avoids.
-   * This one is permanent, so it needs its own flag: `fellOn: null` stops the clock
-   * and this stops the doctor.
+   * **The only way anybody ever leaves.** There used to be a second flag, `dead`, for
+   * a player knocked out in a fight - and in v0.31 it stopped being reachable: losing
+   * a fight costs health, health at zero costs you your skill, and a player with no
+   * skill is still at the table playing every mini-game. A field that could only ever
+   * be true alongside this one is a field the next reader has to work out, so it went.
    */
   gone: boolean;
   /**
@@ -144,7 +136,6 @@ export type Player = {
    * and the count keeps going up after that; nothing else reads it.
    */
   fishCaught: number;
-  joinedFightThisRound: boolean;
 };
 
 /**

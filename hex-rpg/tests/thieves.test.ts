@@ -28,7 +28,7 @@ function beside(kind: "robber" | "pirates", seed = 4471): GameState {
     enemies: base.enemies.map((e) =>
       e.kind === kind ? { ...e, hex: neighbourOf(base, spot) } : e,
     ),
-    players: base.players.map((p, i) => (i === 0 ? p : { ...p, dead: true })),
+    players: base.players.map((p, i) => (i === 0 ? p : { ...p, gone: true })),
     // Keep the original for reference in the closure; unused otherwise.
     log: [...base.log, { turn: base.turn, text: `set up beside the ${thief.kind}` }],
   };
@@ -72,7 +72,7 @@ describe("walking into a thief", () => {
       ...base,
       activePlayerIndex: 0,
       players: base.players.map((p, i) =>
-        i === 0 ? { ...p, hex: neighbourOf(base, mob.hex) } : { ...p, dead: true },
+        i === 0 ? { ...p, hex: neighbourOf(base, mob.hex) } : { ...p, gone: true },
       ),
     };
     // Walking on finds it and offers the fight; taking it on starts it.

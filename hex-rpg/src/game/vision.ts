@@ -28,7 +28,7 @@
  *   moving need something to watch.
  */
 
-import { distance, fromLabel, inBoard, key, neighbours, type Hex } from "./hex";
+import { RADIUS, distance, fromLabel, inBoard, key, neighbours, type Hex } from "./hex";
 import { ROLES } from "./players";
 import type { Enemy, GameState, Player } from "./types";
 
@@ -39,15 +39,26 @@ export const BASE_SIGHT = 2;
 
 /**
  * The dragon smokes, and you can smell it **one ring further than you can see** - a
- * hidden final boss on one tile in sixty-one is otherwise never found inside the turn
- * limit and the evening ends in a shrug rather than a fight.
+ * hidden final boss on one tile is otherwise never found inside the turn limit and the
+ * evening ends in a shrug rather than a fight.
  *
- * Derived from `BASE_SIGHT` rather than written down, because it was a flat 2 and sight
- * was a flat 1 until v0.30 raised sight to 2 - at which point the smoke reached exactly
- * as far as ordinary eyesight and quietly stopped being a hint at all. A clue that is
- * not better than looking is not a clue.
+ * Two bounds, and it needs both:
+ *
+ * - **A ring past sight** (`BASE_SIGHT + 1`), so the smell arrives before the sight of
+ *   the tile does.
+ * - **Never the whole board** (`RADIUS - 1`). The dragon sits in the middle, so on the
+ *   radius-3 board a reach of 3 covers every tile including all four corners - every
+ *   player told "the dragon is close" from the moment it lands, for the rest of the
+ *   game. A hint that is always on is wallpaper.
+ *
+ * On the small board the second bound wins and the two are equal, and that is still a
+ * real clue - **sight never shows an unfound monster at all** (`enemyVisible`). Seeing
+ * the middle tile tells you it is a mountain; smelling it tells you what is on it. The
+ * older note here said a clue no better than looking is no clue, which was written
+ * about *tiles* and does not hold for the one thing on the board that eyesight is
+ * forbidden to reveal.
  */
-export const SMOKE_RADIUS = BASE_SIGHT + 1;
+export const SMOKE_RADIUS = Math.min(BASE_SIGHT + 1, RADIUS - 1);
 
 export const sightOf = (player: Player): number => BASE_SIGHT + ROLES[player.role].sightBonus;
 
@@ -94,7 +105,7 @@ export function remember(player: Player): Player {
 /** Everybody's memory brought up to date, for the top of a turn. */
 export const rememberAll = (state: GameState): GameState => ({
   ...state,
-  players: state.players.map((p) => (p.dead && p.gone ? p : remember(p))),
+  players: state.players.map((p) => (p.gone && p.gone ? p : remember(p))),
 });
 
 /**
@@ -119,6 +130,10 @@ export const smellsSmoke = (state: GameState, viewer: Player): boolean =>
     (e) =>
       e.kind === "finalboss" &&
       !e.defeated &&
+      // **Not while it is still away.** `sense` has always checked this and the
+      // banner never did, which on the small board meant every player was told "the
+      // dragon is close" from turn one - a hint that is always on is wallpaper.
+      !e.dormant &&
       distance(viewer.hex, e.hex) <= SMOKE_RADIUS,
   );
 

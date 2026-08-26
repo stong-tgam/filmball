@@ -129,7 +129,7 @@ export function collapseRim(state: GameState): GameState {
       ...next,
       players: next.players.map((p) =>
         lost.some((l) => l.id === p.id)
-          ? { ...p, gone: true, dead: true, health: 0, fellAt: null, fellOn: null }
+          ? { ...p, gone: true, health: 0 }
           : p,
       ),
     };

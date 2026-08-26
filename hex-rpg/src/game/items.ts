@@ -236,7 +236,7 @@ export function removeItem(player: Player, itemId: string): { player: Player; it
  */
 export function consume(player: Player, itemId: string): { player: Player; used: Item | null } {
   const item = player.supply.find((i) => i.id === itemId);
-  if (!item || player.dead) return { player, used: null };
+  if (!item || player.gone) return { player, used: null };
   return {
     player: {
       ...player,

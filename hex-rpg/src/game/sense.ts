@@ -117,7 +117,7 @@ export function sense(state: GameState, viewer: Player): Sensed[] {
   }
 
   for (const other of state.players) {
-    if (other.id === viewer.id || other.dead || !near(other.hex)) continue;
+    if (other.id === viewer.id || other.gone || !near(other.hex)) continue;
     found.push({
       id: other.id,
       kind: "player",

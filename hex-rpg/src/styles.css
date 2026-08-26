@@ -493,28 +493,7 @@ button.ghost {
 
 .fight-intro { margin: 0; text-align: center; color: var(--ink-muted); }
 
-.roll-label { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted); }
-.roll-sum { margin: 6px 0 0; font-size: 14px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
-.roll-sum strong { color: var(--ink); font-size: 17px; }
-.roll-bonus { color: var(--accent); }
-.roll-enemy { border-top: 1px solid var(--line); padding-top: 10px; }
-
-.dice { display: flex; gap: 8px; }
-
-.die { width: 42px; height: 42px; display: block; animation: tumble 480ms ease-out both; }
-.die svg { width: 100%; height: 100%; }
-.die rect { fill: #f2efe6; stroke: #c8c2b2; stroke-width: 3; }
-.die .pip { fill: #23282d; }
-.roll-enemy .die rect { fill: #e6d2d2; }
-
-@keyframes tumble {
-  0% { transform: rotate(-140deg) scale(0.4); opacity: 0; }
-  60% { transform: rotate(18deg) scale(1.12); opacity: 1; }
-  100% { transform: rotate(0) scale(1); opacity: 1; }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .die { animation: none; }
   .bar-fill { transition: none; }
 }
 
@@ -2037,3 +2016,19 @@ button.big.win { background: #2f7d4a; }
 
 .fight-answers { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; }
 .fight-stakes { margin: 0; }
+
+/* The party list, grouped by team. */
+.party-team {
+  list-style: none;
+  margin: 10px 0 2px;
+  font-family: "Patrick Hand", system-ui, sans-serif;
+  font-size: 15px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.party-team:first-child { margin-top: 0; }
+
+/* What health is actually for: a struck-through skill says it better than a number. */
+.party-skill { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; }
+.party-skill.is-spent { text-decoration: line-through; opacity: 0.45; }
+.party-row.is-flat { opacity: 0.8; }

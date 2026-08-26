@@ -18,7 +18,7 @@ import {
 } from "../src/game/collapse";
 import { createInitialState, startGame } from "../src/game/setup";
 import { endTurn, legalMoves, movePlayer } from "../src/game/turn";
-import { DRAGON_WAKES_ON, ENEMIES, mobArrivalChance } from "../src/game/enemies";
+import { ENEMIES, dragonWakesOn, mobArrivalChance } from "../src/game/enemies";
 import { RADIUS, allHexes, distance, key } from "../src/game/hex";
 import { sense } from "../src/game/sense";
 import { TURN_ORDER } from "../src/game/players";
@@ -35,7 +35,7 @@ function on(turn: number, at: { q: number; r: number }, seed = 4471): GameState 
     turn,
     turnLimit: LIMIT,
     players: base.players.map((p, i) =>
-      i === 0 ? { ...p, hex: at } : { ...p, hex: MIDDLE, dead: true },
+      i === 0 ? { ...p, hex: at } : { ...p, hex: MIDDLE, gone: true },
     ),
   };
 }
@@ -92,11 +92,9 @@ describe("the rim going", () => {
     const after = collapseRim(on(turn, rim));
     const lost = after.players[0];
 
+    // The one permanent loss in the design, and now the only one there is.
     expect(lost.gone).toBe(true);
-    expect(lost.dead).toBe(true);
-    // `fellOn: null` is what stops §7's get-up-after-a-turn clock from ever starting.
-    expect(lost.fellOn).toBeNull();
-    expect(lost.fellAt).toBeNull();
+    expect(lost.health).toBe(0);
   });
 
   it("leaves anybody who moved inwards alone", () => {
@@ -104,7 +102,6 @@ describe("the rim going", () => {
     const inner = allHexes().find((h) => distance(h, MIDDLE) === RADIUS - 1)!;
     const after = collapseRim(on(turn, inner));
     expect(after.players[0].gone).toBe(false);
-    expect(after.players[0].dead).toBe(false);
   });
 
   it("does nothing at all on the turns between", () => {
@@ -126,7 +123,7 @@ describe("the rim going", () => {
     const after = collapseRim(state);
     expect(after.players[0].gone).toBe(true);
     expect(after.activePlayerIndex).not.toBe(0);
-    expect(after.players[after.activePlayerIndex].dead).toBe(false);
+    expect(after.players[after.activePlayerIndex].gone).toBe(false);
   });
 
   it("does not end the game even if it takes everybody", () => {
@@ -221,10 +218,10 @@ describe("the dragon sleeping in", () => {
     const asleep = () => state.enemies.find((e) => e.kind === "finalboss")!.dormant;
     expect(asleep()).toBe(true);
 
-    for (let guard = 0; guard < 400 && state.turn < DRAGON_WAKES_ON && !state.ending; guard++) {
+    for (let guard = 0; guard < 400 && state.turn < dragonWakesOn(state.turnLimit) && !state.ending; guard++) {
       state = advance(state);
     }
-    expect(state.turn).toBeGreaterThanOrEqual(DRAGON_WAKES_ON);
+    expect(state.turn).toBeGreaterThanOrEqual(dragonWakesOn(state.turnLimit));
     expect(asleep()).toBe(false);
     expect(state.log.some((l) => /come home/i.test(l.text))).toBe(true);
   });
@@ -304,10 +301,7 @@ describe("nobody reaches into the abyss", () => {
       ...base.players[0],
       hex: beside,
       gone: true,
-      dead: true,
       health: 0,
-      fellAt: null,
-      fellOn: null,
     };
     const state: GameState = {
       ...base,

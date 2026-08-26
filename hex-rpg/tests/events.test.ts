@@ -199,11 +199,13 @@ describe("events", () => {
   it("skips the dead", () => {
     const fallen: GameState = {
       ...base(),
-      players: base().players.map((p, i) => (i === 0 ? { ...p, dead: true, health: 0 } : p)),
+      players: base().players.map((p, i) => (i === 0 ? { ...p, gone: true, health: 0 } : p)),
     };
     const after = run("well-rested", fallen);
+    // Zero health is a lost skill, never a lost player, so a night's sleep event
+    // does not reach in and change who is at the table.
     expect(after.players[0].health).toBe(0);
-    expect(after.players[0].dead).toBe(true);
+    expect(after.players[0].gone).toBe(true);
   });
 
   it("takes food before health when something wants feeding", () => {
