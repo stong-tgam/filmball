@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CHEST_COINS, canSearch, readChestCard, search, searchKind } from "../src/game/actions";
-import { CHESTS_IN_THE_RIVER } from "../src/game/setup";
+import { chestsFor } from "../src/game/setup";
 import { createInitialState } from "../src/game/setup";
 import { key } from "../src/game/hex";
 import { JOKER } from "../src/game/cards";
@@ -38,7 +38,7 @@ describe("river chests", () => {
     expect(readChestCard(card("J", "spades"))).toBe("armour");
     expect(readChestCard(card("7", "diamonds"))).toBe("haul");
     // A black number used to be a soaked and empty box. Chests are rare now
-    // (`CHESTS_IN_THE_RIVER`), and a wasted chest is a wasted walk.
+    // (`chestsFor`), and a wasted chest is a wasted walk.
     expect(readChestCard(card("7", "clubs"))).toBe("single");
     expect(readChestCard(JOKER)).toBe("trap");
   });
@@ -48,8 +48,11 @@ describe("river chests", () => {
       const board = Object.values(createInitialState(seed).tiles);
       const water = board.filter((t) => t.river);
       const chests = board.filter((t) => t.chest);
-      expect(chests).toHaveLength(CHESTS_IN_THE_RIVER);
-      // Every chest is in the water, and most of the water has none.
+      expect(chests).toHaveLength(chestsFor(water.length));
+      // Every chest is in the water, and most of the water has none - which is the
+      // whole reason a chest is worth changing course for. Counted off the *river*
+      // rather than the board: the river is a line and the board is an area, so a
+      // share of the tile count over-produced chests the moment the map grew.
       expect(chests.every((t) => t.river)).toBe(true);
       expect(chests.length).toBeLessThan(water.length / 2);
     }

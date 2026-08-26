@@ -1993,3 +1993,60 @@ button.swing-twice {
   height: 100%;
   display: block;
 }
+
+
+/* ---------- ground you remember ---------- */
+
+/* Faded, and never interactive: this is how the tile *was* when you walked past. The
+   terrain is still true; everything that moves is not, which is why the map draws no
+   monsters, no search marks and no wanderers on remembered ground. */
+.tile.is-remembered {
+  opacity: 0.42;
+  filter: saturate(0.55);
+}
+
+.tile.is-remembered .tile-outline { stroke-dasharray: 3 5; }
+
+
+/* ---------- the hourglass ---------- */
+
+.glass-toggle {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  min-height: 44px;
+  padding: 2px 10px;
+  font-size: 13px;
+}
+
+.hourglass {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.hourglass svg { width: 18px; height: 24px; display: block; }
+
+.hourglass-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  min-width: 2ch;
+  text-align: right;
+}
+
+/* The last few seconds. Loud enough to hurry somebody, quiet enough not to frighten
+   a seven-year-old who is enjoying themselves. */
+.hourglass.is-low { color: #f0b489; }
+.hourglass.is-low .hourglass-count { font-weight: 700; }
+.hourglass.is-low svg { animation: glass-tip 1s ease-in-out infinite; }
+.hourglass.is-out { color: #e2685f; }
+
+@keyframes glass-tip {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(7deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hourglass.is-low svg { animation: none; }
+}

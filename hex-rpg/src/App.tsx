@@ -7,6 +7,7 @@ import Log from "./ui/Log";
 import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
 import GemBar from "./ui/GemBar";
 import ArtRoom from "./ui/ArtRoom";
+import Hourglass from "./ui/Hourglass";
 import CombatModal from "./ui/CombatModal";
 import ShopModal from "./ui/ShopModal";
 import GameOver from "./ui/GameOver";
@@ -77,6 +78,8 @@ export default function App() {
   /** The art room, in front of everything. Held here, not in `GameState`: which
    *  pictures this device uses is a fact about the device, not about the game. */
   const [drawing, setDrawing] = useState(false);
+  /** The turn timer, on by default. Some evenings the point is the talking. */
+  const [timed, setTimed] = useState(true);
   const moveTo = useGame((s) => s.moveTo);
   const endTurn = useGame((s) => s.endTurn);
   const player = useActivePlayer();
@@ -186,7 +189,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.29 — everything has a face</span>
+          <span className="version">v0.30 — the map you remember</span>
         </div>
         <button
           type="button"
@@ -200,15 +203,37 @@ export default function App() {
           type="button"
           className="peek"
           aria-pressed={overhead}
-          title="Grown-up's peek: the overhead board the players are not supposed to have"
+          title="The map you have walked: ground you have seen, remembered but faded"
           onClick={() => setOverhead((on) => !on)}
         >
-          {overhead ? "Back to the ground" : "Peek at the map"}
+          {overhead ? "Back to the ground" : "Your map"}
         </button>
         <p className="turn-counter">
           Turn <strong>{game.turn}</strong>
           <span className="of">/{game.turnLimit}</span>
         </p>
+
+        {/* The sand runs only while somebody could actually be acting: not behind a
+            card they are reading, not during a fight, and not once the game is over.
+            A timer that ran while a child read the event card would be punishing them
+            for the app's own theatre. */}
+        <button
+          type="button"
+          className="glass-toggle"
+          aria-pressed={timed}
+          title={timed ? "Turn the hourglass off" : "Turn the hourglass on"}
+          onClick={() => setTimed((on) => !on)}
+        >
+          {timed ? (
+            <Hourglass
+              turnKey={`${game.turn}:${player.id}`}
+              running={!over && !game.combat && !game.draw && !game.find}
+              onOut={endTurn}
+            />
+          ) : (
+            "Hourglass off"
+          )}
+        </button>
         <div className="seedbar">
           <label htmlFor="seed">Seed</label>
           <input

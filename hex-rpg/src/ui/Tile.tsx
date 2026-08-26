@@ -39,6 +39,14 @@ type Props = {
   /** Ground the tornado has just been through. */
   wrecked: boolean;
   /**
+   * Ground this player has walked past but cannot see right now (`Player.seen`).
+   *
+   * Drawn faded, because it is a memory: the terrain is still true, and everything
+   * that moves is not. The fade is the whole of how a child tells "this is how it was"
+   * from "this is how it is".
+   */
+  remembered?: boolean;
+  /**
    * Ground that falls into the abyss when this turn ends (`collapse.ts`).
    *
    * Drawn cracked and named in the label, because it is the only thing on the board a
@@ -311,6 +319,7 @@ function TileView({
   legal,
   wrecked,
   doomed = false,
+  remembered = false,
   findings = null,
   showLabel = true,
   onSelect,
@@ -326,11 +335,11 @@ function TileView({
   return (
     <g
       transform={`translate(${x.toFixed(2)} ${y.toFixed(2)})`}
-      className={`tile tile-${tile.base}${selected ? " is-selected" : ""}${legal ? " is-legal" : ""}${wrecked ? " is-wrecked" : ""}${doomed ? " is-doomed" : ""}`}
+      className={`tile tile-${tile.base}${selected ? " is-selected" : ""}${legal ? " is-legal" : ""}${wrecked ? " is-wrecked" : ""}${doomed ? " is-doomed" : ""}${remembered ? " is-remembered" : ""}`}
       onClick={() => onSelect(label)}
       role="button"
       tabIndex={0}
-      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}${wrecked ? ", wrecked by the tornado" : ""}${doomed ? ", crumbling — it falls when this turn ends" : ""}${findings === "chest" ? ", a chest in the water" : findings === "ground" ? ", not searched yet" : ""}${legal ? ", you can move here" : ""}`}
+      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}${wrecked ? ", wrecked by the tornado" : ""}${doomed ? ", crumbling — it falls when this turn ends" : ""}${remembered ? ", remembered from earlier" : ""}${findings === "chest" ? ", a chest in the water" : findings === "ground" ? ", not searched yet" : ""}${legal ? ", you can move here" : ""}`}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();

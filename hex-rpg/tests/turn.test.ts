@@ -3,7 +3,7 @@ import { hasMoved } from "../src/game/players";
 import { stepsLeft } from "../src/game/players";
 import { createInitialState } from "../src/game/setup";
 import { activePlayer, endTurn, legalMoves, movePlayer, moveRange } from "../src/game/turn";
-import { BASE_HEALTH, BASE_MONEY, ROLES, TURN_ORDER, createPlayers } from "../src/game/players";
+import { BASE_HEALTH, BASE_MONEY, BASE_MOVE, ROLES, TURN_ORDER, createPlayers } from "../src/game/players";
 import { makeRng } from "../src/game/rng";
 import { FISHING_ROD } from "../src/game/items";
 import {
@@ -107,12 +107,14 @@ describe("legal moves", () => {
     }
   });
 
-  it("gives everyone one tile a turn, and the scout two", () => {
-    // Rulebook §3 and §5: one tile is the default; the scout is the movement role.
+  it("gives everyone the base move, and the scout one more", () => {
+    // §5 says one tile; v0.30 made it two, because a turn is a route now rather than
+    // a poke at the next hex. Written against the constant so it cannot go stale.
     const state = game();
     for (const player of state.players) {
-      expect(moveRange(player)).toBe(player.role === "scout" ? 2 : 1);
+      expect(moveRange(player)).toBe(BASE_MOVE + ROLES[player.role].moveBonus);
     }
+    expect(moveRange(state.players.find((p) => p.role === "scout")!)).toBe(BASE_MOVE + 1);
   });
 
   it("starts everyone on the rulebook's 3 health and $2", () => {
@@ -136,8 +138,8 @@ describe("legal moves", () => {
     // the fisherman's hook puts you, and where a group fight has to happen; the old
     // blocking rule made the party four people who could never quite meet.
     const base = game();
-    const rogue = { ...base.players[2], hex: { q: 0, r: 0 } };
-    const friend = { ...base.players[0], hex: { q: 1, r: 0 } };
+    const rogue = { ...base.players.find((p) => p.role === "rogue")!, hex: { q: 0, r: 0 } };
+    const friend = { ...base.players.find((p) => p.role === "knight")!, hex: { q: 1, r: 0 } };
     const beyond = { q: 2, r: 0 };
     // Clear the monsters: they still block, and this test is about players.
     const state: GameState = {
@@ -147,7 +149,7 @@ describe("legal moves", () => {
       enemies: [],
     };
 
-    expect(moveRange(rogue)).toBe(2);
+    expect(moveRange(rogue)).toBe(BASE_MOVE);
     const moves = legalMoves(state, rogue);
     expect(moves.has(label(friend.hex))).toBe(true);
     // Still only ever one tile offered at a time, friend or no friend: the far side
@@ -161,7 +163,7 @@ describe("legal moves", () => {
     const scout = { ...base.players.find((p) => p.role === "scout")!, hex: { q: 0, r: 0 } };
     const state: GameState = { ...base, activePlayerIndex: 0, players: [scout], enemies: [] };
 
-    expect(moveRange(scout)).toBe(2);
+    expect(moveRange(scout)).toBe(BASE_MOVE + 1);
     const first = legalMoves(state, scout);
     expect(first.size).toBeGreaterThan(0);
     for (const steps of first.values()) expect(steps).toBe(1);
@@ -169,7 +171,7 @@ describe("legal moves", () => {
     const after = movePlayer(state, [...first.keys()][0]);
     const walked = after.players[0];
     expect(walked.stepsTaken).toBe(1);
-    expect(stepsLeft(walked)).toBe(1);
+    expect(stepsLeft(walked)).toBe(BASE_MOVE);
 
     // The second step is offered from the new tile - which is the point: the scout
     // sees what the first step turned up before committing to the next one.
@@ -177,15 +179,22 @@ describe("legal moves", () => {
     expect(second.size).toBeGreaterThan(0);
     expect(second.has(label(scout.hex))).toBe(true);
 
-    const done = movePlayer(after, [...second.keys()][0]);
+    // Walk the legs out, a step at a time, and the offers stop.
+    let done = after;
+    for (let i = 0; i < BASE_MOVE && stepsLeft(done.players[0]) > 0; i++) {
+      const open = legalMoves(done, done.players[0]);
+      if (open.size === 0) break;
+      done = movePlayer(done, [...open.keys()][0]);
+    }
     expect(stepsLeft(done.players[0])).toBe(0);
+    expect(legalMoves(done, done.players[0]).size).toBe(0);
     expect(legalMoves(done, done.players[0]).size).toBe(0);
   });
 
   it("offers nothing once the player has moved, or is dead, or the game is over", () => {
     const state = game();
     const player = activePlayer(state);
-    expect(legalMoves(state, { ...player, stepsTaken: 1 }).size).toBe(0);
+    expect(legalMoves(state, { ...player, stepsTaken: moveRange(player) }).size).toBe(0);
     expect(legalMoves(state, { ...player, dead: true }).size).toBe(0);
     expect(legalMoves({ ...state, phase: "gameOver" }, player).size).toBe(0);
   });
@@ -200,7 +209,7 @@ describe("moving", () => {
 
     expect(key(moved.hex)).toBe(destination);
     expect(hasMoved(moved)).toBe(true);
-    expect(legalMoves(after, moved).size).toBe(0);
+    expect(stepsLeft(moved)).toBe(moveRange(moved) - 1);
     // The log says which way, never which tile: there is no map on screen, so a grid
     // reference in the log would hand the party the thing the design hides.
     expect(after.log.at(-1)?.text).not.toContain(destination);

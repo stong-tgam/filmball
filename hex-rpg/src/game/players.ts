@@ -26,8 +26,17 @@ import type { Player, Role, Terrain } from "./types";
 export const BASE_HEALTH = 3;
 export const BASE_MONEY = 2;
 
-/** Rulebook §5: one tile, plus the scout's legs and whatever boots add. */
-export const BASE_MOVE = 1;
+/**
+ * Rulebook §5 says one tile. This is **two**, as of v0.30.
+ *
+ * One tile was right while the board was blank paper and a step was a guess: you could
+ * see exactly as far as you could walk, so a move was "try that hex". With the map
+ * remembered (`Player.seen`) and sight at two rings, a turn is a *route* - you can see
+ * the whole of where you might go, and choosing between nineteen tiles rather than six
+ * is a decision instead of a poke. Movement is still spent **one tile at a time**, so
+ * an ambush still interrupts you halfway and you still choose whether to push on.
+ */
+export const BASE_MOVE = 2;
 
 /**
  * How far a player moves in a turn - and, since `combat.ts` reads it, how likely they
@@ -85,6 +94,17 @@ export type RoleProfile = {
    * afford to be carrying something they are not wearing.
    */
   carriesSpare: boolean;
+  /**
+   * Hands things to the rest of the party.
+   *
+   * True for everybody but the fisherman. Their side of the bargain: they cross open
+   * water at will and can never lose the rod, and in exchange the food they pull out of
+   * the river is theirs. A role that could fish forever *and* feed four other people
+   * would make the whole supply economy one player's job.
+   *
+   * One-way, not exile: they can still be given to.
+   */
+  tradesWithTheParty: boolean;
   /** Token colour. One source for every colour on the board: see `src/palette.ts`. */
   colour: string;
 };
@@ -102,6 +122,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     carriesSpare: true,
     homeGround: null,
     robsTheBody: false,
+    tradesWithTheParty: true,
     colour: PALETTE.knight,
   },
   rogue: {
@@ -116,6 +137,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     carriesSpare: false,
     homeGround: null,
     robsTheBody: true,
+    tradesWithTheParty: true,
     colour: PALETTE.rogue,
   },
   scout: {
@@ -130,6 +152,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     carriesSpare: false,
     homeGround: "forest",
     robsTheBody: false,
+    tradesWithTheParty: true,
     colour: PALETTE.scout,
   },
   doctor: {
@@ -144,11 +167,12 @@ export const ROLES: Record<Role, RoleProfile> = {
     carriesSpare: false,
     homeGround: null,
     robsTheBody: false,
+    tradesWithTheParty: true,
     colour: PALETTE.doctor,
   },
   fisherman: {
     name: "Fisher",
-    blurb: "Fishes the river for food and treasure, and can hook a friend across.",
+    blurb: "Fishes the river for food and treasure, hooks a friend across, and swims.",
     healthBonus: 0,
     attackBonus: 0,
     moveBonus: 0,
@@ -158,6 +182,7 @@ export const ROLES: Record<Role, RoleProfile> = {
     carriesSpare: false,
     homeGround: null,
     robsTheBody: false,
+    tradesWithTheParty: false,
     colour: PALETTE.fisherman,
   },
 };
@@ -205,6 +230,7 @@ const spawn = (role: Role, hex: Hex): Player => {
     boots: null,
     spareArmor: null,
     supply: [],
+    seen: [],
     gem: null,
     dead: false,
     gone: false,

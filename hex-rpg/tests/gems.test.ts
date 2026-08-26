@@ -24,6 +24,7 @@ import { canDigAgain, canSearch, search, tileMates } from "../src/game/actions";
 import { attack, canSwingTwice, flee, invite, inviteTargets, startCombat } from "../src/game/combat";
 import { collapseRim, collapseTurns } from "../src/game/collapse";
 import { RADIUS, allHexes, distance, key } from "../src/game/hex";
+import { moveRange } from "../src/game/players";
 import { SUPPLY_CAP } from "../src/game/items";
 import type { GameState, GemKind, GemSetting, Player } from "../src/game/types";
 
@@ -332,7 +333,12 @@ function inAFight(kind: GemKind, set: GemSetting, health = 3): GameState {
   return {
     ...fighting,
     enemies: fighting.enemies.map((e) =>
-      e.id === enemy.id ? { ...e, maxHealth: 99, damageTaken: 0 } : e,
+      // Unkillable, and with no features: §9's field feature adds to the toll, and
+      // which feature a monster draws depends on the board it is standing on. These
+      // tests are about what the stone does to a plain one-health round.
+      e.id === enemy.id
+        ? { ...e, maxHealth: 99, damageTaken: 0, features: [], featuresRevealed: true }
+        : e,
     ),
   };
 }
@@ -405,7 +411,11 @@ describe("carry, in a blue weapon", () => {
   it("puts a friend one tile further inside the shout", () => {
     const base = holding("weapon", 4471, "blue");
     const enemy = base.enemies.find((e) => e.kind === "midboss")!;
-    const two = allHexes().find((h) => distance(h, enemy.hex) === 2 && distance(h, MIDDLE) <= RADIUS)!;
+    // Exactly one tile past the starter's own legs, which is what the stone buys.
+    const shout = moveRange(base.players[0]);
+    const two = allHexes().find(
+      (h) => distance(h, enemy.hex) === shout + 1 && distance(h, MIDDLE) <= RADIUS,
+    )!;
 
     const party: GameState = {
       ...base,
@@ -415,7 +425,7 @@ describe("carry, in a blue weapon", () => {
       ),
     };
     const fighting = startCombat(party, enemy, key(enemy.hex), false);
-    // A knight moves one tile, so two tiles is out of reach without the stone.
+    // One tile past their legs: in reach with the stone, out of reach without it.
     expect(inviteTargets(fighting).length).toBeGreaterThan(0);
 
     const plain: GameState = {
@@ -445,7 +455,9 @@ describe("take the hit, in a blue coat", () => {
     fighting = {
       ...invite(fighting, "rogue"),
       enemies: fighting.enemies.map((e) =>
-        e.id === enemy.id ? { ...e, maxHealth: 99, damageTaken: 0 } : e,
+        e.id === enemy.id
+          ? { ...e, maxHealth: 99, damageTaken: 0, features: [], featuresRevealed: true }
+          : e,
       ),
     };
 
@@ -479,7 +491,9 @@ describe("take the hit, in a blue coat", () => {
     fighting = {
       ...invite(fighting, "rogue"),
       enemies: fighting.enemies.map((e) =>
-        e.id === enemy.id ? { ...e, maxHealth: 99, damageTaken: 0 } : e,
+        e.id === enemy.id
+          ? { ...e, maxHealth: 99, damageTaken: 0, features: [], featuresRevealed: true }
+          : e,
       ),
     };
     const after = attack(fighting);

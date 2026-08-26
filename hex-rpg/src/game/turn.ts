@@ -14,6 +14,7 @@ import { applyEvent, createEventDeck } from "./events";
 import { hazardMoves, isDestroyed, meet, moveHazards } from "./hazards";
 import { fromLabel, key, reachable } from "./hex";
 import { collapseRim, hasFallen } from "./collapse";
+import { rememberAll } from "./vision";
 import { makeRng } from "./rng";
 import { hasMoved, stepsLeft } from "./players";
 import { bearingBetween, compassName } from "./sense";
@@ -107,16 +108,21 @@ export function movePlayer(state: GameState, destination: string): GameState {
   // step on the tile takes that choice away before anybody has been asked. `meet` has
   // already said "fight, or pay up" above; the buttons for both are on the action bar
   // (`canFightThief`, `canPayOff`).
-  const enemy = enemyAt(arrived.enemies, destination);
-  if (!enemy || THIEVES.includes(enemy.kind)) return arrived;
+  // Write down what the step revealed, before anything else happens on this tile.
+  // Doing it here rather than only at the end of the turn is what stops ground seen
+  // from the first step flickering away when they take the second.
+  const noted = rememberAll(arrived);
+
+  const enemy = enemyAt(noted.enemies, destination);
+  if (!enemy || THIEVES.includes(enemy.kind)) return noted;
   // An unfound monster was not on the board when the move was chosen, so this is an
   // ambush and `flee` lets the player straight back out of it. Marking the action
   // spent still happens - the turn is gone either way - but `flee` un-spends it for
   // a first-round walk-out.
   const ambush = !enemy.found;
   const fighting = {
-    ...arrived,
-    players: arrived.players.map((p) => (p.id === player.id ? { ...p, actedThisTurn: true } : p)),
+    ...noted,
+    players: noted.players.map((p) => (p.id === player.id ? { ...p, actedThisTurn: true } : p)),
   };
   return startCombat(fighting, enemy, key(player.hex), ambush);
 }
@@ -321,7 +327,15 @@ export function endTurn(state: GameState): GameState {
     ...(i === index ? { ...p, stepsTaken: 0, actedThisTurn: false } : p),
     joinedFightThisRound: rolled ? false : p.joinedFightThisRound,
   }));
-  const started = { ...next, players: ready, activePlayerIndex: index, turn, phase: "playerMove" as const };
+  // Everybody's memory brought up to date once a turn, which catches the ways a player
+  // changes tiles that are not a move: the hook, the tornado, backing out of a fight.
+  const started = rememberAll({
+    ...next,
+    players: ready,
+    activePlayerIndex: index,
+    turn,
+    phase: "playerMove" as const,
+  });
   // A new turn for the whole party, not just the next player, is what draws a card.
   return turn === next.turn ? started : beginTurn(note(started, `— Turn ${turn} —`));
 }

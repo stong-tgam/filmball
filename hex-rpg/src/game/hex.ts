@@ -24,7 +24,7 @@ export type Hex = { q: number; r: number };
  * Everything sized against the board scales off this: monster counts, cities, forests,
  * chests, and the turn limit. Change it and re-run `tools/sim.ts`.
  */
-export const RADIUS = 4;
+export const RADIUS = 5;
 
 export const inBoard = (h: Hex): boolean =>
   Math.abs(h.q) <= RADIUS &&
@@ -67,9 +67,17 @@ export function allHexes(): Hex[] {
 export const qMin = (r: number): number => Math.max(-RADIUS, -RADIUS - r);
 export const qMax = (r: number): number => Math.min(RADIUS, RADIUS - r);
 
-const ROWS = "ABCDEFGHI";
+/**
+ * Row letters, one per row of the board, cut to fit.
+ *
+ * It was the literal `"ABCDEFGHI"` - nine letters, which is exactly a radius-4 board
+ * and no more. Growing the board to radius 5 therefore did not produce a bigger map, it
+ * produced `undefined` row letters, keys reading `"undefined3"`, and a crash three
+ * layers down in `distance`. Sized off `RADIUS` now, and there is a test.
+ */
+const ROWS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice(0, RADIUS * 2 + 1);
 
-/** Display label, e.g. "A1" for the top-left tile, "E5" for the centre. */
+/** Display label, e.g. "A1" for the top-left tile, "E5" for the centre of a radius-4. */
 export function label(h: Hex): string {
   const row = ROWS[h.r + RADIUS];
   return `${row}${h.q - qMin(h.r) + 1}`;
@@ -77,9 +85,11 @@ export function label(h: Hex): string {
 
 /** Inverse of `label`. Returns null for anything off the board. */
 export function fromLabel(s: string): Hex | null {
-  const m = /^([A-Ia-i])(\d+)$/.exec(s.trim());
+  const m = /^([A-Za-z])(\d+)$/.exec(s.trim());
   if (!m) return null;
-  const r = ROWS.indexOf(m[1].toUpperCase()) - RADIUS;
+  const row = ROWS.indexOf(m[1].toUpperCase());
+  if (row < 0) return null;
+  const r = row - RADIUS;
   const q = qMin(r) + Number(m[2]) - 1;
   const h = { q, r };
   return inBoard(h) ? h : null;

@@ -25,6 +25,7 @@ import { makeRng, type Rng } from "./rng";
 import { createPlayers } from "./players";
 import { placeEnemies, spawnThieves } from "./enemies";
 import { placeHazards } from "./hazards";
+import { remember } from "./vision";
 import { beginTurn } from "./turn";
 import { createItemPile } from "./items";
 import { freshDeck } from "./cards";
@@ -148,17 +149,25 @@ function carveRiver(board: Draft, rng: Rng): void {
 /**
  * Chests sunk in the river, board-wide.
  *
- * Four. The river runs a dozen tiles or more across the board, and a chest on every
- * one of them made the best odds in the game something you tripped over on the way
- * past - and put a chest mark on a dozen hexes, which is a map that says nothing.
- * Four is few enough that seeing one is worth changing course for.
+ * A **share of the river**, not of the board.
+ *
+ * It was `TILE_COUNT / 15`, and that was wrong in a way only a bigger board could show:
+ * the river is a *line* across the map, so it grows with the radius while the tile
+ * count grows with the square of it. At radius 4 the board had four chests in ten water
+ * tiles; at radius 5 the same rule wanted six chests in eleven, so **most of the river
+ * had one** - and a chest you trip over on the way past is exactly what this constant
+ * was introduced to stop. Counting off the water keeps it rare at every board size.
  */
-export const CHESTS_IN_THE_RIVER = Math.round(TILE_COUNT / 15);
+export const CHEST_SHARE_OF_RIVER = 0.35;
+
+/** How many chests a river of this length carries. Never fewer than two. */
+export const chestsFor = (water: number): number =>
+  Math.max(2, Math.round(water * CHEST_SHARE_OF_RIVER));
 
 /** Sink the chests, once the river knows where it runs. */
 function sinkChests(board: Draft, rng: Rng): void {
   const water = [...board.values()].filter((t) => t.river);
-  for (const tile of rng.shuffle(water).slice(0, CHESTS_IN_THE_RIVER)) {
+  for (const tile of rng.shuffle(water).slice(0, chestsFor(water.length))) {
     tile.chest = true;
   }
 }
@@ -340,7 +349,8 @@ export function createInitialState(seed: number, roster?: Role[]): GameState {
   // produces. Board and party stay independently reproducible.
   const rng = makeRng(seed ^ 0x9e3779b9);
 
-  const players = createPlayers(rng, roster);
+  // Everybody starts knowing the ground they can see from where they woke up.
+  const players = createPlayers(rng, roster).map(remember);
   const tiles = generateBoard(seed);
   // Monsters first, then hazards around them: two things on one tile is a fight
   // nobody chose, and the thieves are both at once.

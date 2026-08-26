@@ -8,16 +8,19 @@ import type { GameState } from "../src/game/types";
 const at = (state: GameState, i: number) => state.players[i];
 
 describe("what a player can see", () => {
-  it("shows the tile underfoot and one ring, and nothing else", () => {
+  it("shows the tile underfoot and the rings around it, and nothing else", () => {
     const state = createInitialState(4471);
     const knight = at(state, 0);
     const seen = visibleFrom(knight);
 
     expect(sightOf(knight)).toBe(BASE_SIGHT);
-    // Own tile plus six neighbours, minus whatever falls off the board edge.
-    expect(seen.length).toBeLessThanOrEqual(7);
+    // A hexagon of radius R holds 3R(R+1)+1 tiles, minus whatever the board edge cuts
+    // off. Written against the constant: sight went from one ring to two in v0.30 and
+    // a literal 7 here would have quietly stopped meaning anything.
+    const most = 3 * BASE_SIGHT * (BASE_SIGHT + 1) + 1;
+    expect(seen.length).toBeLessThanOrEqual(most);
     expect(seen.some((h) => key(h) === key(knight.hex))).toBe(true);
-    for (const hex of seen) expect(distance(knight.hex, hex)).toBeLessThanOrEqual(1);
+    for (const hex of seen) expect(distance(knight.hex, hex)).toBeLessThanOrEqual(BASE_SIGHT);
   });
 
   it("gives the scout two rings - the bonus that matters now the board is hidden", () => {

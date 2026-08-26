@@ -1,7 +1,7 @@
 # Hex RPG
 
 A hex-crawl board game for kids, played hotseat on one device passed around the
-table. Players roam a 61-tile map, fight bosses, buy and loot equipment, and get
+table. Players roam a 91-tile map, fight bosses, buy and loot equipment, and get
 knocked sideways by random events.
 
 **The goal is family time, not simulation depth.** Every decision below serves that:
@@ -45,7 +45,7 @@ These are the tiebreakers when a design question comes up mid-task:
   generator's whole state is one number, so it saves with the game and a reloaded
   game rolls the sequence it would have rolled. `rollDice` returns the new value;
   put it back in the state you return.
-- **Axial coordinates for maths, A1–I5 labels for display.** Never do geometry on the
+- **Axial coordinates for maths, row-letter labels for display.** Never do geometry on the
   labels; row widths change direction at the middle row.
 
 ## Version numbers
@@ -94,13 +94,13 @@ you have not published.
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 425 tests
+npm test           # 434 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html, plus the artifact fragment
 npx vite-node tools/sim.ts 800 5 # bot playtest: how do 800 five-player games end?
 ```
 
-## Current state: v0.29
+## Current state: v0.30
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -115,6 +115,12 @@ Key rules, so nothing gets "improved" back to a guess:
   hidden — one extra ring is roughly triple what a turn tells you. Four are rulebook
   §3; the fisherman is this build's own. The party is **whichever two to five of them
   the table picked**, starting in pairs on the corners — see the roster bullet below.
+- **The fisherman's bargain** (v0.30): they cross open water at will and can never lose
+  the rod, and in exchange **they hand nothing to the party**
+  (`RoleProfile.tradesWithTheParty`). One-way, not exile — they can still be given to. A
+  role that fished forever *and* fed four other people would make the whole supply
+  economy one player's job. The water freedom is what makes bridges possible later
+  without deleting the role.
 - **The fisherman** is the odd role out on purpose: every other bonus is a number added
   to a roll, theirs is a **thing they hold**. The rod is in the weapon slot at **+0**,
   cannot be swapped away (`equip` refuses — a ground search equips what it finds
@@ -181,9 +187,12 @@ Key rules, so nothing gets "improved" back to a guess:
   log lines nobody was reading. The moves are **directions, never tiles** (the log rule
   holds here too), and the happenings are read back off the log rather than described
   branch by branch, the same way `Find` is — add an effect and it reports itself.
-- **Chests are rare** (`CHESTS_IN_THE_RIVER`, `TILE_COUNT / 15`). Every river tile used to hold one,
-  which made the best odds in the game something you tripped over on the way past and
-  put a chest mark on a dozen hexes. Rare and worth the walk beats common and ignored —
+- **Chests are rare** (`chestsFor`, a share of **the river** and not of the board).
+  Counting them off `TILE_COUNT` was wrong in a way only a bigger board could show: the
+  river is a *line* across the map and grows with the radius, while the tile count grows
+  with the square of it — so at radius 5 the old rule wanted six chests in eleven water
+  tiles and **most of the river had one** - which is the thing the constant exists to
+  prevent. Rare and worth the walk beats common and ignored —
   and because they are rare, a chest no longer has a dud outcome: a black number pays
   one piece of gear where it used to be a soaked empty box. A chestless river tile
   searches as ordinary ground and still fishes.
@@ -192,13 +201,25 @@ Key rules, so nothing gets "improved" back to a guess:
   half of a game is where a quiet turn is just a turn spent walking. Three bands: jack
   and up, then ten and up, then nine and up (31% / 38% / 46%). The ace counts
   throughout, which §4 quietly excluded.
-- **The board is 61 tiles (`RADIUS` 4) again, and the turn limit is 16** — but the
+- **A turn is two tiles, and you can see two** (`BASE_MOVE`, `BASE_SIGHT`, both 2 as of
+  v0.30). They are deliberately equal: you can always see the whole of where you might
+  go, so a turn is a *route* rather than a poke at the next hex. **Movement is still
+  spent one tile at a time**, which is what keeps an ambush able to interrupt you
+  halfway and keeps "push on or stop?" a real question — and it is why there is no route
+  in state to go stale. If sight ever falls behind movement the last step becomes a
+  guess again; there is a test.
+- **The board is 91 tiles (`RADIUS` 5), and the turn limit is 16** — but the
   board **falls in as the game runs** (`src/game/collapse.ts`), so what the party
-  actually plays on is 61 tiles, then 37, then 19, then 7. v0.22 had cut the ring off
+  actually plays on is 91 tiles, then 61, then 37, then 19. v0.22 had cut the ring off
   to get an evening under twenty minutes; v0.24 puts it back because the collapse is a
   better version of the same lever - it shortens the game by **closing the distance**
-  rather than by never having had any. Measured at five players: **11.5 rounds, 58
-  individual goes**.
+  rather than by never having had any. Measured at five players: **10.7 rounds, 53
+  individual goes** — *shorter* than the 61-tile board, because two tiles a turn covers
+  ground faster than the board grew.
+- **`ROWS` is sized off `RADIUS`.** It was the literal `"ABCDEFGHI"` — nine letters,
+  which is exactly a radius-4 board and no more. Growing the board did not produce a
+  bigger map, it produced `undefined` row letters, keys reading `"undefined3"`, and a
+  crash three layers down in `distance`.
 - **The rim falls in every quarter of the game** (`COLLAPSE_MARKS`, `collapseRim`), and
   anybody standing on it is **out of the game for good** (`Player.gone`). This is the
   one permanent loss in a design that otherwise refuses them, so it is fenced:
@@ -242,6 +263,14 @@ Key rules, so nothing gets "improved" back to a guess:
   under `prefers-reduced-motion`, and **none of it carries information that is not also
   written down** — these fire dozens of times an evening, so an effect you have to sit
   through is a tax rather than a moment.
+- **The hourglass is not part of the game** (`src/ui/Hourglass.tsx`). Ninety seconds a
+  turn, and when the sand runs out it calls the same `endTurn` the button does. It lives
+  in the **view and never in `GameState`**, and that matters more than it looks: the
+  whole design rests on a game being reproducible from its seed, and a wall clock in the
+  state would make a saved game resume differently from the one that was put down. It
+  pauses behind a card and during a fight — a timer that ran while a child read the
+  event card would be punishing them for the app's own theatre — and it can be switched
+  off, because some evenings the point is the talking.
 - **Games are saved after every change** (`src/game/save.ts`, and a `useGame.subscribe`
   in the store rather than a call in each of twenty setters — the twenty-first would be
   the one somebody forgot, and a save that is right most of the time loses an evening
@@ -445,7 +474,10 @@ position on screen at all** - not the player's, not anybody's. What a player get
 step onto**, drawn with the ordinary `Tile` renderer, plus a blip for everything within
 two moves placed on the bearing it actually lies on.
 
-The distinction to hold on to: this shows **what is adjacent, never where any of it is**.
+The distinction to hold on to: the compass shows **what is adjacent, never where any of
+it is**. The remembered map is the other half, and it is behind the header's **"Your
+map"** button (`Board.tsx`) - which used to be a grown-up's debug peek and is now the
+player's own record, fogged by `hasSeen` rather than by `canSee`.
 You have to be able to see that the next hex is a river before deciding to walk into it
 — that is a choice, not a map. What stays hidden is position: no labels on the hexes
 (`showLabel={false}`), no grid, no coordinates. Two players can both be looking at a
@@ -457,7 +489,7 @@ past the rim of the board are drawn as dashed "edge" holes: `neighbours()` filte
 off-board, so the view adds them itself with `allNeighbours`. A child needs to see that
 there is nothing that way, not an absence of drawing.
 
-`src/game/sense.ts` is the whole rule. `SENSE_RANGE` is two movements; past that you
+`src/game/sense.ts` is the whole rule. `SENSE_RANGE` is two tiles; past that you
 feel nothing. What is sensed follows the hidden-board rules exactly: hazards always,
 the dragon always because it smokes, an ordinary monster only once somebody has walked
 into it. **Never sense an unfound monster** - that would undo the ambush the hiding is
@@ -472,24 +504,43 @@ was exactly that leak. Movement says which way and how far ("walked one tile wes
 never which tile. `tests/sense.test.ts` plays a whole game and fails on any log line
 matching a tile label; if you add a message, say the direction, not the square.
 
-The 2D board survives in `Board.tsx` behind the header's **"Peek at the map"** button -
-a grown-up's debug switch, off by default. It does show positions, which is the point
-of it and the reason it is not something a player should be looking at.
+`Board.tsx` is that remembered map, behind the header's **"Your map"** button. It draws
+a tile the viewer has seen - live ones in full colour, remembered ones faded and with
+their search marks stripped - and nothing at all where they have never been. Monsters
+still follow `enemyVisible`, so the map never shows one that is not in sight right now.
 
-## The board is hidden (v0.8, still the substrate)
+## The board is hidden, and now you remember it (v0.8, rewritten in v0.30)
 
-**There is no bird's-eye view and the game remembers nothing about the map.** A player
-sees the tile they stand on and the ring around it; everything else is blank paper, and
-it goes blank again the moment they walk away. The map lives in the players' notes and
-in what they say to each other across the table. That is the feature, not a limitation
-to be smoothed over.
+**There is no bird's-eye view.** A player sees the tile they stand on and two rings
+around it; the rest of the board is blank paper. What changed in v0.30 is that **ground
+they have already seen stays on their map**, faded.
 
-Read `src/game/vision.ts` before touching any of it. The rules:
+### The rule that was retired, and why
 
-- **Never add a remembered-tiles cache.** An "explored" overlay, a fog that stays
-  lifted, a minimap — any of them deletes the note-taking and the talking that the
-  whole design is for. This is the one change most likely to look like an improvement
-  and be the opposite.
+Until v0.30 this section said, in bold: *never add a remembered-tiles cache — it deletes
+the note-taking and the talking the whole design is for, and it is the one change most
+likely to look like an improvement and be the opposite.* **That was a good rule and it
+is deliberately gone. Do not put it back without reading this.**
+
+It was written for a 37-tile board with five kinds of terrain, where a child could hold
+the shape of the map in their head or on one sheet of paper. It stopped being true when
+the board grew to 91 tiles and started carrying things worth remembering — a bridge, a
+shop, a chest, and eventually a mountain. At that size nobody takes notes; they simply
+forget, and then the exploring is *wasted* rather than banked, which is worse than
+either version of the rule intended.
+
+**What the old rule was protecting is still protected, by a different mechanism:**
+memory is **per player, not per party** (`Player.seen`). You still have to tell your
+sister where the shop is, because she has not been there. The conversation survives; the
+bookkeeping does not.
+
+And memory holds **ground only, never contents**. Monsters walk, hazards walk, other
+players walk, and ground you left unsearched may have been searched by somebody else
+since. A remembered tile shows terrain and nothing else, drawn faded, so it can never
+say something that has stopped being true. The rule to keep is not "no memory" — it is
+**a memory may never lie**.
+
+Read `src/game/vision.ts` before touching any of it. The rules that still hold:
 - **You always know your own tile's label.** Otherwise "where are you?" cannot be
   answered and the party can pool nothing.
 - **The sidebar must never say more than the board shows.** `App.tsx` gates the Tile
@@ -500,9 +551,13 @@ Read `src/game/vision.ts` before touching any of it. The rules:
 - **Monsters are hidden until somebody walks into one** (`Enemy.found`), which makes
   that an ambush, so `flee` lets you straight back out of a first-round ambush for
   free. Once found, a monster stays on the board — the party paid a turn for that.
-- **The dragon smokes** (`SMOKE_RADIUS`, 2 tiles) and sits at the centre. Both are
-  deliberate: one monster on one tile in sixty-one, blind, is never found inside the
-  turn limit, and "we never found it" is not a defeat, it is a shrug.
+- **The dragon smokes** (`SMOKE_RADIUS`, one ring **further than sight**) and sits at
+  the centre. One monster on one tile in ninety, blind, is never found inside the turn
+  limit, and "we never found it" is not a defeat, it is a shrug. It is derived from
+  `BASE_SIGHT` rather than written down: it was a flat 2 while sight was a flat 1, and
+  raising sight to 2 in v0.30 made the smoke reach exactly as far as ordinary eyesight
+  and quietly stop being a clue at all. **A hint that is not better than looking is not
+  a hint.**
 - **There is no in-app notepad.** There was one; it was removed because players keep
   notes on paper or a phone, and a text box in the sidebar was a worse version of that.
   The point stands regardless: the app remembers nothing, so the map lives outside it.

@@ -996,6 +996,11 @@ export function giveTargets(
   state: GameState,
   player: Player,
 ): { player: Player; items: Item[] }[] {
+  // The fisherman keeps what they catch. They are the only one who can cross open
+  // water at will and the only one who can never swap their weapon, and this is the
+  // price of the first of those: everybody else's food goes round the party, theirs
+  // does not. They can still be *given* to - the trade is one-way, not exile.
+  if (!ROLES[player.role].tradesWithTheParty) return [];
   return tileMates(state, player)
     .map((mate) => ({ player: mate, items: giveable(player).filter((i) => canReceive(mate, i)) }))
     .filter((offer) => offer.items.length > 0);

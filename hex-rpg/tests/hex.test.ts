@@ -20,6 +20,9 @@ import {
 
 const CENTRE: Hex = { q: 0, r: 0 };
 
+/** The row letters this board actually uses. A literal here is a radius-4 fact. */
+const ROW_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice(0, RADIUS * 2 + 1);
+
 describe("board shape", () => {
   it("holds a whole hexagon of tiles for whatever radius it is set to", () => {
     // 1 + 3r(r+1): 37 at radius 3, 61 at radius 4. Written as the formula rather than
@@ -114,7 +117,7 @@ describe("labels", () => {
     // Rows run A..? from the top, numbered from 1 across each row. All derived from
     // `RADIUS`, so shrinking the board does not quietly turn this into a test of
     // whatever the labels happen to be today.
-    const rows = "ABCDEFGHI";
+    const rows = ROW_LETTERS;
     const top = rows[0];
     const middle = rows[RADIUS];
     const bottom = rows[RADIUS * 2];
@@ -127,7 +130,7 @@ describe("labels", () => {
 
   it("numbers each row from 1 with the right row widths", () => {
     // Widest in the middle, narrowing by one to each rim: RADIUS+1 .. 2*RADIUS+1 .. RADIUS+1.
-    const rows = "ABCDEFGHI".slice(0, RADIUS * 2 + 1).split("");
+    const rows = ROW_LETTERS.split("");
     const widths = rows.map((row) => allHexes().filter((h) => label(h)[0] === row).length);
     const expected = rows.map((_, i) => RADIUS + 1 + (i <= RADIUS ? i : RADIUS * 2 - i));
     expect(widths).toEqual(expected);
@@ -172,8 +175,9 @@ describe("range and pathing", () => {
   });
 
   it("routes around blocked tiles", () => {
-    // Wall off the centre column; the path has to bend, so it gets longer.
-    const blocked = new Set(["E4", "E5", "E6", "D4", "D5", "F4", "F5"]);
+    // Wall the centre off with everything within one ring of it, built from
+    // coordinates rather than from labels: the labels move when the board grows.
+    const blocked = new Set([CENTRE, ...neighbours(CENTRE)].map(label));
     const passable = (h: Hex) => !blocked.has(label(h));
     const path = findPath({ q: -2, r: 0 }, { q: 2, r: 0 }, passable)!;
     expect(path).not.toBeNull();

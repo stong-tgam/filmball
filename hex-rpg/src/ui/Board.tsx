@@ -16,7 +16,7 @@ import { DIRS, add, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
 import { hasFindings, searchKind } from "../game/actions";
 import { isDestroyed } from "../game/hazards";
 import { doomed, hasFallen } from "../game/collapse";
-import { canSee, enemyVisible, playerVisible } from "../game/vision";
+import { canSee, enemyVisible, hasSeen, playerVisible } from "../game/vision";
 import type { Enemy, Hazard, Player, Tile as TileData } from "../game/types";
 
 const SIZE = 40;
@@ -135,7 +135,8 @@ export default function Board({
 
       {entries.map(([label, tile]) =>
         // Gone into the abyss: drawn as nothing at all, which is what it is now.
-        hasFallen(tile.hex, turn, turnLimit) ? null : canSee(viewer, tile.hex) ? (
+        // Gone into the abyss: drawn as nothing at all, which is what it is now.
+        hasFallen(tile.hex, turn, turnLimit) ? null : hasSeen(viewer, tile.hex) ? (
           <Tile
             key={label}
             label={label}
@@ -146,7 +147,12 @@ export default function Board({
             legal={legalMoves.has(label)}
             wrecked={isDestroyed(tile, turn)}
             doomed={doomed(tile.hex, turn, turnLimit)}
-            findings={hasFindings(tile) ? searchKind(tile) : null}
+            // Ground you remember rather than ground you can see. Terrain only: a
+            // monster walks, a hazard walks, and somebody else may have searched it
+            // since - so a memory that showed any of that would be the app lying
+            // rather than the app forgetting.
+            remembered={!canSee(viewer, tile.hex)}
+            findings={canSee(viewer, tile.hex) && hasFindings(tile) ? searchKind(tile) : null}
             onSelect={onSelect}
           />
         ) : (

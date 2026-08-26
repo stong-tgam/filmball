@@ -4,7 +4,7 @@ Hotseat (one device, passed around) digital version of the Hex RPG tabletop game
 Built to `reference/hex-rpg-rulebook.md`, with `reference/webapp-spec.md` as the build
 plan.
 
-**This build is v0.29.** Every system the spec asks for is in, every placeholder from
+**This build is v0.30.** Every system the spec asks for is in, every placeholder from
 the early builds has been replaced with what the rulebook actually says, and the two
 rules the rulebook leans on hardest — the hidden board and the group fight — are both
 built. **The goal: kill the dragon before the board falls out from under you.**
@@ -28,7 +28,7 @@ npx vite-node tools/sim.ts 800   # bot playtest: how do 800 games end?
 ## The game, in one paragraph
 
 Two to five players — knight, rogue, scout, doctor, fisher, chosen at the table — start
-on **3 health and $2** on the corners of a 61-tile board **they cannot see** — a board
+on **3 health and $2** on the corners of a 91-tile board **they cannot see** — a board
 that loses its outermost ring every quarter of the game. Each round
 a poker card turns over and a high one brings an event, more often the later it gets.
 Then everyone moves a tile at a time (the scout gets two) and takes one action: search
@@ -729,6 +729,69 @@ Two rules that fell out of doing it, both worth keeping:
 
 Which means the art room now covers **58 squares**, and every one of them shows up
 somewhere a player is looking.
+
+## v0.30: the map you remember
+
+Groundwork for a bigger, more featured map. Four changes, and one of them retires a rule
+this repo had held since v0.8.
+
+**You remember where you have been.** Ground a player has laid eyes on stays on their
+map, drawn faded, behind the header's **Your map** button — which used to be a grown-up's
+debug peek and is now the player's own record.
+
+The old rule said, in bold, *never add a remembered-tiles cache*, and it was a good rule:
+it protected the note-taking and the talking across the table that the hidden board
+exists to create. It was written for a 37-tile board with five kinds of terrain. It does
+not survive 91 tiles with bridges and mountains coming — at that size nobody takes notes,
+they just forget, and the exploring is wasted rather than banked.
+
+What the rule protected is protected differently now:
+
+- **Memory is per player, not per party.** You still have to tell your sister where the
+  shop is; she has not been there. The conversation survives, the bookkeeping does not.
+- **Memory holds ground, never contents.** Monsters walk, hazards walk, and ground you
+  left unsearched may have been searched by somebody else. A remembered tile shows
+  terrain and nothing else, faded, so it can never say something that has stopped being
+  true. The rule to keep is not *no memory* — it is **a memory may never lie**.
+
+**Two tiles a turn, and you can see two.** Deliberately equal, so you can always see the
+whole of where you might go — a turn is a route rather than a poke at the next hex.
+Movement is still spent one tile at a time, which is what keeps an ambush able to
+interrupt you halfway and keeps *push on or stop?* a real question. It also means there
+is no planned route sitting in state to go stale when the rim falls or a fight moves you.
+
+**The board is 91 tiles**, up from 61 — and it plays *shorter*: 53 individual goes at
+five players against 58 before, because two tiles a turn covers ground faster than the
+board grew.
+
+**An hourglass**, ninety seconds a turn, because two tiles and a route to plan makes
+turns longer and *nobody waits* is a design rule. It pauses behind a card and during a
+fight, it can be switched off, and it lives in the view and never in the game state —
+a wall clock in the state would make a saved game resume differently from the one that
+was put down.
+
+**And the fisherman's bargain**, ahead of bridges landing: they cross open water at will
+and can never lose the rod, and in exchange they hand nothing to the party. One-way, not
+exile — they can still be given to. A role that fished forever *and* fed four other
+people would make the whole supply economy one player's job.
+
+### Three things the bigger board broke, which is why it was worth doing now
+
+- **The row letters were the literal `"ABCDEFGHI"`** — nine of them, exactly a radius-4
+  board. Growing the map produced `undefined` row letters, keys reading `"undefined3"`,
+  and a crash three layers down.
+- **The dragon's smoke stopped being a clue.** It was a flat two tiles while sight was
+  one; raising sight to two made it reach exactly as far as ordinary eyesight. A hint
+  that is not better than looking is not a hint. It is derived from sight now.
+- **Chests were counted off the whole board**, but they live in the river — and a river
+  is a line while a board is an area. At radius 5 the old rule wanted six chests in
+  eleven water tiles, so *most of the river had one*, which is exactly what the
+  rarity rule exists to prevent.
+
+Balance, 400 games a size: **52-53% wins**, a little above the 43-48% band, with the
+shape moving from timeouts to wipes (five players: 52/27/22 against 45/43/12). Getting
+around better means finding more trouble. `DRAGON_HEALTH_PER_PLAYER` is the dial if the
+table wants it tighter.
 
 ## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.

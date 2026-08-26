@@ -97,6 +97,21 @@ export type Player = {
   /** Turn they died on, for the self-revive clock. */
   fellOn: number | null;
   /**
+   * Every tile this player has laid eyes on, by label.
+   *
+   * **Theirs, not the party's.** Pooling it would delete the one conversation the
+   * hidden board exists to create - you still have to tell your sister where the shop
+   * is, because she has not been there. What it removes is the *bookkeeping*: a
+   * seven-year-old was never going to keep a paper map of ninety tiles, and asking them
+   * to was the part of the rule that did not survive the board getting bigger.
+   *
+   * It remembers **ground, never contents**. A monster walks, a hazard walks, another
+   * player walks, and ground somebody has searched since you passed is no longer
+   * unsearched - so a memory that showed any of those would be the app lying rather
+   * than the app forgetting.
+   */
+  seen: string[];
+  /**
    * Went into the abyss when the rim fell (`collapse.ts`), and is out of the game.
    *
    * Separate from `dead`, which is temporary by design - §7's compromise gets a downed

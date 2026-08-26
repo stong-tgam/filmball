@@ -122,9 +122,11 @@ describe("generateBoard", () => {
   it("lays a straight railway from rim to rim", () => {
     for (const { seed, tiles } of boards) {
       const rail = Object.values(tiles).filter((t) => t.rail);
-      // A straight edge-to-edge line on a radius-4 board is 5 to 9 tiles.
-      expect(rail.length, `seed ${seed}`).toBeGreaterThanOrEqual(5);
-      expect(rail.length, `seed ${seed}`).toBeLessThanOrEqual(9);
+      // A straight edge-to-edge line runs from RADIUS+1 tiles (a short chord) to
+      // 2*RADIUS+1 (right across the middle). Written against the constant: this said
+      // "5 to 9" until the board grew and it started failing for being right.
+      expect(rail.length, `seed ${seed}`).toBeGreaterThanOrEqual(RADIUS + 1);
+      expect(rail.length, `seed ${seed}`).toBeLessThanOrEqual(RADIUS * 2 + 1);
       expect(connected(tiles, (t) => t.rail), `seed ${seed}`).toBe(true);
       // Straight means every interior tile has exactly two rail neighbours.
       for (const t of rail) {

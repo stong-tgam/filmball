@@ -25,7 +25,7 @@ const KEY = "hex-rpg-save";
  *
  * 1 — first saves (v0.21): the state as of group fights, the palette and the roster.
  */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 type Saved = {
   version: number;
