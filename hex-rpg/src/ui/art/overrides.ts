@@ -107,3 +107,54 @@ export function prepareDrawing(file: File): Promise<string> {
     img.src = url;
   });
 }
+
+/* ------------------------------------------------- getting them out and back in */
+
+/**
+ * Everything drawn so far, as one JSON string.
+ *
+ * The store lives in **one browser on one device**, which is the right trade for a
+ * family game with no back end - but it also means an evening's drawing is one cleared
+ * cache away from gone, and there is no way to get it onto the other tablet. This is
+ * the way out: a file that can be kept, mailed, or handed back to whoever is building
+ * the game so the drawings can be baked in for everybody.
+ */
+export const exportDrawings = (): string =>
+  JSON.stringify({ format: "hex-rpg-art", version: 1, drawings: read() }, null, 1);
+
+export type ImportResult = { added: number; kept: boolean } | { error: string };
+
+/**
+ * Read a file back in. **Adds to what is there rather than replacing it**, so importing
+ * the tablet's drawings onto a machine that already has some does not silently wipe
+ * them - the imported one wins per slot, and everything else stays.
+ */
+export function importDrawings(text: string): ImportResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { error: "That file is not the drawings file — it would not open as JSON." };
+  }
+  const box = parsed as { format?: string; drawings?: unknown };
+  if (box?.format !== "hex-rpg-art" || typeof box.drawings !== "object" || box.drawings === null) {
+    return { error: "That is a JSON file, but not one of ours." };
+  }
+
+  const coming = box.drawings as Record<string, unknown>;
+  const good: Store = {};
+  for (const [slot, value] of Object.entries(coming)) {
+    // Only data URLs. A remote address here would be a picture that stops working the
+    // first time the tablet is off the wifi, and a way to point the game at anything.
+    if (typeof value === "string" && value.startsWith("data:image/")) good[slot] = value;
+  }
+  const added = Object.keys(good).length;
+  if (added === 0) return { error: "There were no drawings in that file." };
+  return { added, kept: write({ ...read(), ...good }) };
+}
+
+/** Roughly how much room the drawings are taking, for the art room to show. */
+export const storageUsed = (): number => JSON.stringify(read()).length;
+
+/** How many slots have a drawing against them. */
+export const drawnCount = (): number => Object.keys(read()).length;

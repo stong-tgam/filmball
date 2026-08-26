@@ -24,11 +24,14 @@ export default function TitleScreen({
   saved,
   onResume,
   onStart,
+  onArtRoom,
 }: {
   /** When the game on the shelf was put down, or null if there is not one. */
   saved: number | null;
   onResume: () => void;
   onStart: (roster: Role[]) => void;
+  /** The way in to replacing the game's pictures with the children's own. */
+  onArtRoom: () => void;
 }) {
   const [picked, setPicked] = useState<Role[]>([]);
 
@@ -110,6 +113,13 @@ export default function TitleScreen({
 
         <button type="button" className="title-go" disabled={!enough} onClick={() => onStart(picked)}>
           {enough ? "Start the game" : `Pick ${MIN_PARTY - picked.length} more`}
+        </button>
+
+        {/* Not part of picking a party, so it is quiet and underneath - but it is on
+            the first screen, because a drawing is something you do before a game
+            rather than in the middle of one. */}
+        <button type="button" className="title-art" onClick={onArtRoom}>
+          Our drawings — use your own pictures
         </button>
       </div>
     </div>

@@ -6,6 +6,7 @@ import ActionBar from "./ui/ActionBar";
 import Log from "./ui/Log";
 import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
 import GemBar from "./ui/GemBar";
+import ArtRoom from "./ui/ArtRoom";
 import CombatModal from "./ui/CombatModal";
 import ShopModal from "./ui/ShopModal";
 import GameOver from "./ui/GameOver";
@@ -73,6 +74,9 @@ export default function App() {
   // on every render would also make the "20 minutes ago" line jitter as you look at it.
   const [shelved] = useState(() => readSave());
   const [seated, setSeated] = useState(false);
+  /** The art room, in front of everything. Held here, not in `GameState`: which
+   *  pictures this device uses is a fact about the device, not about the game. */
+  const [drawing, setDrawing] = useState(false);
   const moveTo = useGame((s) => s.moveTo);
   const endTurn = useGame((s) => s.endTurn);
   const player = useActivePlayer();
@@ -155,6 +159,10 @@ export default function App() {
   // on the shelf. Held in the view rather than in `GameState` because it is a question
   // about *this device* and not about the game — a resumed save must not put the party
   // back through the picker.
+  // The art room stands in front of everything, including the title screen: it is a
+  // thing you do to the game rather than in it.
+  if (drawing) return <ArtRoom onClose={() => setDrawing(false)} />;
+
   if (!seated) {
     return (
       <TitleScreen
@@ -166,6 +174,7 @@ export default function App() {
           newGame(undefined, roster);
           setSeated(true);
         }}
+        onArtRoom={() => setDrawing(true)}
       />
     );
   }
@@ -177,8 +186,16 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.27 — three stones</span>
+          <span className="version">v0.28 — our drawings</span>
         </div>
+        <button
+          type="button"
+          className="peek"
+          title="Replace any of the game's pictures with your own drawings"
+          onClick={() => setDrawing(true)}
+        >
+          Our drawings
+        </button>
         <button
           type="button"
           className="peek"

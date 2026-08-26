@@ -13,6 +13,9 @@
 import { GEMS, type GemKind } from "../../game/gems";
 import { darken, wobbleFor } from "./crayon";
 
+/** The upload slot for a stone. One picture covers every stone of that colour. */
+export const gemSlot = (kind: GemKind): string => `gem:${kind}`;
+
 /** Drawn on a 100×100 box, like every other piece of art in here. */
 export default function GemArt({ kind = "green" as GemKind }: { kind?: GemKind }) {
   const colour = GEMS[kind].colour;

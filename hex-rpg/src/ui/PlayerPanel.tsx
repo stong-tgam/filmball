@@ -13,6 +13,8 @@ import { GEMS, WORN, isSpent, powerOf } from "../game/gems";
 import { gearLabel } from "../game/items";
 import { moveRange, stepsLeft } from "../game/turn";
 import type { Player } from "../game/types";
+import Art from "./art/Art";
+import { gemSlot } from "./art/gems";
 
 export function ActivePlayerBanner({
   player,
@@ -127,7 +129,9 @@ export function PartyList({
                 title={`${GEMS[player.gem.kind].name}, in their ${WORN[player.gem.set]} — ${powerOf(player.gem).title}: ${powerOf(player.gem).text}`}
               >
                 <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">
-                  <GemArt kind={player.gem.kind} />
+                  <Art slot={gemSlot(player.gem.kind)}>
+                    <GemArt kind={player.gem.kind} />
+                  </Art>
                 </svg>
                 {WORN[player.gem.set]}
               </span>
@@ -148,7 +152,7 @@ export function PartyList({
                       }
                     >
                       <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">
-                        <ItemArt name={item.name} seedName={item.id} />
+                        <Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art>
                       </svg>
                       {gearLabel(item)}
                     </span>
@@ -174,7 +178,7 @@ export function PartyList({
                     }
                   >
                     <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">
-                      <ItemArt name={item.name} seedName={item.id} />
+                      <Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art>
                     </svg>
                     {gearLabel(item)}
                   </button>

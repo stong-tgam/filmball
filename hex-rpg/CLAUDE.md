@@ -76,7 +76,8 @@ src/ui/       TitleScreen.tsx (who is playing), Compass.tsx (what a player
               sees), Tile.tsx (one hex), Board.tsx (the grown-up's map peek),
               CombatModal.tsx (the fight, invitations and loot), FindCard.tsx
               (what a search turned up), HookModal/GiveModal (the fisherman's
-              rope, and handing things over), art/ (the drawings)
+              rope, and handing things over), ArtRoom.tsx (swap any picture for
+              one of your own), art/ (the drawings, and the upload store)
 tools/        sim.ts (bot playtests), inline.mjs (single-file build)
 tests/        vitest, node environment, no rendering
 reference/    the rulebook, the build spec, and the token art prompt
@@ -92,13 +93,13 @@ you have not published.
 
 ```sh
 npm run dev        # http://localhost:5173
-npm test           # 416 tests
+npm test           # 423 tests
 npm run build      # type-check + production build
 npm run build:play # one self-contained .html, plus the artifact fragment
 npx vite-node tools/sim.ts 800 5 # bot playtest: how do 800 five-player games end?
 ```
 
-## Current state: v0.27
+## Current state: v0.28
 
 Every system is in, and every earlier placeholder has been replaced with what the
 rulebook says. The numbers are small on purpose: **3 health, $2, a tile at a time, and
@@ -579,6 +580,38 @@ Three things not to rediscover the hard way:
 portrait in the fight; boss features, shop stock, loot and the party's kit all show
 their drawing. `CrayonDefs` is mounted once at the top of `App.tsx` — every drawing
 points into its filters, so nothing renders without it.
+
+**Any of them can be replaced by the children's own** (v0.28, `src/ui/ArtRoom.tsx`).
+Four things about that worth not rediscovering:
+
+- **`<Art slot>` is the only place an upload is looked up** (`src/ui/art/Art.tsx`).
+  Wrap a generated drawing in it and an uploaded picture wins *everywhere at once*.
+  Before v0.28 only the round `Token` honoured uploads, so a photographed frying pan
+  showed on the find card and nowhere else — fifteen call sites drew the art directly
+  and never asked. If you add a place a drawing appears, wrap it.
+- **`art/catalogue.ts` reads the slots off the game's own data**, so a new stone, a new
+  monster or a new piece of gear appears in the art room by itself. **Only list slots
+  something actually reads** — a slot the room offers and nothing honours is a promise
+  the app breaks, and a child who draws a picture that never appears will not draw a
+  second one.
+- **It is in the app, not on the gallery page.** `gallery.html` is a second entry point
+  and is *not in the build the family plays*, which is how the upload feature managed
+  to be real and unreachable for fourteen versions.
+- **Uploads live in `localStorage`, keyed to the page and not to the version**, so they
+  survive a rebuild — the artifact keeps its drawings when it is republished. They do
+  not survive a cleared cache or move to another device, which is what
+  `exportDrawings` / `importDrawings` and the room's save-to-a-file are for.
+- **Saving a file needs the host's permission in the artifact** (`art/downloads.ts`).
+  A page in a sandboxed frame cannot start a download at all — `<a download>`, blob
+  URLs, script-driven saves, all inert and all failing *silently*. The artifact host
+  offers a route instead: the published page declares the `downloads` capability and
+  asks for it with `claude.use("downloads")`, and the viewer confirms the save. So
+  **`capabilities: {downloads: true}` has to be passed when publishing** or the button
+  goes back to doing nothing. The capability is asked for as the room opens, because
+  the answer takes up to ten seconds when nothing is listening. `<a download>` is still
+  the path when the single-file build is opened straight off a disk. Same story with
+  `confirm()`, which a sandboxed frame refuses: the room asks with a second tap instead
+  of a modal.
 
 What is still not done: the app shell is dark slate and the artwork is cream paper, so
 the drawings sit on their own little chits rather than the whole thing being one paper

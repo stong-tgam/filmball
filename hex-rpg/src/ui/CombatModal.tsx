@@ -18,6 +18,8 @@ import FeatureArt from "./art/features";
 import ItemArt from "./art/items";
 import { canTake, gearLabel, equipped } from "../game/items";
 import type { Combat, Enemy, Item, Player, Tile } from "../game/types";
+import Art from "./art/Art";
+import { monsterSlot } from "./art/monsters";
 
 /** What this item would push out of its slot, if anything. */
 const replacing = (player: Player, item: Item): Item | null =>
@@ -136,7 +138,9 @@ export default function CombatModal({
                 gets its drawing at size rather than a coloured dot. */}
             <svg className="fighter-portrait" viewBox="0 0 100 100" aria-hidden="true">
               <circle cx="50" cy="50" r="49" fill={CHIP} stroke={INK} strokeWidth="2" />
-              <MonsterArt kind={enemy.kind} seedName={enemy.id} />
+              <Art slot={monsterSlot(enemy.kind)} fit="slice">
+                <MonsterArt kind={enemy.kind} seedName={enemy.id} />
+              </Art>
             </svg>
             <div>
               <h2>{beast.name}</h2>
@@ -151,7 +155,9 @@ export default function CombatModal({
                     return (
                       <li key={feature} className={`feature${biting ? " is-active" : ""}`}>
                         <svg viewBox="0 0 100 100" aria-hidden="true" className="feature-art">
-                          <FeatureArt feature={feature} seedName={`${enemy.id}-${feature}`} />
+                          <Art slot={`feature:${feature}`}>
+                            <FeatureArt feature={feature} seedName={`${enemy.id}-${feature}`} />
+                          </Art>
                         </svg>
                         <span>
                           {feature}
@@ -219,7 +225,7 @@ export default function CombatModal({
                       <div className="loot-item">
                         <span className="loot-face">
                           <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art">
-                            <ItemArt name={item.name} seedName={item.id} />
+                            <Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art>
                           </svg>
                           <span className="buy-name">{gearLabel(item)}</span>
                         </span>
@@ -285,7 +291,7 @@ export default function CombatModal({
                         }
                       >
                         <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art">
-                          <ItemArt name={item.name} seedName={item.id} />
+                          <Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art>
                         </svg>
                         <span className="buy-name">{item.name}</span>
                         <span className="buy-value">+{item.value}</span>

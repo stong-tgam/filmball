@@ -15,6 +15,8 @@
 import { GEMS, LIMIT_LABEL, SETTINGS, WORN, isSpent, powerOf } from "../game/gems";
 import GemArt from "./art/gems";
 import type { Gem, GemSetting } from "../game/types";
+import Art from "./art/Art";
+import { gemSlot } from "./art/gems";
 
 /**
  * A sword, a shield and a boot, drawn rather than typed.
@@ -61,7 +63,9 @@ export default function GemBar({
   return (
     <div className="gembar" style={{ ["--stone" as string]: stone.colour }}>
       <svg className="gembar-art" viewBox="0 0 100 100" aria-hidden="true">
-        <GemArt kind={gem.kind} />
+        <Art slot={gemSlot(gem.kind)}>
+          <GemArt kind={gem.kind} />
+        </Art>
       </svg>
 
       <div className="gembar-says">

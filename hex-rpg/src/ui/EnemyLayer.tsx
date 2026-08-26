@@ -17,6 +17,8 @@ import { ENEMIES, healthLeft } from "../game/enemies";
 import { CHIP, INK } from "./art/crayon";
 import MonsterArt from "./art/monsters";
 import type { Enemy } from "../game/types";
+import Art from "./art/Art";
+import { monsterSlot } from "./art/monsters";
 
 export default function EnemyLayer({
   enemies,
@@ -53,7 +55,9 @@ export default function EnemyLayer({
               <circle r={r * 1.12} fill="none" stroke={beast.colour} strokeWidth={size * 0.03} />
               {/* The drawing is on a 100x100 canvas; bring it down to the chit. */}
               <g transform={`scale(${(r * 2) / 100}) translate(-50 -50)`}>
-                <MonsterArt kind={enemy.kind} seedName={enemy.id} />
+                <Art slot={monsterSlot(enemy.kind)} fit="slice">
+                  <MonsterArt kind={enemy.kind} seedName={enemy.id} />
+                </Art>
               </g>
 
               {purse > 0 && (

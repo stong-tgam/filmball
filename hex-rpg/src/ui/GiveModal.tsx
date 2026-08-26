@@ -14,6 +14,7 @@ import ItemArt from "./art/items";
 import { gearLabel } from "../game/items";
 import { ROLES } from "../game/players";
 import type { Item, Player } from "../game/types";
+import Art from "./art/Art";
 
 export default function GiveModal({
   offers,
@@ -46,7 +47,7 @@ export default function GiveModal({
                   <li key={item.id}>
                     <button type="button" className="buy" onClick={() => onGive(offer.player.id, item.id)}>
                       <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art">
-                        <ItemArt name={item.name} seedName={item.id} />
+                        <Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art>
                       </svg>
                       <span className="buy-name">{gearLabel(item)}</span>
                       <span className="buy-cost">give</span>

@@ -4,7 +4,7 @@ Hotseat (one device, passed around) digital version of the Hex RPG tabletop game
 Built to `reference/hex-rpg-rulebook.md`, with `reference/webapp-spec.md` as the build
 plan.
 
-**This build is v0.27.** Every system the spec asks for is in, every placeholder from
+**This build is v0.28.** Every system the spec asks for is in, every placeholder from
 the early builds has been replaced with what the rulebook actually says, and the two
 rules the rulebook leans on hardest — the hidden board and the group fight — are both
 built. **The goal: kill the dragon before the board falls out from under you.**
@@ -655,6 +655,40 @@ dial that has always done it: the dragon went from 9-13 health a head to **10-14
 before the dragon was paid — and the finished set sits at 43-48%, which is where v0.26
 was. The stones are a decision, not a difficulty setting, and that is what these numbers
 are meant to show.
+
+## v0.28: our drawings
+
+**The upload feature was real and unreachable.** There was a store for the children's
+own pictures, a control to upload one, and a shrink-and-square step to keep them small —
+and the only screen that used any of it was `gallery.html`, a second HTML entry point
+that is *not in the build the family plays*. So for fourteen versions the answer to "can
+we use my drawing?" was yes, in a page nobody could open.
+
+It is in the app now: **Our drawings**, on the title screen and in the header. Every
+picture in the game, in one list — the five of you, five monsters, three stones, fifteen
+pieces of gear, five boss features and the food. Photograph a drawing, tap the square,
+and it replaces ours.
+
+Three things that had to change underneath:
+
+- **An uploaded picture now wins everywhere at once.** Only the round token honoured
+  uploads before, so a photographed frying pan showed up on the find card and nowhere
+  else — not in the party's kit, not on the shop shelf, not in the fight. Fifteen places
+  drew the art directly and never asked. There is one component that asks now
+  (`<Art slot>`), and everything goes through it.
+- **The list reads itself off the game's own data**, so a new stone or a new piece of
+  gear turns up in the art room by itself and nothing can be quietly left out. It only
+  lists slots something actually reads: a square that takes a drawing and never shows it
+  is a promise broken to the one person least likely to forgive it.
+- **Saving them to a file**, because the pictures live in one browser on one device.
+  They survive the game being rebuilt — the artifact keeps its drawings when I republish
+  it — but not a cleared cache, and they do not travel. The file is how they get onto
+  the other tablet, or back to me to be baked in for good. Importing **adds to** what is
+  already there rather than replacing it, so bringing one tablet's drawings to another
+  cannot cost an evening's work.
+
+Pictures are squared off and shrunk to 320px on the way in, so a phone photograph does
+not eat the storage budget: all 56 slots fit in about a megabyte.
 
 ## Still open
 - **River and rail travel (§5)** — the optional $1 fast travel.

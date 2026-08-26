@@ -28,6 +28,8 @@ import { gearLabel } from "../game/items";
 import { GEMS, WORN, powerOf } from "../game/gems";
 import GemArt from "./art/gems";
 import type { Find } from "../game/types";
+import Art from "./art/Art";
+import { gemSlot } from "./art/gems";
 
 /** The headline, the way you would say it out loud, and the button that closes it. */
 const HEADLINE: Record<Find["kind"] | "gearOnTheLine", { title: string; close: string }> = {
@@ -157,7 +159,9 @@ export default function FindCard({ find, onClose }: { find: Find; onClose: () =>
         {find.gem && (
           <div className="find-stone">
             <Token slot={`gem:${find.gem.kind}`} label={GEMS[find.gem.kind].name} size={116}>
-              <GemArt kind={find.gem.kind} />
+              <Art slot={gemSlot(find.gem.kind)} fit="slice">
+                <GemArt kind={find.gem.kind} />
+              </Art>
             </Token>
             <p className="find-stone-power">
               <strong>{powerOf(find.gem).title}</strong> — {powerOf(find.gem).text}
@@ -180,7 +184,7 @@ export default function FindCard({ find, onClose }: { find: Find; onClose: () =>
                   size={116}
                   labelColour={item.slot === "supply" ? MARKER.strawberry : MARKER.cocoa}
                 >
-                  <ItemArt name={item.name} seedName={item.id} />
+                  <Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art>
                 </Token>
                 {/* The token already has the name on it. Repeat only the grade. */}
                 {gearLabel(item) !== item.name && (

@@ -1825,3 +1825,123 @@ button.swing-twice {
   color: #ffffff;
   font-weight: 700;
 }
+
+
+/* ---------- the art room ---------- */
+
+.artroom {
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px clamp(12px, 4vw, 32px) 48px;
+  background: var(--bg);
+}
+
+.artroom-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.artroom-top h1 { margin: 0; font-size: 26px; }
+.artroom-count { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.artroom-back { min-height: 44px; }
+
+.artroom-blurb,
+.artroom-note {
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.artroom-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #171d23;
+}
+
+.artroom-note { flex-basis: 100%; margin: 2px 0 0; }
+.artroom-said {
+  flex-basis: 100%;
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.artroom-shelf { margin-top: 26px; }
+.artroom-shelf h2 { margin: 0 0 2px; font-size: 18px; }
+.artroom-shelf-blurb { margin: 0 0 10px; color: var(--muted); font-size: 14px; max-width: 62ch; }
+
+.art-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* Wide enough for the picture, the words and two buttons side by side; wraps to one
+     per row on a phone without anything being told to. */
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.art-square {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  grid-template-areas: "pic said" "pic buttons" "problem problem";
+  align-items: center;
+  gap: 4px 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #171d23;
+}
+
+/* A square somebody has drawn for reads as done, at a glance, down a list of forty. */
+.art-square.is-mine { border-color: var(--accent); }
+
+.art-pic {
+  grid-area: pic;
+  width: 62px;
+  height: 62px;
+  border-radius: 8px;
+  background: #FBF7EE;
+}
+
+.art-said { grid-area: said; min-width: 0; }
+.art-name { margin: 0; font-size: 15px; font-weight: 600; text-transform: capitalize; }
+.art-hint { margin: 1px 0 0; font-size: 12px; color: var(--muted); line-height: 1.35; }
+
+.art-buttons { grid-area: buttons; display: flex; gap: 6px; flex-wrap: wrap; }
+.art-buttons button { min-height: 44px; font-size: 13px; padding: 4px 10px; }
+
+.art-problem {
+  grid-area: problem;
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #f0b489;
+}
+
+/* The file input is driven by the button next to it and never shown. */
+.upload-input { display: none; }
+
+.art-sure { border-color: #d2542a; color: #f0b489; }
+
+.title-art {
+  margin-top: 10px;
+  width: 100%;
+  min-height: 44px;
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.title-art:hover { color: var(--ink); border-color: var(--accent); }
