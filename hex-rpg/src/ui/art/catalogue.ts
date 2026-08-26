@@ -5,7 +5,7 @@
  * were scattered across a dozen components as inline template strings, so the only way
  * to know what could be replaced was to read all of them - and the art room would have
  * quietly missed anything added later. This reads the slots off the game's own data, so
- * a new piece of gear, a new stone or a new monster turns up here on its own.
+ * a new piece of gear or a new monster turns up here on its own.
  *
  * Only slots the **game** actually honours are listed. A slot the art room offers and
  * nothing reads is a promise the app does not keep, and a child who draws a picture
@@ -14,13 +14,12 @@
 
 import { EQUIPMENT, FOOD } from "../../game/items";
 import { ENEMIES } from "../../game/enemies";
-import { GEMS } from "../../game/gems";
 import { ROLES, TURN_ORDER } from "../../game/players";
 import { ALL_FEATURES } from "../../game/combat";
 import { HAZARDS } from "../../game/hazards";
-import { featureSlot, gemSlot, hazardSlot, itemSlot, monsterSlot, roleSlot } from "../../artslots";
+import { featureSlot, hazardSlot, itemSlot, monsterSlot, roleSlot } from "../../artslots";
 import type { ArtSlot } from "./overrides";
-import type { EnemyKind, Feature, GemKind, HazardKind, Role } from "../../game/types";
+import type { EnemyKind, Feature, HazardKind, Role } from "../../game/types";
 
 export type ArtEntry = {
   slot: ArtSlot;
@@ -78,15 +77,6 @@ export function shelves(): ArtShelf[] {
           name: HAZARDS[kind].name,
           hint: HAZARDS[kind].blurb,
         })),
-    },
-    {
-      title: "Stones",
-      blurb: "Three colours. Whatever you draw, keep them telling each other apart from across the table — colour is how a child knows which one they have.",
-      entries: (Object.keys(GEMS) as GemKind[]).map((kind) => ({
-        slot: gemSlot(kind),
-        name: GEMS[kind].name,
-        hint: `${GEMS[kind].theme} — three powers, one for each place you can put it.`,
-      })),
     },
     {
       title: "Gear",

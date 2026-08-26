@@ -15,7 +15,7 @@ import { allHexes, distance, key, type Hex } from "./hex";
 import { standing } from "./collapse";
 import { PALETTE } from "../palette";
 import type { Rng } from "./rng";
-import type { Enemy, EnemyKind, GameState, GemKind, Player } from "./types";
+import type { Enemy, EnemyKind, GameState, Player } from "./types";
 
 export type EnemyProfile = {
   name: string;
@@ -182,9 +182,6 @@ const spawn = (kind: EnemyKind, hex: Hex, n: number, health: number): Enemy => (
   // The dragon is away for the opening (see `DRAGON_WAKES_ON`); everything else is
   // on the board from the first turn.
   dormant: kind === "finalboss",
-  // And it is the only thing on the board carrying a stone. See `Enemy.stone`.
-  stone: kind === "finalboss" ? DRAGON_STONE : null,
-  stoneSpent: false,
   features: [],
   featuresRevealed: false,
   escapedOnce: false,
@@ -355,17 +352,6 @@ export function spawnThieves(rng: Rng, hazards: { kind: string; hex: Hex }[]): E
  */
 export const DRAGON_WAKES_ON = 6;
 
-/**
- * The stone the dragon carries, or null to take it off it.
- *
- * **This is the dial for the party's stones.** Three colours of them were worth about
- * five points of win rate across every party size, and the design's own answer to that
- * was always to point the system the other way rather than to inflate the dragon's
- * health again - a number the party cannot see going up is not a difficulty setting, it
- * is a disappointment. Green: once in the fight, a blow that should have finished it
- * leaves it on one health, and the table gets the best beat in the game for free.
- */
-export const DRAGON_STONE: GemKind | null = "green";
 
 /**
  * How likely a fresh bandit is to wander in at the top of a turn, and it climbs.

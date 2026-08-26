@@ -11,7 +11,6 @@ import { ENEMIES, healthLeft } from "../game/enemies";
 import { activeFeatures, attackValue } from "../game/combat";
 import { ROLES } from "../game/players";
 import { escapeChance } from "../game/combat";
-import { PALETTE } from "../palette";
 import { CHIP, INK } from "./art/crayon";
 import MonsterArt from "./art/monsters";
 import FeatureArt from "./art/features";
@@ -30,8 +29,6 @@ type Props = {
   player: Player;
   enemy: Enemy;
   onAttack: (twice?: boolean) => void;
-  /** The red stone in a weapon: this round may be thrown twice, once a fight. */
-  canSwingTwice?: boolean;
   onFlee: () => void;
   /** §10: the starter keeps a pick, or hands it to anybody who fought beside them. */
   onTakeLoot: (itemId: string, toId?: string) => void;
@@ -81,7 +78,6 @@ export default function CombatModal({
   player,
   enemy,
   onAttack,
-  canSwingTwice = false,
   onFlee,
   onTakeLoot,
   party,
@@ -373,19 +369,6 @@ export default function CombatModal({
               >
                 Back off ({Math.round(escapeChance(player, combat.ambush && combat.round === 0) * 100)}%)
               </button>
-              {/* The red stone. Deliberately its own button rather than an automatic
-                  re-roll on a bad round: choosing *which* round to spend it on is the
-                  whole decision, and a re-roll that happens to you is not a moment. */}
-              {canSwingTwice && (
-                <button
-                  type="button"
-                  className="swing-twice"
-                  style={{ background: PALETTE.gemRed }}
-                  onClick={() => onAttack(true)}
-                >
-                  Throw twice
-                </button>
-              )}
               <button type="button" onClick={() => onAttack()}>
                 {combat.round === 0 ? "Roll the dice" : "Roll again"}
               </button>

@@ -16,7 +16,7 @@
  * is a promise broken to a child.
  */
 
-import type { EnemyKind, Feature, GemKind, HazardKind, Role } from "./game/types";
+import type { EnemyKind, Feature, HazardKind, Role } from "./game/types";
 
 export const roleSlot = (role: Role): string => `role:${role}`;
 
@@ -29,7 +29,6 @@ export const roleSlot = (role: Role): string => `role:${role}`;
  */
 export const monsterSlot = (kind: EnemyKind): string => `monster:${kind}`;
 
-export const gemSlot = (kind: GemKind): string => `gem:${kind}`;
 
 export const featureSlot = (feature: Feature): string => `feature:${feature}`;
 

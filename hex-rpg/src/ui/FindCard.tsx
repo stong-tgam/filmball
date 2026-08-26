@@ -25,17 +25,13 @@ import Token from "./Token";
 import ItemArt from "./art/items";
 import { MARKER } from "./art/crayon";
 import { gearLabel } from "../game/items";
-import { GEMS, WORN, powerOf } from "../game/gems";
-import GemArt from "./art/gems";
 import type { Find } from "../game/types";
 import Art from "./art/Art";
-import { gemSlot } from "./art/gems";
 
 /** The headline, the way you would say it out loud, and the button that closes it. */
 const HEADLINE: Record<Find["kind"] | "gearOnTheLine", { title: string; close: string }> = {
   gear: { title: "Look what was down there!", close: "Take it" },
   // The rarest thing the ground has. It gets the shout even when gear came up with it.
-  stone: { title: "A stone!", close: "Mine now" },
   // Same outcome, different place - "down there" is a hole, and this came out of a river.
   gearOnTheLine: { title: "Something on the end of it!", close: "Take it" },
   fish: { title: "Fish on!", close: "In the bag" },
@@ -154,23 +150,6 @@ export default function FindCard({ find, onClose }: { find: Find; onClose: () =>
 
         <h2 className="find-title">{said.title}</h2>
 
-        {/* A stone is not an item - no slot, no price, no plus - so it gets its own
-            picture and its own line saying what it does where it has landed. */}
-        {find.gem && (
-          <div className="find-stone">
-            <Token slot={`gem:${find.gem.kind}`} label={GEMS[find.gem.kind].name} size={116}>
-              <Art slot={gemSlot(find.gem.kind)} fit="slice">
-                <GemArt kind={find.gem.kind} />
-              </Art>
-            </Token>
-            <p className="find-stone-power">
-              <strong>{powerOf(find.gem).title}</strong> — {powerOf(find.gem).text}
-            </p>
-            <p className="muted find-stone-hint">
-              It is in their {WORN[find.gem.set]}. Move it any time on your turn.
-            </p>
-          </div>
-        )}
 
         {gained.length > 0 && (
           <ul className="find-haul">

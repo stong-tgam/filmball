@@ -5,7 +5,6 @@ import CrayonDefs from "./ui/art/CrayonDefs";
 import ActionBar from "./ui/ActionBar";
 import Log from "./ui/Log";
 import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
-import GemBar from "./ui/GemBar";
 import ArtRoom from "./ui/ArtRoom";
 import Hourglass from "./ui/Hourglass";
 import CombatModal from "./ui/CombatModal";
@@ -23,8 +22,6 @@ import {
   useCanDonate,
   useCanHeal,
   useCanFightThief,
-  useCanSetGem,
-  useCanSwingTwice,
   useCanPayOff,
   useThiefHere,
   useCanFish,
@@ -123,15 +120,12 @@ export default function App() {
   const canHeal = useCanHeal();
   const canPayOff = useCanPayOff();
   const canFightThief = useCanFightThief();
-  const canSetGem = useCanSetGem();
-  const canSwingTwice = useCanSwingTwice();
   const thiefHere = useThiefHere();
   const healTargets = useHealTargets();
   const donate = useGame((s) => s.donate);
   const heal = useGame((s) => s.heal);
   const payOff = useGame((s) => s.payOff);
   const takeOnThief = useGame((s) => s.fightThief);
-  const setGem = useGame((s) => s.setGem);
   const sell = useGame((s) => s.sell);
 
   const [seedInput, setSeedInput] = useState("");
@@ -304,9 +298,6 @@ export default function App() {
         <div className="deck">
           {/* Free, and not the turn's action - so it sits with the map and the buttons
               rather than among them, and above the one that ends the turn. */}
-          {player.gem && !over && (
-            <GemBar gem={player.gem} canSet={canSetGem} onSet={setGem} />
-          )}
 
           <ActionBar
             canMove={legalMoves.size > 0}
@@ -386,7 +377,6 @@ export default function App() {
           player={fight.player}
           enemy={fight.enemy}
           onAttack={attack}
-          canSwingTwice={canSwingTwice}
           onFlee={flee}
           onTakeLoot={takeLoot}
           party={fightParty}

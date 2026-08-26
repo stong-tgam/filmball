@@ -137,15 +137,6 @@ export type Player = {
    * take a hit is the one who should be carrying the spare.
    */
   spareArmor: Item | null;
-  /**
-   * The one stone they are carrying, or none (`src/game/gems.ts`).
-   *
-   * One per player, and it is the only thing in the game that gives an *ability*
-   * rather than a number. Which of their three pieces of kit it is set in is on the
-   * stone itself, because that is the decision - not owning it, but choosing what it
-   * is for today.
-   */
-  gem: Gem | null;
   /** Homeless-person donation: extra dice on the next fight only. */
   bonusDiceNextFight: number;
   /**
@@ -154,32 +145,6 @@ export type Player = {
    */
   fishCaught: number;
   joinedFightThisRound: boolean;
-};
-
-/**
- * The three stones. Green is *keep going*, red is *you, now*, blue is *everybody else*.
- *
- * Three colours and three settings is nine abilities from three objects, and none of
- * them has to be memorised: what a stone does is written on the button that does it.
- */
-export type GemKind = "green" | "red" | "blue";
-
-/** The three places a stone can sit. Not `"supply"` - a stone is not lunch. */
-export type GemSetting = "weapon" | "armor" | "boots";
-
-export type Gem = {
-  id: string;
-  kind: GemKind;
-  /** Where it is set right now. Free to change on your own turn, never mid-fight. */
-  set: GemSetting;
-  /**
-   * Which of its **once-a-game** powers have been used up.
-   *
-   * Per setting, not per stone: spending the coat's save must not also spend the
-   * boots' second dig. Powers that recharge every fight are not tracked here - they
-   * live on `Combat.stonesSpent`, which disappears with the fight.
-   */
-  spent: GemSetting[];
 };
 
 export type EnemyKind = "mob" | "midboss" | "finalboss" | "robber" | "pirates";
@@ -203,17 +168,6 @@ export type Enemy = {
    * middle tile and leave the game with nowhere to end.
    */
   dormant: boolean;
-  /**
-   * A stone of its own, and whether it has been spent.
-   *
-   * Only the dragon carries one, and it is the balance lever for the party's stones:
-   * three colours of them added about five points of win rate, and the honest answer
-   * to that is the same system pointed the other way rather than another number on the
-   * dragon's health. Green, and it means what green always means - once in the fight,
-   * a blow that should have finished it leaves it on one.
-   */
-  stone: GemKind | null;
-  stoneSpent: boolean;
   /** Drawn on first encounter; empty until then. */
   features: Feature[];
   featuresRevealed: boolean;
@@ -321,7 +275,7 @@ export type Find = {
    */
   from: "chest" | "ground" | "line";
   /** The headline, for the card's title and its animation. */
-  kind: "gear" | "stone" | "fish" | "coins" | "full" | "nothing" | "mishap" | "thief" | "trap";
+  kind: "gear" | "fish" | "coins" | "full" | "nothing" | "mishap" | "thief" | "trap";
   /** What the player is holding now that they were not holding before. Drawn as tokens. */
   gained: Item[];
   /** What it displaced or cost them - a swapped piece, or one a mishap took. */
@@ -329,13 +283,6 @@ export type Find = {
   coins: number;
   /** Health it cost. Never more than one. */
   hurt: number;
-  /**
-   * A stone that turned up with it, or null - which is almost always.
-   *
-   * Its own field rather than one of `gained`, because a stone is not an item: it
-   * has no slot, no price and no plus, and the card gives it the whole width.
-   */
-  gem: Gem | null;
   /** The lines the search wrote to the log, in order. Read aloud. */
   lines: string[];
 };
@@ -392,16 +339,6 @@ export type Combat = {
    * `"heal"` is just the only one built.
    */
   support: { by: string; kind: "heal"; to: string }[];
-  /**
-   * Players whose stone has fired in **this fight**.
-   *
-   * Red's three powers and blue's coat recharge every fight rather than once a game,
-   * and a fight is the natural place to keep that: the list goes away when the fight
-   * does, so there is nothing to reset and nothing to forget to reset. A player can
-   * only have one stone in one setting, so one id is enough - there is no way to spend
-   * two of them in a round.
-   */
-  stonesSpent: string[];
   /** Tile the player came from, so running away puts them back where they were. */
   from: string;
   round: number;

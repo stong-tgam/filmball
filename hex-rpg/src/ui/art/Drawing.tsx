@@ -13,10 +13,9 @@ import Art from "./Art";
 import ItemArt from "./items";
 import MonsterArt from "./monsters";
 import FeatureArt from "./features";
-import GemArt from "./gems";
 import RoleArt from "./roles";
 import HazardArt from "./hazards";
-import type { EnemyKind, Feature, GemKind, HazardKind, Role } from "../../game/types";
+import type { EnemyKind, Feature, HazardKind, Role } from "../../game/types";
 
 /** The generated drawing for a slot, before any upload is considered. */
 export function Generated({ slot }: { slot: string }) {
@@ -29,8 +28,6 @@ export function Generated({ slot }: { slot: string }) {
       return <MonsterArt kind={rest as EnemyKind} seedName={slot} />;
     case "hazard":
       return <HazardArt kind={rest as HazardKind} />;
-    case "gem":
-      return <GemArt kind={rest as GemKind} />;
     case "feature":
       return <FeatureArt feature={rest as Feature} seedName={slot} />;
     default:

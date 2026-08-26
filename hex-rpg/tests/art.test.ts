@@ -19,16 +19,15 @@ import {
   putOverride,
   storageUsed,
 } from "../src/ui/art/overrides";
-import { gemSlot, hazardSlot, monsterSlot, roleSlot } from "../src/artslots";
+import { hazardSlot, monsterSlot, roleSlot } from "../src/artslots";
 import { HAZARDS } from "../src/game/hazards";
 import { sense } from "../src/game/sense";
 import { createInitialState } from "../src/game/setup";
 import { EQUIPMENT, FOOD } from "../src/game/items";
 import { ENEMIES } from "../src/game/enemies";
-import { GEMS } from "../src/game/gems";
 import { TURN_ORDER } from "../src/game/players";
 import { ALL_FEATURES } from "../src/game/combat";
-import type { EnemyKind, GameState, GemKind, HazardKind } from "../src/game/types";
+import type { EnemyKind, GameState, HazardKind } from "../src/game/types";
 
 const PICTURE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
 
@@ -39,9 +38,6 @@ describe("the catalogue", () => {
     for (const role of TURN_ORDER) expect(offered.has(roleSlot(role)), role).toBe(true);
     for (const kind of Object.keys(ENEMIES) as EnemyKind[]) {
       expect(offered.has(monsterSlot(kind)), kind).toBe(true);
-    }
-    for (const kind of Object.keys(GEMS) as GemKind[]) {
-      expect(offered.has(gemSlot(kind)), kind).toBe(true);
     }
     for (const feature of ALL_FEATURES) expect(offered.has(`feature:${feature}`), feature).toBe(true);
     for (const kind of Object.keys(HAZARDS) as HazardKind[]) {
@@ -100,7 +96,7 @@ describe("the store", () => {
 
   it("round-trips through a file", () => {
     putOverride(roleSlot("knight"), PICTURE);
-    putOverride(gemSlot("green"), PICTURE);
+    putOverride(monsterSlot("mob"), PICTURE);
     const file = exportDrawings();
 
     clearAllOverrides();

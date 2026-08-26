@@ -8,15 +8,12 @@
 
 import { ROLES } from "../game/players";
 import ItemArt from "./art/items";
-import GemArt from "./art/gems";
 import RoleArt from "./art/roles";
 import { roleSlot } from "../artslots";
-import { GEMS, WORN, isSpent, powerOf } from "../game/gems";
 import { gearLabel } from "../game/items";
 import { moveRange, stepsLeft } from "../game/turn";
 import type { Player } from "../game/types";
 import Art from "./art/Art";
-import { gemSlot } from "./art/gems";
 
 export function ActivePlayerBanner({
   player,
@@ -136,22 +133,6 @@ export function PartyList({
             </span>
             <span className="party-money">${player.money}</span>
 
-            {player.gem && (
-              // Which stone, and which pocket it is in. A child navigates by colour,
-              // so the stone is drawn rather than named, and the setting is what tells
-              // the rest of the table what it is doing this turn.
-              <span
-                className={`party-stone${isSpent(player.gem) ? " is-spent" : ""}`}
-                title={`${GEMS[player.gem.kind].name}, in their ${WORN[player.gem.set]} — ${powerOf(player.gem).title}: ${powerOf(player.gem).text}`}
-              >
-                <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">
-                  <Art slot={gemSlot(player.gem.kind)}>
-                    <GemArt kind={player.gem.kind} />
-                  </Art>
-                </svg>
-                {WORN[player.gem.set]}
-              </span>
-            )}
 
             {(player.weapon || player.armor || player.boots || player.spareArmor) && (
               <span className="party-gear">
