@@ -59,6 +59,20 @@ export type Challenge = {
    */
   hint: string;
   /**
+   * The answers to choose between, or undefined where there is nothing to choose.
+   *
+   * **Only the two games that have a right answer get these**, and that is the whole
+   * line: True or Poo is two buttons, a Puzzle is four, and a drawing is none, because
+   * nobody can put a drawing in a list. Where the app *can* mark the work it should,
+   * and asking a family to adjudicate "is a tomato a fruit" when the app knows is
+   * making them do the app's job.
+   *
+   * Stored unshuffled, answer first. `startCombat` shuffles them onto the trial with
+   * the game's own generator, so a saved game comes back with the buttons in the order
+   * it left them and a seed replays identically.
+   */
+  options?: string[];
+  /**
    * What the answer was, revealed when the clock stops.
    *
    * Only for the two games where there *is* a right answer. Nobody adjudicates a
@@ -124,6 +138,9 @@ const RANKS: Rank[] = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "
 /** What every entry below carries: the thing itself, and the whisper that helps. */
 type Said = { prompt: string; hint: string };
 
+/** True or Poo is always the same two buttons, and the right one is on the card. */
+export const TRUE_OR_POO = ["True", "Poo"];
+
 /** Easiest first, hardest last. Thirteen each, in rank order. */
 const DRAW: Said[] = [
   { prompt: "A ball", hint: "You kick it." },
@@ -174,28 +191,49 @@ const TRUTH: (Said & { answer: "True" | "Poo" })[] = [
   { prompt: "Lightning never strikes the same place twice.", hint: "Ask a very tall building.", answer: "Poo" },
 ];
 
-const PUZZLE: (Said & { answer: string })[] = [
-  { prompt: "What comes next?  2, 4, 6, 8, \u2026", hint: "You are counting in twos.", answer: "10" },
-  { prompt: "You have 7 apples and eat 3. How many are left?", hint: "Count backwards from seven.", answer: "4" },
-  { prompt: "How many legs do 4 cats have altogether?", hint: "Four legs each.", answer: "16" },
-  { prompt: "What comes next?  1, 2, 4, 8, \u2026", hint: "Each one is double the last.", answer: "16" },
-  { prompt: "Half of 30, then add 5. What is it?", hint: "Half of thirty first.", answer: "20" },
-  { prompt: "I am tall when I am young and short when I am old. What am I?", hint: "It is on a birthday cake.", answer: "A candle" },
-  { prompt: "A farmer has 6 sheep. All but 2 run away. How many are left?", hint: "Read it again. Slowly.", answer: "2" },
-  { prompt: "What has hands but cannot clap?", hint: "It is on the wall.", answer: "A clock" },
-  { prompt: "3 people share 12 cakes evenly. Then one more person arrives and they share again. How many each now?", hint: "Forget the first share. Twelve between four.", answer: "3" },
-  { prompt: "What comes next?  1, 1, 2, 3, 5, \u2026", hint: "Add the last two together.", answer: "8" },
-  { prompt: "A book costs $7. You have two $5 notes. How much change?", hint: "You are handing over ten dollars.", answer: "$3" },
-  { prompt: "If today is Tuesday, what day is it in 10 days?", hint: "Ten days is a week and three more.", answer: "Friday" },
-  { prompt: "What goes up but never comes down?", hint: "It goes up once a year.", answer: "Your age" },
+/**
+ * Puzzles, each with three wrong answers to sit beside the right one.
+ *
+ * Hand-written rather than borrowed from the other puzzles: "A clock" offered as an
+ * answer to *seven apples minus three* is not a distractor, it is a giveaway. Every
+ * wrong answer here is one a child might actually reach - the off-by-one, the
+ * subtraction done the wrong way round, the pattern continued by the wrong rule.
+ */
+const PUZZLE: (Said & { answer: string; wrong: [string, string, string] })[] = [
+  { prompt: "What comes next?  2, 4, 6, 8, \u2026", hint: "You are counting in twos.", answer: "10", wrong: ["9", "11", "12"] },
+  { prompt: "You have 7 apples and eat 3. How many are left?", hint: "Count backwards from seven.", answer: "4", wrong: ["3", "5", "10"] },
+  { prompt: "How many legs do 4 cats have altogether?", hint: "Four legs each.", answer: "16", wrong: ["8", "12", "20"] },
+  { prompt: "What comes next?  1, 2, 4, 8, \u2026", hint: "Each one is double the last.", answer: "16", wrong: ["10", "12", "14"] },
+  { prompt: "Half of 30, then add 5. What is it?", hint: "Half of thirty first.", answer: "20", wrong: ["15", "25", "35"] },
+  { prompt: "I am tall when I am young and short when I am old. What am I?", hint: "It is on a birthday cake.", answer: "A candle", wrong: ["A tree", "A snowman", "A pencil"] },
+  { prompt: "A farmer has 6 sheep. All but 2 run away. How many are left?", hint: "Read it again. Slowly.", answer: "2", wrong: ["4", "6", "0"] },
+  { prompt: "What has hands but cannot clap?", hint: "It is on the wall.", answer: "A clock", wrong: ["A glove", "A door", "A teddy"] },
+  { prompt: "3 people share 12 cakes evenly. Then one more person arrives and they share again. How many each now?", hint: "Forget the first share. Twelve between four.", answer: "3", wrong: ["4", "2", "6"] },
+  { prompt: "What comes next?  1, 1, 2, 3, 5, \u2026", hint: "Add the last two together.", answer: "8", wrong: ["6", "7", "10"] },
+  { prompt: "A book costs $7. You have two $5 notes. How much change?", hint: "You are handing over ten dollars.", answer: "$3", wrong: ["$2", "$5", "$7"] },
+  { prompt: "If today is Tuesday, what day is it in 10 days?", hint: "Ten days is a week and three more.", answer: "Friday", wrong: ["Thursday", "Saturday", "Tuesday"] },
+  { prompt: "What goes up but never comes down?", hint: "It goes up once a year.", answer: "Your age", wrong: ["A balloon", "The sun", "A kite"] },
 ];
 
 /** Every challenge, keyed by suit and rank. Built once. */
 const DECK: Record<ChallengeKind, Challenge[]> = {
   draw: DRAW.map((d, i) => ({ ...d, kind: "draw", rank: RANKS[i], seconds: SECONDS.draw })),
   act: ACT.map((d, i) => ({ ...d, kind: "act", rank: RANKS[i], seconds: SECONDS.act })),
-  truth: TRUTH.map((d, i) => ({ ...d, kind: "truth", rank: RANKS[i], seconds: SECONDS.truth })),
-  puzzle: PUZZLE.map((d, i) => ({ ...d, kind: "puzzle", rank: RANKS[i], seconds: SECONDS.puzzle })),
+  truth: TRUTH.map((d, i) => ({
+    ...d,
+    kind: "truth",
+    rank: RANKS[i],
+    seconds: SECONDS.truth,
+    options: TRUE_OR_POO,
+  })),
+  puzzle: PUZZLE.map(({ wrong, ...d }, i) => ({
+    ...d,
+    kind: "puzzle",
+    rank: RANKS[i],
+    seconds: SECONDS.puzzle,
+    // Answer first; `startCombat` shuffles it onto the trial from the seeded generator.
+    options: [d.answer, ...wrong],
+  })),
 };
 
 /**

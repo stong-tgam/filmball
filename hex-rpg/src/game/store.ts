@@ -10,6 +10,7 @@ import { activePlayer, canTakeOn, clearDraw, endTurn, enemyHere, legalMoves, mov
 import { activeMembers, activeTeam } from "./teams";
 import { rulesInPlay, type GearRule } from "./gear";
 import {
+  answerTrial,
   canHoldTheLine,
   canUseGear,
   holdTheLine,
@@ -64,7 +65,9 @@ type Store = {
   endTurn: () => void;
   /** Take on whatever is standing here. Everybody in the team plays it. */
   takeOn: () => void;
-  /** The table says they did it. Nothing else can say it. */
+  /** Tap an answer, on the two games that have one. */
+  answerTrial: (choice: string) => void;
+  /** The table says they did it. On the two games where only they can say it. */
   wonTrial: () => void;
   /** The clock beat them, or the table says it was not close enough. */
   lostTrial: () => void;
@@ -114,6 +117,7 @@ export const useGame = create<Store>((set, get) => ({
   moveTo: (label) => set({ game: movePlayer(get().game, label), selected: null }),
   endTurn: () => set({ game: endTurn(get().game), selected: null }),
   takeOn: () => set({ game: takeOn(get().game), selected: null }),
+  answerTrial: (choice) => set({ game: answerTrial(get().game, choice) }),
   wonTrial: () => set({ game: wonTrial(get().game) }),
   lostTrial: () => set({ game: lostTrial(get().game) }),
   useHint: () => set({ game: useHint(get().game) }),

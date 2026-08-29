@@ -25,10 +25,14 @@ These are the tiebreakers when a design question comes up mid-task:
 - **Protect the exciting moments.** The card turning over, the boss reveal, the loot
   drop, the event card. These get animation and space; everything else gets out of the
   way.
-- **The app poses and times; the family judges.** No machine can tell whether a drawing
-  looked enough like a dragon, and one that tried would be wrong in front of a child.
-  Every mini-game ends with the table tapping *we did it* or *we could not*. That
-  button is the whole adjudication system and it is meant to be.
+- **The app poses and times; the family judges — where there is nothing to judge by.**
+  No machine can tell whether a drawing looked enough like a dragon, and one that tried
+  would be wrong in front of a child, so Quick Draw and Act It Out end with the table
+  tapping *we did it* or *we could not*. **But where there *is* a right answer, the app
+  marks it**: True or Poo is two buttons and a Puzzle is four (`answerTrial`). Asking a
+  table to adjudicate a question the app already knows the answer to is making them do
+  the app's job — and it is the hard half, because on a drawing they agree in a second
+  and on a puzzle they argue.
 - **Nobody waits.** It is one device: the player whose turn it is not should still be
   able to act (eat food, watch the roll). Dead time at the table kills the evening.
 - **Losing must not feel like punishment.** Setbacks are funny — a tornado, a robber
@@ -409,6 +413,10 @@ Key rules, so nothing gets "improved" back to a guess:
     and the table asks *who has the sword?* The pip is drawn on the button
     (`SUIT_OF`), because a greyed button with the reason only in a tooltip teaches a
     child nothing on a tablet.
+  - **The club item is a table rule, not a second go**, and that is deliberate. True or
+    Poo is two buttons, so forgiving a wrong answer there is not a help, it is a
+    guaranteed pass — a button that says "win this card" is exactly the kind of thing
+    the stones were removed for. The Big Stick asks the *other team* instead.
   - **The fishing rod has a rule too.** It lives in this slot and `equip` refuses to
     swap it away, so without an entry the fisherman would be the one role locked out of
     the whole system. There is a test.
@@ -455,6 +463,19 @@ Key rules, so nothing gets "improved" back to a guess:
     A puzzle nobody was ever told the answer to is the one thing at a table that
     genuinely annoys a child, and it is the difference between a hard question and an
     unfair one.
+  - **True or Poo and Puzzle are tapped, not self-judged** (`answerTrial`,
+    `Trial.options`). Two buttons and four. A wrong tap loses the card the same way the
+    clock does — a confident wrong answer and a blank stare cost a table the same thing.
+    The **Slingshot forgives exactly one** (`GearRule.secondGo`), which is what four
+    buttons make room for and two do not.
+    - The four are **shuffled onto the trial** when it is dealt, from the game's own
+      generator — never in the view. Buttons that reshuffled on render would move under
+      a child's finger on every tick of the clock, and the order has to come back off a
+      save the way it went in.
+    - Every puzzle's three wrong answers are **hand-written** beside the right one. A
+      distractor borrowed from another puzzle ("A clock", offered for *seven apples
+      minus three*) is not a distractor, it is a giveaway; these are the off-by-one, the
+      subtraction done backwards, the pattern continued by the wrong rule.
 - **Features (§9)**: every monster draws one, the dragon two, before the encounter — and
   **all five now bite the mini-game** rather than the dice (`FEATURE_BITE`). Water =
   slips away downriver once; railway = a health before the first card; forest = ten

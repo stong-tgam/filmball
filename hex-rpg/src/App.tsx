@@ -91,6 +91,7 @@ export default function App() {
   const nowPlaying = useNowPlaying();
   const wonTrial = useGame((s) => s.wonTrial);
   const lostTrial = useGame((s) => s.lostTrial);
+  const answerTrial = useGame((s) => s.answerTrial);
   const useHint = useGame((s) => s.useHint);
   const useSkill = useGame((s) => s.useSkill);
   const closeCombat = useGame((s) => s.closeCombat);
@@ -398,6 +399,7 @@ export default function App() {
           playing={nowPlaying}
           onWon={wonTrial}
           onLost={lostTrial}
+          onAnswer={answerTrial}
           onHint={useHint}
           skills={skillChoices}
           onSkill={useSkill}

@@ -2080,3 +2080,32 @@ button.big.hold { background: #f27bb0; color: #2a0f1c; }
    screen, and a child pressing the dead one learned that the app ignores them. */
 button:disabled { opacity: 0.42; cursor: default; }
 button.ghost:disabled { border-style: dashed; }
+
+/* ---------- tapping an answer ---------- */
+
+/* Two buttons for True or Poo, four for a puzzle. Big, because a seven-year-old is
+   reaching across a table for them with a clock running. */
+.game-answers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.answer {
+  min-height: 56px;
+  padding: 6px 10px;
+  font-family: "Patrick Hand", system-ui, sans-serif;
+  font-size: 19px;
+  line-height: 1.15;
+  background: #f7f4ec;
+  color: #1b2127;
+  border-color: transparent;
+}
+.answer.is-wrong {
+  background: transparent;
+  color: #e2685f;
+  border: 1px solid #e2685f;
+  text-decoration: line-through;
+  opacity: 1;
+}
+
+/* The fight card can get tall - three cards' worth of header, a prompt, four answers
+   and the party's lunch. The answers are the thing being tapped, so the modal scrolls
+   rather than pushing them off the bottom on a tablet. */
+.modal.fight { max-height: 92vh; overflow-y: auto; }
+.fight-supply .stock { max-height: 30vh; overflow-y: auto; }

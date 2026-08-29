@@ -42,6 +42,7 @@ import {
 } from "./skills";
 import { rulePlaysOn, rulesInPlay } from "./gear";
 import type {
+  Card,
   Combat,
   Enemy,
   Feature,
@@ -206,15 +207,10 @@ export function startCombat(
   let deck = next.challengeDeck;
   let seed = next.rngState;
   for (let i = 0; i < profile.cards; i++) {
-    const pull = drawCard(deck, seed);
-    deck = pull.deck;
-    seed = pull.rngState;
-    trials.push({
-      card: pull.card,
-      seconds: secondsFor(challengeFor(pull.card), team, shorter),
-      hinted: false,
-      result: null,
-    });
+    const dealt = deal(deck, seed, team, shorter);
+    deck = dealt.deck;
+    seed = dealt.rngState;
+    trials.push(dealt.trial);
   }
 
   const combat: Combat = {
@@ -246,6 +242,40 @@ export function startCombat(
   );
 
   return openingBite(next, fighter);
+}
+
+/**
+ * Turn one card over: draw it, work out its clock, and shuffle its answers.
+ *
+ * One place, because a card is dealt in three - opening a fight, the fisherman throwing
+ * one back, and the knight holding the line - and a trial that came out of one of them
+ * missing its buttons would be a game a child could not finish.
+ */
+function deal(
+  deck: Card[],
+  rngState: number,
+  team: Player[],
+  shorter: boolean,
+): { trial: Trial; deck: Card[]; rngState: number } {
+  const pull = drawCard(deck, rngState);
+  const challenge = challengeFor(pull.card);
+  const rng = makeRng(pull.rngState);
+  // Shuffled here and stored, never in the view: buttons that reshuffled on render
+  // would move under a child's finger on every tick of the clock.
+  const options = challenge.options ? rng.shuffle([...challenge.options]) : undefined;
+  return {
+    trial: {
+      card: pull.card,
+      seconds: secondsFor(challenge, team, shorter),
+      hinted: false,
+      options,
+      wrong: [],
+      forgiven: false,
+      result: null,
+    },
+    deck: pull.deck,
+    rngState: rng.state(),
+  };
 }
 
 /** §9, railway: it takes a health before the first card is even turned over. */
@@ -342,6 +372,45 @@ export function wonTrial(state: GameState): GameState {
 }
 
 /**
+ * Tap an answer, on the two games that have one.
+ *
+ * **This is the one place the app marks the work, and it is not a retreat from "the
+ * family judges".** Nobody can say whether a drawing looked enough like a dragon - but
+ * everybody can say whether a tomato is a fruit, and asking a table to adjudicate a
+ * question the app already knows the answer to is making them do the app's job. Worse,
+ * it is the *hard* half: on a drawing the table agrees in a second, and on a puzzle
+ * they argue.
+ *
+ * A wrong answer loses the card, and the card is the fight - the same rule as running
+ * out of time, because a confident wrong answer and a blank stare cost a table the same
+ * thing. The Slingshot forgives exactly one of them (`GearRule.secondGo`), which is
+ * what four buttons make room for and two do not.
+ */
+export function answerTrial(state: GameState, choice: string): GameState {
+  const combat = state.combat;
+  const playing = nowPlaying(state);
+  if (!combat || !playing) return state;
+
+  const { trial, challenge } = playing;
+  // Nothing to mark, or an answer they have already tried and been told about.
+  if (!trial.options || !challenge.answer) return state;
+  if (!trial.options.includes(choice) || trial.wrong.includes(choice)) return state;
+
+  if (choice === challenge.answer) {
+    return wonTrial(note(state, `They said ${choice}.`));
+  }
+
+  const missed = withTrial(combat, combat.at, { wrong: [...trial.wrong, choice] });
+  if (trial.forgiven && trial.wrong.length === 0) {
+    return note(
+      { ...state, combat: missed },
+      `${choice}? Not that one - and the second go is spent. One more try.`,
+    );
+  }
+  return lostTrial(note({ ...state, combat: missed }, `${choice}? No.`));
+}
+
+/**
  * The clock beat them, or the table says it was not close enough.
  *
  * One card is the whole fight. There is no partial credit and nothing to come back to,
@@ -413,23 +482,18 @@ export function holdTheLine(state: GameState): GameState {
   const enemy = state.enemies.find((e) => e.id === combat.enemyId);
   const ground = enemy ? state.tiles[key(enemy.hex)] : undefined;
   const shorter = enemy ? activeFeatures(enemy, ground).includes("forest") : false;
-  const pull = drawCard(state.challengeDeck, state.rngState);
+  const fresh = deal(state.challengeDeck, state.rngState, team, shorter);
 
   const back: Combat = {
-    ...withTrial(combat, combat.at, {
-      card: pull.card,
-      seconds: secondsFor(challengeFor(pull.card), team, shorter),
-      hinted: false,
-      result: null,
-    }),
+    ...withTrial(combat, combat.at, fresh.trial),
     outcome: "ongoing",
     skillsUsed: [...combat.skillsUsed, knight.id],
   };
   return note(
     {
       ...state,
-      challengeDeck: pull.deck,
-      rngState: pull.rngState,
+      challengeDeck: fresh.deck,
+      rngState: fresh.rngState,
       phase: "combat",
       combat: back,
       players: state.players.map((p) =>
@@ -460,8 +524,11 @@ export function useGear(state: GameState, itemId: string): GameState {
   const combat = state.combat;
   if (!combat || !canUseGear(state, itemId)) return state;
   const held = rulesInPlay(fighters(state), combat).find((g) => g.item.id === itemId)!;
+  const bent = held.rule.secondGo
+    ? withTrial(combat, combat.at, { forgiven: true })
+    : combat;
   return note(
-    { ...state, combat: { ...combat, gearUsed: [...combat.gearUsed, itemId] } },
+    { ...state, combat: { ...bent, gearUsed: [...combat.gearUsed, itemId] } },
     `${held.who.name} used the ${held.item.name}. ${held.rule.text}`,
   );
 }
@@ -551,21 +618,16 @@ export function useSkill(state: GameState, playerId: string, toId?: string): Gam
     }
 
     case "recast": {
-      const pull = drawCard(state.challengeDeck, state.rngState);
-      const team = fighters(state);
       const enemy = state.enemies.find((e) => e.id === combat.enemyId);
       const ground = enemy ? state.tiles[key(enemy.hex)] : undefined;
       const shorter = enemy ? activeFeatures(enemy, ground).includes("forest") : false;
+      const fresh = deal(state.challengeDeck, state.rngState, fighters(state), shorter);
       return note(
         spend({
           ...state,
-          challengeDeck: pull.deck,
-          rngState: pull.rngState,
-          combat: withTrial(combat, combat.at, {
-            card: pull.card,
-            seconds: secondsFor(challengeFor(pull.card), team, shorter),
-            hinted: false,
-          }),
+          challengeDeck: fresh.deck,
+          rngState: fresh.rngState,
+          combat: withTrial(combat, combat.at, fresh.trial),
         }),
         `${player.name} threw that one back.`,
       );

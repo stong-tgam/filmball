@@ -41,6 +41,14 @@ export type GearRule = {
   title: string;
   /** Read aloud. The whole rule, in one line a child can act on. */
   text: string;
+  /**
+   * Forgives one wrong answer on the card it is used on.
+   *
+   * Only the Slingshot, and only because a Puzzle has **four** buttons - a second go at
+   * two buttons is not a help, it is the answer. That is why the club item is a table
+   * rule rather than another go: see the Big Stick.
+   */
+  secondGo?: boolean;
 };
 
 /**
@@ -63,17 +71,22 @@ export const GEAR_RULES: Record<string, GearRule> = {
     title: "Noises allowed",
     text: "You may make any sound you like. Still no words.",
   },
-  // A line in the sand: pick both sides of it.
+  // Shout across the map for somebody who is not in this fight.
+  //
+  // Deliberately *not* a second go. True or Poo is two buttons, so forgiving a wrong
+  // answer there is not a help, it is a guaranteed pass - a button that says "win this
+  // card" is the kind of thing the stones were removed for.
   "Big Stick": {
     game: "truth",
-    title: "Call both",
-    text: "Say True *and* Poo. One of you is right, and that counts.",
+    title: "Ask the others",
+    text: "The other team calls this one for you. If you are the only team, ask a grown-up.",
   },
-  // A second shot at it.
+  // A second shot at it. Four buttons, so a second go is a real help and not the answer.
   "Slingshot": {
     game: "puzzle",
     title: "Two goes",
-    text: "Say an answer. If it is wrong, say one more.",
+    text: "Get it wrong once and you may pick again.",
+    secondGo: true,
   },
   // Sweep it aside and start again with somebody else.
   Broom: {

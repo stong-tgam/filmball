@@ -53,6 +53,8 @@ type Props = {
   playing: { trial: Trial; challenge: Challenge; index: number; of: number } | null;
   onWon: () => void;
   onLost: () => void;
+  /** Tap one of the answers, on the two games that have them. */
+  onAnswer: (choice: string) => void;
   onHint: () => void;
   /** Each fighter, and whether their own skill is pressable this second. */
   skills: { who: Player; ready: boolean }[];
@@ -121,6 +123,7 @@ export default function CombatModal({
   playing,
   onWon,
   onLost,
+  onAnswer,
   onHint,
   skills,
   onSkill,
@@ -136,6 +139,12 @@ export default function CombatModal({
   const beast = ENEMIES[enemy.kind];
   const over = combat.outcome !== "ongoing";
   const bites = activeFeatures(enemy, ground);
+  // Only people who can actually use it. The old list drew every snack in the party
+  // including a full-health player's, as dead buttons — which pushed the answers the
+  // team is meant to be tapping down the screen behind four things that do nothing.
+  const hungry = party.filter(
+    (p) => p.health < p.maxHealth && p.supply.some((i) => i.value > 0),
+  );
 
   // Where in the card's own little ceremony we are. Reset on every new card, which is
   // what `combat.at` keys.
@@ -253,14 +262,35 @@ export default function CombatModal({
                   </>
                 )}
                 <Clock left={left} of={seconds} />
-                <div className="game-calls">
-                  <button type="button" className="big win" onClick={onWon}>
-                    We did it!
-                  </button>
-                  <button type="button" className="ghost" onClick={onLost}>
-                    We could not
-                  </button>
-                </div>
+                {/* Where there is a right answer, the app marks it. Where there is not
+                    - a drawing, a mime - only the table can, and it says so. */}
+                {playing.trial.options ? (
+                  <div className="game-answers">
+                    {playing.trial.options.map((option) => {
+                      const missed = playing.trial.wrong.includes(option);
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          className={`answer${missed ? " is-wrong" : ""}`}
+                          disabled={missed}
+                          onClick={() => onAnswer(option)}
+                        >
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="game-calls">
+                    <button type="button" className="big win" onClick={onWon}>
+                      We did it!
+                    </button>
+                    <button type="button" className="ghost" onClick={onLost}>
+                      We could not
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -468,23 +498,18 @@ export default function CombatModal({
             {/* Eating is not the turn's action and never was: the spec is explicit that
                 supply may be used at any time, "including in the middle of a fight" -
                 and a health back is a skill back. */}
-            {party.some((p) => p.supply.length > 0) && (
+            {hungry.length > 0 && (
               <div className="fight-supply">
                 <p className="fight-supply-title">Eat something. It does not cost anything.</p>
                 <ul className="stock">
-                  {party.flatMap((who) =>
-                    who.supply.map((item) => (
+                  {hungry.map((who) =>
+                    who.supply.filter((i) => i.value > 0).map((item) => (
                       <li key={`${who.id}-${item.id}`}>
                         <button
                           type="button"
                           className="buy"
                           onClick={() => onEat(who.id, item.id)}
-                          disabled={item.value <= 0 || who.health >= who.maxHealth}
-                          title={
-                            item.value <= 0
-                              ? `The ${item.name} is not food.`
-                              : `${who.name} eats the ${item.name} for ${item.value} health`
-                          }
+                          title={`${who.name} eats the ${item.name} for ${item.value} health`}
                         >
                           <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art">
                             <Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art>

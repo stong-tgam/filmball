@@ -11,8 +11,10 @@ import {
   HINTS_A_FIGHT,
   canHoldTheLine,
   canUseGear,
+  answerTrial,
   canUseSkill,
   fighters,
+  nowPlaying,
   hintsFor,
   holdTheLine,
   lostTrial,
@@ -230,6 +232,96 @@ describe("what gear buys, now that it cannot buy damage", () => {
     const state = brawl("mob");
     const streets: GameState = { ...state, combat: { ...state.combat!, hintsLeft: 0 } };
     expect(useHint(streets)).toBe(streets);
+  });
+});
+
+describe("tapping an answer, on the games that have one", () => {
+  /** A fight whose card in play is the given suit, dealt honestly from the deck. */
+  function facing(suit: "clubs" | "diamonds" | "hearts"): GameState | null {
+    for (let seed = 1; seed < 400; seed++) {
+      const state = brawl("finalboss", seed);
+      const at = state.combat!.trials.findIndex((t) => t.card.suit === suit);
+      if (at >= 0) return { ...state, combat: { ...state.combat!, at } };
+    }
+    return null;
+  }
+
+  it("gives True or Poo two buttons and a puzzle four, and a drawing none", () => {
+    const clubs = facing("clubs");
+    const diamonds = facing("diamonds");
+    const hearts = facing("hearts");
+    expect(nowPlaying(clubs!)!.trial.options).toHaveLength(2);
+    expect(nowPlaying(diamonds!)!.trial.options).toHaveLength(4);
+    // Nobody can put a drawing in a list, which is the whole line.
+    expect(nowPlaying(hearts!)!.trial.options).toBeUndefined();
+  });
+
+  it("keeps the right answer among them, and shuffles where it sits", () => {
+    const orders = new Set<string>();
+    for (let seed = 1; seed < 60; seed++) {
+      const state = brawl("finalboss", seed);
+      for (let at = 0; at < state.combat!.trials.length; at++) {
+        const playing = nowPlaying({ ...state, combat: { ...state.combat!, at } })!;
+        if (!playing.trial.options) continue;
+        expect(playing.trial.options, playing.challenge.prompt).toContain(playing.challenge.answer);
+        expect(new Set(playing.trial.options).size).toBe(playing.trial.options.length);
+        orders.add(playing.trial.options.join("|"));
+      }
+    }
+    // Shuffled from the game's own generator, so the answer is not always first.
+    expect(orders.size).toBeGreaterThan(4);
+  });
+
+  it("wins the card on the right answer", () => {
+    const state = facing("clubs")!;
+    const playing = nowPlaying(state)!;
+    const after = answerTrial(state, playing.challenge.answer!);
+    expect(after.combat!.trials[state.combat!.at].result).toBe("won");
+  });
+
+  it("loses the fight on a wrong one, the same as running out of time", () => {
+    const state = facing("clubs")!;
+    const playing = nowPlaying(state)!;
+    const wrong = playing.trial.options!.find((o) => o !== playing.challenge.answer)!;
+    const after = answerTrial(state, wrong);
+    expect(after.combat?.outcome).toBe("partyBeaten");
+    expect(after.combat!.trials[state.combat!.at].wrong).toEqual([wrong]);
+  });
+
+  it("lets the Slingshot forgive exactly one wrong answer on a puzzle", () => {
+    const base = facing("diamonds")!;
+    const holder = base.players[0];
+    const sling = makeItem(EQUIPMENT.find((e) => e.name === "Slingshot")!, "sling-1");
+    const armed: GameState = {
+      ...base,
+      players: base.players.map((p) => (p.id === holder.id ? { ...p, weapon: sling } : p)),
+    };
+    const ready = useGear(armed, "sling-1");
+    expect(nowPlaying(ready)!.trial.forgiven).toBe(true);
+
+    const playing = nowPlaying(ready)!;
+    const wrong = playing.trial.options!.filter((o) => o !== playing.challenge.answer);
+    const once = answerTrial(ready, wrong[0]);
+    expect(once.combat?.outcome, "the first miss is bought off").toBe("ongoing");
+
+    const twice = answerTrial(once, wrong[1]);
+    expect(twice.combat?.outcome, "the second is not").toBe("partyBeaten");
+  });
+
+  it("does not offer a second go on True or Poo, where it would be the answer", () => {
+    // Two buttons and one forgiven miss is a guaranteed pass, which is a button that
+    // says "win this card" - the kind of thing the stones were removed for.
+    expect(GEAR_RULES["Big Stick"].secondGo).toBeUndefined();
+    expect(GEAR_RULES.Slingshot.secondGo).toBe(true);
+  });
+
+  it("ignores an answer that is not on the card, or one already tried", () => {
+    const state = facing("clubs")!;
+    expect(answerTrial(state, "Bananas")).toBe(state);
+    const playing = nowPlaying(state)!;
+    const wrong = playing.trial.options!.find((o) => o !== playing.challenge.answer)!;
+    const missed = answerTrial(state, wrong);
+    expect(answerTrial(missed, wrong)).toBe(missed);
   });
 });
 

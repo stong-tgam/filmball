@@ -313,6 +313,24 @@ export type Trial = {
   seconds: number;
   /** The hint has been read. One per card, however it was paid for. */
   hinted: boolean;
+  /**
+   * The answers to choose between, shuffled, or undefined on a game with no right
+   * answer.
+   *
+   * Shuffled **onto the trial** rather than in the view, because a component that
+   * shuffled on render would move the buttons under a child's finger every second the
+   * clock ticked - and because the order has to come back off a save the way it went in.
+   */
+  options?: string[];
+  /** Answers already given and wrong. Their buttons stay on screen, struck out. */
+  wrong: string[];
+  /**
+   * One wrong answer has been bought off, by a piece of gear that grants a second go.
+   *
+   * On the trial rather than the fight because it is spent per card: the Slingshot
+   * forgives one wrong answer on the puzzle it was used on, not on the next one too.
+   */
+  forgiven: boolean;
   /** null while it is being played. */
   result: "won" | "lost" | null;
 };
