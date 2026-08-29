@@ -21,59 +21,98 @@
 
 import type { Combat, Player, Role } from "./types";
 
-export type SkillKind = "takeTheHit" | "peek" | "linger" | "patch" | "recast";
+export type SkillKind = "holdTheLine" | "peek" | "linger" | "patch" | "recast";
 
 export type Skill = {
   kind: SkillKind;
   title: string;
   /** One line, on the button. */
   text: string;
+
   /**
    * Whether it is something you press.
    *
-   * The knight's is not. A child asked "do you want to save your sister?" every single
-   * time says yes every single time, so the question is not a decision - it is a tax
-   * on the moment. It fires by itself, and it is fenced so it can never trade one of
-   * them for the other (`whoTakesTheHit`).
+   * All five are, now. The knight's used to be automatic - a child asked "do you want
+   * to save your sister?" every single time says yes every single time - but **Hold the
+   * line is a real decision**: it costs the knight a health nobody else pays, and it is
+   * the only thing in the game that undoes a missed card. That one is worth stopping
+   * the table for.
+   *
+   * `Take the hit` survives as the knight's **passive** (`whoTakesTheHit`) and is not
+   * in this table, because a passive is not a button and should never be drawn as one.
    */
   pressed: boolean;
+  /** True where the role also has a passive that is simply always on. */
+  passive?: { title: string; text: string };
 };
 
 export const SKILLS: Record<Role, Skill> = {
   knight: {
-    kind: "takeTheHit",
-    title: "Take the hit",
-    text: "When the team runs out of time, the knight wears it. Nobody else loses a health.",
-    pressed: false,
+    kind: "holdTheLine",
+    title: "Hold the line",
+    text: "The fight is not over. That card comes back as a new one, and the knight pays a health for it.",
+    pressed: true,
+    passive: {
+      title: "Take the hit",
+      text: "When a fight is lost, the knight wears it. Nobody else loses a health.",
+    },
   },
   rogue: {
     kind: "peek",
     title: "Peek",
-    text: "Read the hint, for nothing.",
+    text: "Read the hint, without spending the team's one.",
     pressed: true,
+    passive: {
+      title: "Light fingers",
+      text: "One extra thing off every body they help bring down.",
+    },
   },
   scout: {
     kind: "linger",
     title: "Keep looking",
     text: "Fifteen more seconds, on the clock that is running.",
     pressed: true,
+    passive: {
+      title: "Sharp eyes",
+      text: "One more ring of the map, and a second look at any wood.",
+    },
   },
   doctor: {
     kind: "patch",
     title: "Patch up",
     text: "A health back for a friend - and their skill with it.",
     pressed: true,
+    passive: {
+      title: "Field kit",
+      text: "Anything they hand somebody to eat is worth one more health.",
+    },
   },
   fisherman: {
     kind: "recast",
     title: "Cast again",
     text: "Throw this card back and draw a different one.",
     pressed: true,
+    passive: {
+      title: "The rod",
+      text: "Fishes any river, crosses any water, and can never lose the rod.",
+    },
   },
 };
 
 /** Fifteen seconds, which is a whole extra go at a drawing and not a whole extra game. */
 export const LINGER_SECONDS = 15;
+
+/**
+ * What the knight pays to keep a lost fight alive.
+ *
+ * One health, on top of what the loss already cost everybody. Expensive on purpose:
+ * this is the only thing in the game that undoes a missed card, and against a
+ * three-card dragon it is the difference between "we nearly had it" and the ending.
+ * It is the best moment the design has - the table watches the fight end, and then the
+ * knight stands up - which is exactly why it must not be free and must not be
+ * automatic.
+ */
+export const HOLD_THE_LINE_COST = 1;
 
 /**
  * Has this player still got their skill?

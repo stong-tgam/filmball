@@ -956,12 +956,23 @@ export function give(state: GameState, toId: string, itemId: string): GameState 
   if (!offer || !item) return state;
 
   const { player: lighter } = removeItem(from, itemId);
-  const { player: heavier, returned } = equip(offer.player, item);
+  // **Field kit**, the doctor's passive: anything they hand somebody to eat is worth
+  // one more health. Their skill is the only one that gives a friend their *skill*
+  // back, and this is the same character said quietly - the doctor is the party's way
+  // of turning food into everybody else's buttons.
+  const dosed =
+    ROLES[from.role].canHeal && item.slot === "supply" && item.value > 0
+      ? { ...item, value: item.value + 1 }
+      : item;
+  const { player: heavier, returned } = equip(offer.player, dosed);
   if (returned) return state;
 
   let next = withPlayer(state, withMaxHealth(lighter));
   next = withPlayer(next, withMaxHealth(heavier));
-  return note(next, `${from.name} handed ${gearLabel(item)} to ${offer.player.name}.`);
+  next = note(next, `${from.name} handed ${gearLabel(item)} to ${offer.player.name}.`);
+  return dosed === item
+    ? next
+    : note(next, `${from.name} did something to it first — it is worth ${dosed.value} now.`);
 }
 
 /* ------------------------------------------------------------------- doctor */

@@ -855,24 +855,51 @@ keep shouting the answer. `partyLost` is gone as an ending, and so are `Player.d
 `fellAt`, `fellOn` and the whole get-up-after-a-turn subsystem — nothing could set them
 any more. The abyss at the board's edge is the one thing that removes anybody at all.
 
-**One skill each, and they are what health is for.**
+**Every role has a button and something that is always true.**
 
-| | skill | does |
+| | button, once a fight | always |
 |---|---|---|
-| knight | Take the hit | wears a lost fight alone, so nobody else pays |
-| rogue | Peek | reads the hint, free |
-| scout | Keep looking | fifteen more seconds on the clock that is running |
-| doctor | Patch up | a health back for a friend — and their skill with it |
-| fisherman | Cast again | throws this card back and draws another |
+| knight | **Hold the line** — the fight is not over; that card comes back as a new one, and the knight pays a health | Take the hit — wears a lost fight alone |
+| rogue | Peek — the hint, without spending the team's | Light fingers — one extra thing off a body |
+| scout | Keep looking — fifteen more seconds, on the clock that is running | Sharp eyes — a ring further, and a second look in a wood |
+| doctor | Patch up — a health for a friend, and their skill with it | Field kit — food they hand over is worth one more |
+| fisherman | Cast again — throw this card back | The rod — fishes, crosses water, never loses it |
 
-Only the knight's fires by itself. A child asked "do you want to save your sister?"
-every time says yes every time, so the question is not a decision — and it is fenced so
-it can never trade one of them for the other.
+**Hold the line is the best moment in the game**, and it is built to be one: the table
+watches the fight end, and *then* the knight stands up. Automatic would delete the
+moment and free would make a three-card dragon a formality, so it is a button that only
+exists on a lost fight, it costs the knight a health nobody else pays, and it is the
+only thing in the game that undoes a missed card.
 
-**Gear buys time, hints and health.** The team's best weapon buys ten seconds a point
-(the best, not everybody's added together — five children with frying pans must not get
-three minutes to draw a cat). Boots buy hints, one a pair. A coat is still a health,
-which is now the number of lost fights a team can absorb.
+**Gear: two slots stay dead simple and one carries the whole decision.**
+
+| slot | what it does |
+|---|---|
+| coat | +1 health, and health is skills |
+| boots | +10 seconds on every clock, all fight |
+| your thing | **one rule you may break**, once a fight |
+
+The five things, one per suit and a wild:
+
+| | suit | you may |
+|---|---|---|
+| Frying Pan | ♥ Quick Draw | **both of you** draw it, on the same paper |
+| Wooden Sword | ♠ Act It Out | make **noises**. Still no words |
+| Big Stick | ♣ True or Poo | **call both** — say True *and* Poo, one of you is right |
+| Slingshot | ♦ Puzzle | have **two goes** — wrong once, say one more |
+| Broom | any | **swap over** — somebody else does it, and you have seen the card |
+
+Plus the fisherman's rod (**reel it in** — the guessers may ask one yes-or-no question),
+because it lives in that slot and can never be swapped away.
+
+**The rules are things the table does, not things the app checks.** "Noises allowed" is
+not enforced anywhere and never will be — which is exactly what makes this the right
+home for depth. And each rule names a suit, so an ogre dealing a spade becomes *who has
+the sword?* A fine piece bends its rule twice.
+
+**One hint a fight, for anybody.** Hints used to come off boots, which meant a party
+that never found a pair never saw one — and all 52 hints were written on the promise
+that gear would not gate them. The rogue's Peek is a second one.
 
 **Turn 8 is the dragon, for everybody, wherever they were standing.** This removes the
 two worst endings a hex crawl has — "we never found it", and "we found it and stood

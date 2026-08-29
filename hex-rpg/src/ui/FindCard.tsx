@@ -25,6 +25,7 @@ import Token from "./Token";
 import ItemArt from "./art/items";
 import { MARKER } from "./art/crayon";
 import { gearLabel } from "../game/items";
+import { gearBlurb } from "../game/gear";
 import type { Find } from "../game/types";
 import Art from "./art/Art";
 
@@ -165,10 +166,13 @@ export default function FindCard({ find, onClose }: { find: Find; onClose: () =>
                 >
                   <Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art>
                 </Token>
-                {/* The token already has the name on it. Repeat only the grade. */}
+                {/* The token already has the name on it. Repeat only the grade -
+                    and say what it is *for*, because finding a Broom means nothing
+                    until somebody reads the rule on it. */}
                 {gearLabel(item) !== item.name && (
                   <span className="find-token-note">{gearLabel(item)}</span>
                 )}
+                <span className="find-token-does">{gearBlurb(item)}</span>
               </li>
             ))}
           </ul>

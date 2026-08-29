@@ -10,6 +10,7 @@
  */
 
 import ItemArt from "./art/items";
+import { GEAR_RULES, gearBlurb } from "../game/gear";
 import { gearLabel, SUPPLY_CAP } from "../game/items";
 import type { Item, Player } from "../game/types";
 import Art from "./art/Art";
@@ -25,10 +26,16 @@ type Props = {
   onClose: () => void;
 };
 
+/**
+ * What a shelf of gear is *for*, in two words over the price.
+ *
+ * The full line is on the button's tooltip (`gearBlurb`); this is the bit a child
+ * reads at a glance while deciding what two dollars is worth.
+ */
 const SLOT_NOTE: Record<string, string> = {
-  weapon: "damage",
-  armor: "armour",
-  boots: "extra tile",
+  weapon: "a rule you may break",
+  armor: "health",
+  boots: "seconds",
   supply: "health",
 };
 
@@ -62,11 +69,14 @@ function Shelf({
                   className="buy"
                   disabled={tooDear || packFull}
                   onClick={() => onBuy(item.id)}
+                  title={gearBlurb(item)}
                 >
                   <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art"><Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art></svg>
                   <span className="buy-name">{gearLabel(item)}</span>
                   <span className="buy-value">
-                    +{item.value} {SLOT_NOTE[item.slot]}
+                    {item.slot === "weapon"
+                      ? GEAR_RULES[item.name]?.title ?? SLOT_NOTE[item.slot]
+                      : `+${item.value} ${SLOT_NOTE[item.slot]}`}
                   </span>
                   <span className="buy-cost">${item.cost}</span>
                 </button>
@@ -124,7 +134,7 @@ export default function ShopModal({
             <ul className="stock stock-wide">
               {sellable.map((item) => (
                 <li key={item.id}>
-                  <button type="button" className="buy sell" onClick={() => onSell(item.id)}>
+                  <button type="button" className="buy sell" onClick={() => onSell(item.id)} title={gearBlurb(item)}>
                     <svg viewBox="0 0 100 100" aria-hidden="true" className="buy-art"><Art slot={`item:${item.name}`}><ItemArt name={item.name} seedName={item.id} /></Art></svg>
                   <span className="buy-name">{gearLabel(item)}</span>
                     <span className="buy-value">{SLOT_NOTE[item.slot]}</span>

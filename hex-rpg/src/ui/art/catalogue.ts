@@ -13,6 +13,7 @@
  */
 
 import { EQUIPMENT, FOOD } from "../../game/items";
+import { GEAR_RULES } from "../../game/gear";
 import { ENEMIES } from "../../game/enemies";
 import { ROLES, TURN_ORDER } from "../../game/players";
 import { ALL_FEATURES } from "../../game/combat";
@@ -86,10 +87,12 @@ export function shelves(): ArtShelf[] {
         name: item.name,
         hint:
           item.slot === "weapon"
-            ? "A weapon. Adds to what you roll."
+            ? `${GEAR_RULES[item.name]?.title ?? "A thing you carry"} — ${
+                GEAR_RULES[item.name]?.text ?? "one rule you may break in a fight."
+              }`
             : item.slot === "armor"
-            ? "A coat. Adds a health."
-            : "Boots. An extra tile, and a better chance of running away.",
+            ? "A coat. One more health, and health is skills."
+            : "Boots. Ten more seconds on every clock in a fight.",
       })),
     },
     {

@@ -156,22 +156,29 @@ Key rules, so nothing gets "improved" back to a guess:
   — got **half an evening**: measured at three mini-games against six, and half the
   ground covered. The thing being budgeted was never the turn, it was the go. So one
   team plays 16 turns and two play 8, and every size measures at 6-8 mini-games.
-- **Skills are what health is for** (`src/game/skills.ts`). One each, one use per fight,
-  and every one of them helps the *team* through a challenge without touching the
-  challenge itself.
+- **Skills are what health is for** (`src/game/skills.ts`). Each role has **a button,
+  once a fight, and something that is simply always true**. The passive is written into
+  `SKILLS[role].passive` so the party list can draw it — a passive nobody can read is a
+  bonus that may as well not exist.
 
-  | | skill | what it does |
+  | | button (once a fight) | always |
   |---|---|---|
-  | knight | Take the hit | wears a lost fight alone, so nobody else pays |
-  | rogue | Peek | reads the hint, free |
-  | scout | Keep looking | `LINGER_SECONDS` more, on the clock that is running |
-  | doctor | Patch up | a health back for a friend — **and their skill with it** |
-  | fisherman | Cast again | throws this card back and draws another |
+  | knight | **Hold the line** — the fight is not over: that card comes back as a new one, and the knight pays a health | Take the hit — wears a lost fight alone |
+  | rogue | Peek — the hint, without spending the team's | Light fingers — one extra thing off a body |
+  | scout | Keep looking — `LINGER_SECONDS` more, on the clock that is running | Sharp eyes — a ring further, and a second look in a wood |
+  | doctor | Patch up — a health for a friend, **and their skill with it** | Field kit — food they hand over is worth one more |
+  | fisherman | Cast again — throws this card back | The rod — fishes, crosses water, never loses it |
 
-  - **Only the knight's is not a button.** A child asked "do you want to save your
-    sister?" every time says yes every time, so the question is not a decision, it is a
-    tax on the moment. It fires by itself and is fenced by `whoTakesTheHit`: never while
-    it would put the knight down, because heroism that swaps one child for another is a
+  - **Hold the line is the best moment the design has**, and everything about how it is
+    built serves that: the table watches the fight end, and *then* the knight stands up.
+    Automatic would be cheaper and would delete the moment; free would make a three-card
+    dragon a formality. So it is a button that only exists on a lost fight
+    (`canHoldTheLine`), it costs a health nobody else pays, and it is the only thing in
+    the game that undoes a missed card. The card comes back as a **new draw** — re-facing
+    the puzzle you just failed, with the answer on screen, is a formality with extra
+    steps.
+  - It is fenced the same way `whoTakesTheHit` is: **never while it would take the
+    knight's own last health**. Saving the fight at the cost of your own skill is a
     trade nobody chose.
   - **One use per fight, not per game.** A power that fires once an evening gets hoarded
     and then forgotten, and five children hoarding five buttons is five buttons nobody
@@ -378,17 +385,46 @@ Key rules, so nothing gets "improved" back to a guess:
   board to two children is a different game, not a harder one. Monster *counts* scale
   linearly; monster *difficulty* does not scale at all any more (see the cards bullet
   above), and the turn limit does the balancing instead (`turnLimitFor`).
-- **Gear buys time, hints and health — never damage**, because there is no damage to
-  buy. The team's **best** weapon buys `SECONDS_PER_WEAPON` a point on every clock (the
-  best, not everybody's added together: five children with frying pans must not get
-  three minutes to draw a cat). **Boots buy hints**, one a pair, spent across the fight.
-  **A coat is still a health**, which is now the number of lost fights the team can
-  absorb.
-  - **Every one of the 52 challenges has a hint, including the two games with no right
-    answer.** A hint on a drawing is not a step towards an answer — there is no answer —
-    it is a second thing to draw that makes the first guessable, which is exactly what
-    an older sibling would lean over and whisper. A help that only worked on half the
-    deck would make gear feel broken on the other half.
+- **Gear (`src/game/gear.ts`): two slots stay dead simple and one carries the whole
+  decision.** After v0.31 all five weapons were the same object with a different
+  drawing, and so were the coats and the boots — fifteen items, three behaviours, which
+  is exactly the flatness the stones were invented to fix in v0.26 and which came back
+  the moment the dice left.
+
+  | slot | what it does | kinds |
+  |---|---|---|
+  | coat | **+1 health**, and health is skills | one; all five identical |
+  | boots | **+`SECONDS_PER_BOOT`** on every clock, all fight | one; all five identical |
+  | your thing | **one rule you may break**, once a fight | five, one per suit plus a wild |
+
+  - **Some gear being just a coat is deliberate.** A game where every object is a
+    special rule is a game nobody can hold in their head, and "a coat is a health" is a
+    sentence a seven-year-old owns forever. The attention that buys is what pays for the
+    third slot.
+  - **The rules are things the table does, not things the app checks.** "Noises allowed"
+    is not enforced anywhere and never will be — the app poses and times, the family
+    judges. That is precisely what makes this the right home for depth: a rule card
+    costs nothing to adjudicate and changes how the next ninety seconds actually go.
+  - **Each rule names a suit**, and that is the point of the slot: an ogre deals a spade
+    and the table asks *who has the sword?* The pip is drawn on the button
+    (`SUIT_OF`), because a greyed button with the reason only in a tooltip teaches a
+    child nothing on a tablet.
+  - **The fishing rod has a rule too.** It lives in this slot and `equip` refuses to
+    swap it away, so without an entry the fisherman would be the one role locked out of
+    the whole system. There is a test.
+  - **A fine (+2) piece bends its rule twice** (`usesOf`). `FINE_VALUE` had to keep
+    meaning "better" in a game with no numbers left to double.
+  - **`gearBlurb` says what a piece is for, in one place**, because four screens draw
+    gear — the shop, the find card, the party's kit and the art room — and a coat that
+    said different things in two of them is a rule the table cannot settle by looking.
+- **One hint a fight, for anybody** (`HINTS_A_FIGHT`). It used to come off boots, which
+  meant a party that never found any never saw a hint at all — and the 52 hints were
+  written on the promise that gear would not gate them. The rogue's Peek is a *second*
+  one, which is what makes that role worth having during a fight rather than only after.
+  - **Every one of the 52 has a hint, including the two games with no right answer.** A
+    hint on a drawing is not a step towards an answer — there is no answer — it is a
+    second thing to draw that makes the first guessable, which is what an older sibling
+    would lean over and whisper.
 - **§8's group fight is the team, and the invitation system is gone**
   (`inviteTargets`, `invite`, `Combat.support`, `pledgeSupport` — all removed). There is
   nobody left to shout for: everybody standing on the tile is about to be shouting
@@ -512,7 +548,8 @@ What is left is listed under "Still open" in the README.
   `useSkill`, `endCombat`. A fight is a run of cards, and the table calls each one.
 - `challenges.ts` — the fifty-two mini-games, one per card. Hand-written, and shaped
   like what an LLM would return so the backlog swap is a source change, not a redesign.
-- `skills.ts` — one per role, one use per fight, and what health is for.
+- `skills.ts` — a button and a passive per role, and what health is for.
+- `gear.ts` — what each slot buys, and the five rules a "thing" lets the table break.
 - `enemies.ts` — profiles (`cards`, not health), placement, `enemyAt`.
 - `items.ts` — the gear list, the pile, `equip`, `consume`. One pile for the whole
   game; food is the only unlimited thing.

@@ -2032,3 +2032,51 @@ button.big.win { background: #2f7d4a; }
 .party-skill { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; }
 .party-skill.is-spent { text-decoration: line-through; opacity: 0.45; }
 .party-row.is-flat { opacity: 0.8; }
+
+/* ---------- the rules the team is carrying ---------- */
+
+/* A rule is a thing the *table* does, so it is drawn as a card with a picture on it
+   rather than as one more small grey button in the helps row. */
+.game-rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.rule {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  min-height: 48px;
+  text-align: left;
+  font-weight: 400;
+  background: #f7f4ec;
+  color: #1b2127;
+  border-color: transparent;
+}
+.rule:disabled { background: var(--bg-panel); color: var(--ink-muted); border-color: var(--line); }
+.rule-art { width: 34px; height: 34px; flex: 0 0 auto; }
+.rule-art svg { width: 100%; height: 100%; }
+.rule-says { display: grid; min-width: 0; }
+.rule-says strong { font-family: "Patrick Hand", system-ui, sans-serif; font-size: 17px; }
+.rule-who { font-size: 12px; opacity: 0.7; }
+
+/* The knight refusing to have lost. It is the loudest button in the game on purpose. */
+button.big.hold { background: #f27bb0; color: #2a0f1c; }
+.find-token-does {
+  display: block;
+  max-width: 22ch;
+  margin: 2px auto 0;
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--ink-muted);
+}
+.rule-pip { font-size: 22px; line-height: 1; flex: 0 0 auto; }
+.suit-any { color: var(--accent); }
+.rule:disabled .rule-pip { opacity: 0.6; }
+
+/* A button nobody can press has to *look* it.
+   "Grey out what they cannot do" is one of this game's stated rules and there was no
+   global style enforcing it - so a spent hint and a live one were the same object on
+   screen, and a child pressing the dead one learned that the app ignores them. */
+button:disabled { opacity: 0.42; cursor: default; }
+button.ghost:disabled { border-style: dashed; }

@@ -7,9 +7,24 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { canUseSkill, fighters, hintsFor, secondsFor, takeSpoil, useHint, useSkill } from "../src/game/combat";
+import {
+  HINTS_A_FIGHT,
+  canHoldTheLine,
+  canUseGear,
+  canUseSkill,
+  fighters,
+  hintsFor,
+  holdTheLine,
+  lostTrial,
+  secondsFor,
+  takeSpoil,
+  useGear,
+  useHint,
+  useSkill,
+} from "../src/game/combat";
+import { GEAR_RULES, gearBlurb, ruleFor, rulePlaysOn, usesOf } from "../src/game/gear";
 import { challengeFor } from "../src/game/challenges";
-import { LINGER_SECONDS, SKILLS, hasSkill, whoTakesTheHit } from "../src/game/skills";
+import { HOLD_THE_LINE_COST, LINGER_SECONDS, SKILLS, hasSkill, whoTakesTheHit } from "../src/game/skills";
 import { createTeams, teamSizes } from "../src/game/teams";
 import { createInitialState } from "../src/game/setup";
 import { activePlayer, bringsEvent, endTurn, eventThreshold, legalMoves, movePlayer } from "../src/game/turn";
@@ -18,7 +33,7 @@ import { HAZARDS } from "../src/game/hazards";
 import { ENEMIES } from "../src/game/enemies";
 import { PALETTE } from "../src/palette";
 import { ROLES, TURN_ORDER } from "../src/game/players";
-import { EQUIPMENT, makeItem } from "../src/game/items";
+import { EQUIPMENT, FISHING_ROD, ROD_TEMPLATE, makeFine, makeItem } from "../src/game/items";
 import { key } from "../src/game/hex";
 import { intoFight } from "./fight";
 import type { Enemy, GameState } from "../src/game/types";
@@ -113,28 +128,92 @@ describe("everybody in the fight", () => {
 });
 
 describe("what gear buys, now that it cannot buy damage", () => {
-  it("buys seconds with the team's best weapon, not everybody's added up", () => {
+  it("buys seconds with the team's best boots, not everybody's added up", () => {
     const state = brawl("mob");
     const thing = challengeFor({ suit: "diamonds", rank: "7" });
-    const bare = state.players.map((p) => ({ ...p, weapon: null }));
-    const armed = bare.map((p) => ({
+    const bare = state.players.map((p) => ({ ...p, boots: null }));
+    const shod = bare.map((p) => ({
       ...p,
-      weapon: makeItem(EQUIPMENT.find((e) => e.slot === "weapon")!, `w-${p.id}`),
+      boots: makeItem(EQUIPMENT.find((e) => e.slot === "boots")!, `b-${p.id}`),
     }));
-    // Five children with frying pans must not get three minutes to draw a cat.
-    expect(secondsFor(thing, armed, false)).toBe(
-      secondsFor(thing, [armed[0]], false),
-    );
-    expect(secondsFor(thing, armed, false)).toBeGreaterThan(secondsFor(thing, bare, false));
+    // Five children in running shoes must not get three minutes to draw a cat.
+    expect(secondsFor(thing, shod, false)).toBe(secondsFor(thing, [shod[0]], false));
+    expect(secondsFor(thing, shod, false)).toBeGreaterThan(secondsFor(thing, bare, false));
   });
 
-  it("buys hints with boots, one a pair", () => {
+  it("gives one hint a fight to anybody, gear or no gear", () => {
+    // Fifty-two hints were written on the promise that gear would not gate them, and
+    // a party that never found boots used to see none at all.
     const state = brawl("mob");
     const bare = state.players.map((p) => ({ ...p, boots: null }));
-    expect(hintsFor(bare)).toBe(0);
-    expect(
-      hintsFor(bare.map((p) => ({ ...p, boots: makeItem(EQUIPMENT.find((e) => e.slot === "boots")!, `b-${p.id}`) }))),
-    ).toBe(bare.length);
+    expect(hintsFor(bare)).toBe(HINTS_A_FIGHT);
+    expect(hintsFor(state.players)).toBe(HINTS_A_FIGHT);
+  });
+
+  it("gives every one of the five things a rule, one per suit and a wild", () => {
+    const things = EQUIPMENT.filter((e) => e.slot === "weapon").map((e) => e.name);
+    for (const name of things) expect(GEAR_RULES[name], name).toBeDefined();
+
+    const games = things.map((n) => GEAR_RULES[n].game);
+    // One for each of the four mini-games, and exactly one that works on anything.
+    expect(new Set(games.filter((g) => g !== null)).size).toBe(4);
+    expect(games.filter((g) => g === null)).toHaveLength(1);
+  });
+
+  it("gives the fishing rod one too, or the fisherman could never carry a rule", () => {
+    // The rod lives in the weapon slot and `equip` refuses to swap it away, so without
+    // an entry the fisherman is the one role locked out of the whole system.
+    expect(GEAR_RULES[FISHING_ROD]).toBeDefined();
+    const rod = makeItem(ROD_TEMPLATE, "rod-1");
+    expect(ruleFor(rod)).not.toBeNull();
+    for (const suit of ["hearts", "spades", "clubs", "diamonds"] as const) {
+      expect(rulePlaysOn(GEAR_RULES[FISHING_ROD], suit), suit).toBe(true);
+    }
+  });
+
+  it("says what every piece of gear is for, in one place", () => {
+    // Four screens draw gear - the shop, the find card, the party's kit and the art
+    // room - and a coat that said different things in two of them is a rule the table
+    // cannot settle by looking.
+    for (const template of EQUIPMENT) {
+      const item = makeItem(template, `x-${template.name}`);
+      expect(gearBlurb(item), template.name).toMatch(/\S/);
+    }
+    expect(gearBlurb(makeItem(EQUIPMENT.find((e) => e.slot === "armor")!, "c"))).toContain("health");
+    expect(gearBlurb(makeItem(EQUIPMENT.find((e) => e.slot === "boots")!, "b"))).toContain("seconds");
+  });
+
+  it("only lets a rule bend the game it is for", () => {
+    const pan = GEAR_RULES["Frying Pan"];
+    expect(rulePlaysOn(pan, "hearts")).toBe(true);
+    expect(rulePlaysOn(pan, "spades")).toBe(false);
+    // The wild works on everything, which is what makes it the one worth carrying when
+    // you have no idea what is coming.
+    for (const suit of ["hearts", "spades", "clubs", "diamonds"] as const) {
+      expect(rulePlaysOn(GEAR_RULES.Broom, suit), suit).toBe(true);
+    }
+  });
+
+  it("bends a rule once, and a fine one twice", () => {
+    const plain = makeItem(EQUIPMENT.find((e) => e.name === "Broom")!, "broom-1");
+    expect(usesOf(plain)).toBe(1);
+    expect(usesOf(makeFine(plain))).toBe(2);
+  });
+
+  it("spends a use when the rule is bent, and refuses a second on a plain one", () => {
+    const state = brawl("midboss");
+    const holder = state.players[0];
+    const broom = makeItem(EQUIPMENT.find((e) => e.name === "Broom")!, "broom-1");
+    const armed: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.id === holder.id ? { ...p, weapon: broom } : p)),
+    };
+
+    expect(canUseGear(armed, "broom-1")).toBe(true);
+    const bent = useGear(armed, "broom-1");
+    expect(bent.combat?.gearUsed).toEqual(["broom-1"]);
+    expect(canUseGear(bent, "broom-1")).toBe(false);
+    expect(useGear(bent, "broom-1")).toBe(bent);
   });
 
   it("spends a hint to read one, and only once a card", () => {
@@ -155,12 +234,44 @@ describe("what gear buys, now that it cannot buy damage", () => {
 });
 
 describe("skills, which are what health is for", () => {
-  it("gives every role exactly one, and only the knight's fires by itself", () => {
-    for (const role of TURN_ORDER) expect(SKILLS[role]).toBeDefined();
-    expect(SKILLS.knight.pressed).toBe(false);
-    for (const role of TURN_ORDER.filter((r) => r !== "knight")) {
+  it("gives every role a button and something that is always true", () => {
+    for (const role of TURN_ORDER) {
       expect(SKILLS[role].pressed, role).toBe(true);
+      expect(SKILLS[role].passive, role).toBeDefined();
     }
+    // The knight's passive is the automatic one, and it is deliberately not a button:
+    // a child asked "save your sister?" every time says yes every time.
+    expect(SKILLS.knight.passive?.title).toBe("Take the hit");
+  });
+
+  it("lets the knight refuse a lost fight, once, for a health", () => {
+    const state = brawl("midboss");
+    const knight = state.players.find((p) => p.role === "knight")!;
+    const beaten = lostTrial(state);
+    expect(beaten.combat?.outcome).toBe("partyBeaten");
+    expect(canHoldTheLine(beaten)).toBe(true);
+
+    const was = beaten.players.find((p) => p.id === knight.id)!.health;
+    const held = holdTheLine(beaten);
+    expect(held.combat?.outcome).toBe("ongoing");
+    // The card comes back as a *new* one: re-facing the puzzle you just failed, with
+    // the answer on screen, is a formality rather than a second chance.
+    expect(held.combat?.trials[0].result).toBeNull();
+    expect(held.combat?.trials[0].card).not.toEqual(beaten.combat?.trials[0].card);
+    expect(held.players.find((p) => p.id === knight.id)!.health).toBe(was - HOLD_THE_LINE_COST);
+    // Once a fight, like every other skill.
+    expect(canHoldTheLine(lostTrial(held))).toBe(false);
+  });
+
+  it("never lets the knight hold the line down to nothing", () => {
+    const state = brawl("midboss");
+    const frail: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.role === "knight" ? { ...p, health: 1 } : p)),
+    };
+    // Saving the fight at the cost of their own skill is the trade `whoTakesTheHit`
+    // already refuses on their behalf; this refuses the same one.
+    expect(canHoldTheLine(lostTrial(frail))).toBe(false);
   });
 
   it("takes the skill away at zero health and gives it back with a health", () => {

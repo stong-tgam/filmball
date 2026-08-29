@@ -38,6 +38,7 @@ export function aCombat(over: Partial<Combat> & Pick<Combat, "enemyId" | "player
     at: 0,
     hintsLeft: 0,
     skillsUsed: [],
+    gearUsed: [],
     from: "",
     spoils: [],
     picksLeft: 0,

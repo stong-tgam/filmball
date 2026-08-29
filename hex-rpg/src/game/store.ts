@@ -8,7 +8,12 @@ import { startGame } from "./setup";
 import { randomSeed } from "./rng";
 import { activePlayer, canTakeOn, clearDraw, endTurn, enemyHere, legalMoves, movePlayer, takeOn } from "./turn";
 import { activeMembers, activeTeam } from "./teams";
+import { rulesInPlay, type GearRule } from "./gear";
 import {
+  canHoldTheLine,
+  canUseGear,
+  holdTheLine,
+  useGear,
   canUseSkill,
   combatants,
   endCombat,
@@ -65,6 +70,10 @@ type Store = {
   lostTrial: () => void;
   useHint: () => void;
   useSkill: (playerId: string, toId?: string) => void;
+  /** Bend a rule off somebody's kit (`src/game/gear.ts`). */
+  useGear: (itemId: string) => void;
+  /** The knight, refusing to have lost. */
+  holdTheLine: () => void;
   search: () => void;
   fish: () => void;
   hook: (targetId: string, how: "pull" | "cross") => void;
@@ -109,6 +118,8 @@ export const useGame = create<Store>((set, get) => ({
   lostTrial: () => set({ game: lostTrial(get().game) }),
   useHint: () => set({ game: useHint(get().game) }),
   useSkill: (playerId, toId) => set({ game: useSkill(get().game, playerId, toId) }),
+  useGear: (itemId) => set({ game: useGear(get().game, itemId) }),
+  holdTheLine: () => set({ game: holdTheLine(get().game) }),
   closeCombat: () => set({ game: endTurn(endCombat(get().game)), selected: null }),
   search: () => set({ game: search(get().game) }),
   fish: () => set({ game: fish(get().game) }),
@@ -195,6 +206,23 @@ export const useCanTakeOn = (): boolean => useGame((s) => canTakeOn(s.game));
 /** Each fighter, and whether their own skill is pressable right now. */
 export const useSkillChoices = (): { who: Player; ready: boolean }[] =>
   useGame((s) => fighters(s.game).map((who) => ({ who, ready: canUseSkill(s.game, who) })));
+
+/** Every rule the team is carrying, and whether it is worth anything on this card. */
+export const useGearChoices = (): {
+  who: Player;
+  item: Item;
+  rule: GearRule;
+  left: number;
+  ready: boolean;
+}[] =>
+  useGame((s) =>
+    rulesInPlay(fighters(s.game), s.game.combat).map((g) => ({
+      ...g,
+      ready: canUseGear(s.game, g.item.id),
+    })),
+  );
+
+export const useCanHoldTheLine = (): boolean => useGame((s) => canHoldTheLine(s.game));
 
 /** The two sides of the fight on screen, or null when nobody is fighting. */
 export const useCombatants = (): { player: Player; enemy: Enemy } | null =>

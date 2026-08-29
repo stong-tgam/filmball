@@ -12,6 +12,7 @@ import ItemArt from "./art/items";
 import RoleArt from "./art/roles";
 import { roleSlot } from "../artslots";
 import { gearLabel } from "../game/items";
+import { gearBlurb } from "../game/gear";
 import { moveRange, stepsLeft } from "../game/turn";
 import type { Player, Team } from "../game/types";
 import Art from "./art/Art";
@@ -173,7 +174,7 @@ export function PartyList({
                       title={
                         item.id === player.spareArmor?.id
                           ? `Spare — ${item.name}. Stand with somebody and hand it over.`
-                          : item.name
+                          : `${item.name}. ${gearBlurb(item)}`
                       }
                     >
                       <svg viewBox="0 0 100 100" aria-hidden="true" className="kit-art">

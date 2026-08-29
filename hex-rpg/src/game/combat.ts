@@ -32,7 +32,15 @@ import { key, neighbours } from "./hex";
 import { makeRng } from "./rng";
 import { canTake, equip, makeFine, randomFood } from "./items";
 import { ROLES, maxHealthOf } from "./players";
-import { LINGER_SECONDS, hasSkill, spentSkill, whoTakesTheHit, SKILLS } from "./skills";
+import {
+  HOLD_THE_LINE_COST,
+  LINGER_SECONDS,
+  SKILLS,
+  hasSkill,
+  spentSkill,
+  whoTakesTheHit,
+} from "./skills";
+import { rulePlaysOn, rulesInPlay } from "./gear";
 import type {
   Combat,
   Enemy,
@@ -47,8 +55,19 @@ import type {
 /** What one lost fight costs everybody who played it. */
 export const FAILED_FIGHT_COST = 1;
 
-/** Seconds a point of weapon buys. A plain weapon is +10, a fine one +20. */
-export const SECONDS_PER_WEAPON = 10;
+/** Seconds a point of boots buys. A plain pair is +10, a fine pair +20. */
+export const SECONDS_PER_BOOT = 10;
+
+/**
+ * Hints the team gets in a fight, whoever they are.
+ *
+ * **One, flat, for everybody.** It used to come off boots, which meant a party that had
+ * not found any never saw a hint at all - and fifty-two hints were written on the
+ * promise that gear would not gate them. Boots buy the clock now, which is what boots
+ * should always have bought; the rogue's Peek is a *second* hint, which is what makes
+ * that role worth having in a fight rather than only after one.
+ */
+export const HINTS_A_FIGHT = 1;
 
 export const ALL_FEATURES: Feature[] = ["water", "railway", "city", "forest", "field"];
 
@@ -130,23 +149,17 @@ export const noHints = (enemy: Enemy, tile: Tile | undefined): boolean =>
  *
  * The base is the game kind's own (`SECONDS`), because the rank already decides how
  * hard the thing is and taking the clock away as well would be two punishments for one
- * card. What moves it is **gear**: the best weapon in the team buys `SECONDS_PER_WEAPON`
- * a point. The team's best rather than everybody's added together - five children with
- * frying pans should not get three minutes to draw a cat.
+ * card. What moves it is **boots**: the best pair in the team buys `SECONDS_PER_BOOT` a
+ * point. The team's best rather than everybody's added together - five children in
+ * running shoes should not get three minutes to draw a cat.
  */
 export function secondsFor(challenge: Challenge, team: Player[], shorter: boolean): number {
-  const best = Math.max(0, ...team.map((p) => p.weapon?.value ?? 0));
-  return Math.max(15, challenge.seconds + best * SECONDS_PER_WEAPON - (shorter ? FOREST_SECONDS : 0));
+  const best = Math.max(0, ...team.map((p) => p.boots?.value ?? 0));
+  return Math.max(15, challenge.seconds + best * SECONDS_PER_BOOT - (shorter ? FOREST_SECONDS : 0));
 }
 
-/**
- * Hints the team gets for the whole fight, bought with boots.
- *
- * One a pair. Boots were "an extra tile and a better chance of running away", and both
- * of those are gone - this is the same idea pointed at the thing a fight is now:
- * something you spend at the moment you are stuck.
- */
-export const hintsFor = (team: Player[]): number => team.filter((p) => p.boots !== null).length;
+/** Hints the team gets for the whole fight. One, for anybody. */
+export const hintsFor = (_team: Player[]): number => HINTS_A_FIGHT;
 
 /* -------------------------------------------------------------- the encounter */
 
@@ -212,6 +225,7 @@ export function startCombat(
     at: 0,
     hintsLeft: noHints(fighter, ground) ? 0 : hintsFor(team),
     skillsUsed: [],
+    gearUsed: [],
     from,
     spoils: [],
     picksLeft: 0,
@@ -363,6 +377,96 @@ export function useHint(state: GameState): GameState {
 }
 
 /**
+ * The knight, after a lost fight, refusing to have lost it.
+ *
+ * **The best moment the design has**, and it is built as a decision on purpose: the
+ * table watches the fight end, and *then* the knight stands up. Automatic would be
+ * cheaper to code and would delete the moment; free would make a three-card dragon a
+ * formality. So it costs a health nobody else pays, and it is the only thing in the
+ * game that undoes a missed card.
+ *
+ * The card comes back as a **new draw** rather than the same one. Re-facing the puzzle
+ * you just failed, with the answer now on screen, is not a second chance - it is a
+ * formality with extra steps.
+ */
+export function canHoldTheLine(state: GameState): boolean {
+  const combat = state.combat;
+  if (!combat || combat.outcome !== "partyBeaten") return false;
+  const knight = fighters(state).find((p) => p.role === "knight");
+  return (
+    knight !== undefined &&
+    hasSkill(knight) &&
+    !spentSkill(combat, knight) &&
+    // Never at the cost of going down for it: a knight who spent their last health
+    // holding the line would save the fight and lose their own skill doing it, which
+    // is the trade `whoTakesTheHit` already refuses on their behalf.
+    knight.health > HOLD_THE_LINE_COST
+  );
+}
+
+export function holdTheLine(state: GameState): GameState {
+  const combat = state.combat;
+  const knight = fighters(state).find((p) => p.role === "knight");
+  if (!combat || !knight || !canHoldTheLine(state)) return state;
+
+  const team = fighters(state);
+  const enemy = state.enemies.find((e) => e.id === combat.enemyId);
+  const ground = enemy ? state.tiles[key(enemy.hex)] : undefined;
+  const shorter = enemy ? activeFeatures(enemy, ground).includes("forest") : false;
+  const pull = drawCard(state.challengeDeck, state.rngState);
+
+  const back: Combat = {
+    ...withTrial(combat, combat.at, {
+      card: pull.card,
+      seconds: secondsFor(challengeFor(pull.card), team, shorter),
+      hinted: false,
+      result: null,
+    }),
+    outcome: "ongoing",
+    skillsUsed: [...combat.skillsUsed, knight.id],
+  };
+  return note(
+    {
+      ...state,
+      challengeDeck: pull.deck,
+      rngState: pull.rngState,
+      phase: "combat",
+      combat: back,
+      players: state.players.map((p) =>
+        p.id === knight.id ? { ...p, health: Math.max(0, p.health - HOLD_THE_LINE_COST) } : p,
+      ),
+    },
+    `${knight.name} is not having that. The fight goes on, and it costs them a health.`,
+  );
+}
+
+/* ------------------------------------------------------------------ the gear */
+
+/**
+ * Bend a rule (`src/game/gear.ts`). The app says what the rule is and never checks it.
+ *
+ * This is the whole of what a weapon-slot item does now, and it is deliberately
+ * something the code cannot enforce: "noises allowed" is a thing the table does. A
+ * help the app could adjudicate would be a number wearing a costume.
+ */
+export function canUseGear(state: GameState, itemId: string): boolean {
+  const playing = nowPlaying(state);
+  if (!playing || !state.combat) return false;
+  const held = rulesInPlay(fighters(state), state.combat).find((g) => g.item.id === itemId);
+  return held !== undefined && held.left > 0 && rulePlaysOn(held.rule, playing.trial.card.suit);
+}
+
+export function useGear(state: GameState, itemId: string): GameState {
+  const combat = state.combat;
+  if (!combat || !canUseGear(state, itemId)) return state;
+  const held = rulesInPlay(fighters(state), combat).find((g) => g.item.id === itemId)!;
+  return note(
+    { ...state, combat: { ...combat, gearUsed: [...combat.gearUsed, itemId] } },
+    `${held.who.name} used the ${held.item.name}. ${held.rule.text}`,
+  );
+}
+
+/**
  * Whether a player's skill is pressable right now.
  *
  * Every reason it might not be: the fight is over, they have spent it this fight, they
@@ -380,6 +484,10 @@ export function canUseSkill(state: GameState, player: Player): boolean {
   switch (SKILLS[player.role].kind) {
     case "peek":
       return !playing.trial.hinted;
+    // The knight's is the one skill that fires on a fight already lost, so it is not
+    // available here - `canHoldTheLine` is its own question, asked from the other side.
+    case "holdTheLine":
+      return false;
     case "patch":
       return fighters(state).some((f) => f.id !== player.id && f.health < maxHealthOf(f));
     case "linger":

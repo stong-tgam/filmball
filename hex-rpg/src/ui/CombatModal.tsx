@@ -17,7 +17,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ENEMIES } from "../game/enemies";
-import { GAME_HOW, GAME_NAME, challengeFor, difficultyOf, type Challenge } from "../game/challenges";
+import {
+  GAME_HOW,
+  GAME_NAME,
+  SUIT_OF,
+  challengeFor,
+  difficultyOf,
+  type Challenge,
+} from "../game/challenges";
+import type { GearRule } from "../game/gear";
 import { FEATURE_BITE, activeFeatures } from "../game/combat";
 import { SKILLS, hasSkill } from "../game/skills";
 import { SUIT_PIP } from "../game/cards";
@@ -49,6 +57,12 @@ type Props = {
   /** Each fighter, and whether their own skill is pressable this second. */
   skills: { who: Player; ready: boolean }[];
   onSkill: (playerId: string, toId?: string) => void;
+  /** Every rule the team is carrying, and whether it bends this card. */
+  gear: { who: Player; item: Item; rule: GearRule; left: number; ready: boolean }[];
+  onGear: (itemId: string) => void;
+  /** The knight may refuse a lost fight, once, for a health. */
+  canHold: boolean;
+  onHold: () => void;
   onTakeLoot: (itemId: string, toId?: string) => void;
   onEat: (playerId: string, itemId: string) => void;
   onClose: () => void;
@@ -110,6 +124,10 @@ export default function CombatModal({
   onHint,
   skills,
   onSkill,
+  gear,
+  onGear,
+  canHold,
+  onHold,
   onTakeLoot,
   onEat,
   onClose,
@@ -246,6 +264,55 @@ export default function CombatModal({
               </div>
             )}
 
+            {/* The rules the team is carrying. Their own row, above the helps,
+                because a rule is a thing the *table* does and the helps are things the
+                app does - and because "who has the sword?" is the conversation the
+                whole slot exists to start. */}
+            {gear.length > 0 && (
+              <ul className="game-rules">
+                {gear.map(({ who, item, rule, left, ready }) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className="rule"
+                      disabled={!ready}
+                      onClick={() => onGear(item.id)}
+                      title={
+                        left <= 0
+                          ? `The ${item.name} is spent for this fight.`
+                          : ready
+                            ? rule.text
+                            : `The ${item.name} is for ${
+                                rule.game ? GAME_NAME[rule.game] : "anything"
+                              }, and this is ${GAME_NAME[playing.challenge.kind]}.`
+                      }
+                    >
+                      <span
+                        className={`rule-pip suit-${rule.game ? SUIT_OF[rule.game] : "any"}`}
+                        aria-hidden="true"
+                      >
+                        {rule.game ? SUIT_PIP[SUIT_OF[rule.game]] : "\u2731"}
+                      </span>
+                      <span className="rule-art">
+                        <svg viewBox="0 0 100 100" aria-hidden="true">
+                          <Art slot={`item:${item.name}`}>
+                            <ItemArt name={item.name} seedName={item.id} />
+                          </Art>
+                        </svg>
+                      </span>
+                      <span className="rule-says">
+                        <strong>{rule.title}</strong>
+                        <span className="rule-who">
+                          {who.name}&rsquo;s {item.name}
+                          {left > 1 ? ` — ${left} left` : ""}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
             <div className="game-helps">
               <button
                 type="button"
@@ -264,7 +331,10 @@ export default function CombatModal({
               </button>
               {skills.map(({ who, ready }) => {
                 const skill = SKILLS[who.role];
-                if (!skill.pressed) return null;
+                // The knight's is the one skill that only exists on a fight already
+                // lost, so it lives on the loss footer. A button that can never be
+                // pressed from here is a button that teaches the wrong thing.
+                if (!skill.pressed || skill.kind === "holdTheLine") return null;
                 return (
                   <button
                     key={who.id}
@@ -323,6 +393,15 @@ export default function CombatModal({
                 </ul>
               );
             })()}
+            {/* The best moment the design has: the table watches the fight end, and
+                then the knight stands up. Deliberately a button and deliberately not
+                free — automatic would delete the moment, free would make a three-card
+                dragon a formality. */}
+            {canHold && (
+              <button type="button" className="big hold" onClick={onHold}>
+                Hold the line — the fight is not over
+              </button>
+            )}
             <p className="muted">
               {combat.outcome === "enemyDefeated" && `The ${beast.name} is out of the game.`}
               {combat.outcome === "enemyEscaped" &&

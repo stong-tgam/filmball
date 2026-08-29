@@ -32,6 +32,8 @@ import {
   useCanTakeOn,
   useEnemyHere,
   useSkillChoices,
+  useGearChoices,
+  useCanHoldTheLine,
   useCanHook,
   useCanSearch,
   useGiveTargets,
@@ -116,6 +118,10 @@ export default function App() {
   const fightParty = useFighters();
   const activeTeam = useActiveTeam();
   const skillChoices = useSkillChoices();
+  const gearChoices = useGearChoices();
+  const useGear = useGame((s) => s.useGear);
+  const canHoldTheLine = useCanHoldTheLine();
+  const holdTheLine = useGame((s) => s.holdTheLine);
   const enemyHere = useEnemyHere();
   const canTakeOn = useCanTakeOn();
   const takeOn = useGame((s) => s.takeOn);
@@ -395,6 +401,10 @@ export default function App() {
           onHint={useHint}
           skills={skillChoices}
           onSkill={useSkill}
+          gear={gearChoices}
+          onGear={useGear}
+          canHold={canHoldTheLine}
+          onHold={holdTheLine}
           onTakeLoot={takeLoot}
           onEat={eat}
           onClose={closeCombat}

@@ -356,6 +356,14 @@ export type Combat = {
   hintsLeft: number;
   /** Players whose skill has fired in this fight. One each. */
   skillsUsed: string[];
+  /**
+   * Item ids whose rule has been bent in this fight, once per use.
+   *
+   * A list rather than a set because a **fine** piece bends its rule twice (`usesOf`),
+   * so the same id legitimately appears more than once. It goes away with the fight,
+   * which is why there is nothing to reset.
+   */
+  gearUsed: string[];
   /** Tile the team came from. */
   from: string;
   /** Items on the ground, and how many of them the winner may keep. */

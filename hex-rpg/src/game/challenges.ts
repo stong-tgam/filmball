@@ -77,6 +77,20 @@ export const GAME_OF: Record<Exclude<Suit, "joker">, ChallengeKind> = {
   diamonds: "puzzle",
 };
 
+/**
+ * The suit each game comes on, which is `GAME_OF` read backwards.
+ *
+ * Here because a piece of gear has to be able to *show* its suit: a rule card that
+ * says only "Both of you" is a button a child cannot plan around, and one that says
+ * "\u2665 Both of you" teaches the whole system the first time a heart comes up.
+ */
+export const SUIT_OF: Record<ChallengeKind, Exclude<Suit, "joker">> = {
+  draw: "hearts",
+  act: "spades",
+  truth: "clubs",
+  puzzle: "diamonds",
+};
+
 export const GAME_NAME: Record<ChallengeKind, string> = {
   draw: "Quick Draw",
   act: "Act It Out",
