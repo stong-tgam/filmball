@@ -20,11 +20,11 @@ decision to be made rather than a number to drift into.
 ```sh
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 362 tests
+npm test           # 415 tests
 npm run build      # type-check + production build into dist/
 npm run build:play # one self-contained .html, plus the artifact fragment
 
-npx vite-node tools/sim.ts 800   # bot playtest: how do 800 games end?
+npx vite-node tools/sim.ts 800 5 # bot playtest: pacing, not balance - read its header
 ```
 
 ## The game, in one paragraph
@@ -48,7 +48,9 @@ the evening.
 ## What the rulebook changed
 
 Earlier builds guessed at everything the missing rulebook was meant to settle. It
-arrived, and most of the guesses were wrong:
+arrived, and most of the guesses were wrong. **This table is history, not the current
+rules** — v0.31 replaced the dice, so the rows about attack, failed rolls, exact ties,
+armour and death no longer describe the game. See the v0.31 section below.
 
 | | Guessed | Rulebook |
 |---|---|---|
@@ -68,8 +70,8 @@ arrived, and most of the guesses were wrong:
 | Death | Out for good | **Up next turn, or a doctor revives you now** |
 | Winning | *nothing* | **Kill the dragon inside the turn limit** |
 
-Sixty simulated games with a bot that walks straight at the dragon: **35% wins, 45%
-out of time, 20% party wipes.** A party that gears up first should do better than that.
+(Those figures were the state of things when the rulebook landed. The current numbers,
+and why the win rate is no longer a number worth quoting, are in the v0.31 section.)
 
 ## Layout
 
@@ -79,23 +81,28 @@ src/
     hex.ts       coordinates, neighbours, distance, pathing
     types.ts     all game types
     rng.ts       seeded PRNG (mulberry32), its position stored in GameState
-    cards.ts     two poker decks; only the search deck has jokers
+    cards.ts     three poker decks; only the search deck has jokers
     setup.ts     board generation and a new game
-    players.ts   the four roles
-    enemies.ts   monsters, their bands, their loot counts
+    players.ts   the five roles
+    teams.ts     who walks with whom
+    enemies.ts   monsters, how many cards each takes, their loot counts
     items.ts     the fifteen pieces of gear and the food
-    combat.ts    rolling, features, loot, fleeing
+    gear.ts      what each slot buys, and the rules a "thing" lets you break
+    challenges.ts  the fifty-two mini-games, one per card
+    skills.ts    a button and a passive per role
+    combat.ts    dealing cards, marking answers, features, loot
     actions.ts   search, trade, sell, heal, eat
     hazards.ts   the four wanderers
     events.ts    the event deck
-    turn.ts      turn order, the draw, win and loss
+    turn.ts      team turn order, the draw, the last stand, win and loss
     vision.ts    what the player on turn can see, and what stays hidden
     sense.ts     bearings to whatever is within two moves
     store.ts     zustand store wrapping the above
   ui/
     Compass.tsx  what a player actually sees: their tile, their steps, the bearings
     Tile.tsx     one hex
-    Board.tsx    the overhead map, behind the grown-up's "Peek" button
+    Board.tsx    the map you remember, behind "Your map"
+    CombatModal.tsx  the mini-game: the card, the clock, the answers, the loot
     art/         the drawings - monsters, gear, food, terrain, boss features
 tools/
     sim.ts       a bot that plays a few hundred games and reports the endings
