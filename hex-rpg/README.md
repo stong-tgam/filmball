@@ -827,10 +827,17 @@ three, and the team has to win all of them.
 
 The **rank** says how hard the thing is. The **clock** is flat per game kind: taking
 time away *and* making the task harder is two punishments for one card, and the one a
-table feels is the content. Fifty-two challenges are hand-written in
-`src/game/challenges.ts`, every one of them attemptable by a seven-year-old, and every
-one carries a hint — including the two games with no right answer, where a hint is a
-second thing to draw rather than a step towards an answer.
+table feels is the content. Every challenge is hand-written in
+`src/game/challenges.ts`, attemptable by a seven-year-old, and carries a hint —
+including the two games with no right answer, where a hint is a second thing to draw
+rather than a step towards an answer.
+
+**There is more content than there are cards.** The deck is fifty-two and always will
+be, but each rank holds a *pool* and the deal picks from it, so the contents can grow
+without the deck changing size. Sixty-five today, of which **twenty-six are True or
+Poo** — the suit the table asks for most, and the one where a good statement can be
+written on the spot and dropped in. Pools are allowed to be ragged: needing thirteen at
+a time or none is what stops a good one getting added.
 
 **The app poses and times; the family judges — where there is anything to judge.** No
 machine can tell whether a drawing looked enough like a dragon, and one that tried would

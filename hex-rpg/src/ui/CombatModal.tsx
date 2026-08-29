@@ -78,16 +78,36 @@ type Props = {
  * the same reason: a game has to be reproducible from its seed, and a wall clock in the
  * state would make a saved game resume differently from the one that was put down.
  */
-function useCountdown(seconds: number, running: boolean, onOut: () => void) {
+function useCountdown(card: number, seconds: number, running: boolean, onOut: () => void) {
   const [left, setLeft] = useState(seconds);
   // Held in a ref so the interval never closes over a stale callback: `lostTrial` comes
   // off the store and is a new function on every render. Same trick as the hourglass.
   const ring = useRef(onOut);
   ring.current = onOut;
 
+  /**
+   * Two things move this clock, and **both are adjusted during render, not in an
+   * effect**. An effect runs *after* the frame paints, which meant a new card showed
+   * the previous card's number for a beat - a True or Poo opening on 60 because the
+   * puzzle before it had 60 - and, worse, the interval carried on ticking against the
+   * card that had already been answered. `lostTrial` fires on zero, so that was a lost
+   * fight waiting for a slow tap.
+   */
+  const [was, setWas] = useState({ card, seconds });
+  if (was.card !== card) {
+    // A new card: start its own clock, whatever the last one was showing.
+    setWas({ card, seconds });
+    setLeft(seconds);
+  } else if (was.seconds !== seconds) {
+    // The same card, worth more seconds than it was - the scout, mid-clock. Follow it
+    // up by the difference rather than restarting, or Keep looking would be a reset.
+    setLeft((now) => Math.max(0, now + (seconds - was.seconds)));
+    setWas({ card, seconds });
+  }
+
   useEffect(() => {
     if (!running) return;
-    const id = window.setInterval(() => setLeft((was) => Math.max(0, was - 1)), 1000);
+    const id = window.setInterval(() => setLeft((now) => Math.max(0, now - 1)), 1000);
     return () => window.clearInterval(id);
   }, [running]);
 
@@ -100,7 +120,7 @@ function useCountdown(seconds: number, running: boolean, onOut: () => void) {
     ring.current();
   }, [running, left]);
 
-  return { left, setLeft };
+  return left;
 }
 
 function Clock({ left, of }: { left: number; of: number }) {
@@ -149,15 +169,16 @@ export default function CombatModal({
   // Where in the card's own little ceremony we are. Reset on every new card, which is
   // what `combat.at` keys.
   const [stage, setStage] = useState<"deal" | "look" | "run">("deal");
-  useEffect(() => setStage("deal"), [combat.at]);
+  // Also during render: as an effect this left one frame in which the clock was
+  // "running" on a card nobody had turned over yet.
+  const [staged, setStaged] = useState(combat.at);
+  if (staged !== combat.at) {
+    setStaged(combat.at);
+    setStage("deal");
+  }
 
   const seconds = playing?.trial.seconds ?? 0;
-  const { left, setLeft } = useCountdown(seconds, stage === "run" && !over, onLost);
-  // A card that has just been dealt shows its full clock; the scout's extra seconds
-  // land on a clock that is already running.
-  useEffect(() => {
-    if (stage !== "run") setLeft(seconds);
-  }, [seconds, stage, setLeft]);
+  const left = useCountdown(combat.at, seconds, stage === "run" && !over, onLost);
 
   return (
     <div
@@ -410,7 +431,7 @@ export default function CombatModal({
                 an unfair one. */}
             {(() => {
               const told = combat.trials
-                .map((t) => ({ t, c: challengeFor(t.card) }))
+                .map((t) => ({ t, c: challengeFor(t.card, t.pick) }))
                 .filter(({ t, c }) => t.result !== null && c.answer !== undefined);
               if (told.length === 0) return null;
               return (

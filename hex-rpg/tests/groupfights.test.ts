@@ -25,7 +25,7 @@ import {
   useSkill,
 } from "../src/game/combat";
 import { GEAR_RULES, gearBlurb, ruleFor, rulePlaysOn, usesOf } from "../src/game/gear";
-import { challengeFor } from "../src/game/challenges";
+import { allChallenges, challengeFor, poolSize } from "../src/game/challenges";
 import { HOLD_THE_LINE_COST, LINGER_SECONDS, SKILLS, hasSkill, whoTakesTheHit } from "../src/game/skills";
 import { createTeams, teamSizes } from "../src/game/teams";
 import { createInitialState } from "../src/game/setup";
@@ -232,6 +232,54 @@ describe("what gear buys, now that it cannot buy damage", () => {
     const state = brawl("mob");
     const streets: GameState = { ...state, combat: { ...state.combat!, hintsLeft: 0 } };
     expect(useHint(streets)).toBe(streets);
+  });
+});
+
+describe("more content than there are cards", () => {
+  it("runs True or Poo two deep, and everything else at least one", () => {
+    // Fifty-two cards, one club of each rank - so a fourteenth True or Poo had nowhere
+    // to live until each rank held a pool. This is also the shape the LLM backlog
+    // needs: contents grow without the deck changing size.
+    expect(poolSize({ suit: "clubs", rank: "9" })).toBe(2);
+    for (const suit of ["hearts", "spades", "clubs", "diamonds"] as const) {
+      for (const rank of ["2", "7", "K", "A"] as const) {
+        expect(poolSize({ suit, rank }), `${suit} ${rank}`).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+
+  it("keeps every prompt and every hint its own", () => {
+    const all = allChallenges();
+    expect(new Set(all.map((c) => c.prompt)).size).toBe(all.length);
+    expect(new Set(all.map((c) => c.hint)).size).toBe(all.length);
+  });
+
+  it("never offers an answer that is not among the buttons", () => {
+    // A right tap that read as wrong would be the app cheating, and it is the one bug
+    // in this system a family could not talk their way past.
+    for (const c of allChallenges()) {
+      if (!c.options || !c.answer) continue;
+      expect(c.options, c.prompt).toContain(c.answer);
+    }
+  });
+
+  it("gives a card the same challenge every time it is asked for", () => {
+    const card = { suit: "clubs", rank: "9" } as const;
+    expect(challengeFor(card, 1)).toEqual(challengeFor(card, 1));
+    expect(challengeFor(card, 0)).not.toEqual(challengeFor(card, 1));
+    // Out-of-range picks wrap rather than crashing, so a save written against a bigger
+    // pool than this build has still opens.
+    expect(challengeFor(card, 7)).toEqual(challengeFor(card, 7 % 2));
+    expect(challengeFor(card, -1)).toEqual(challengeFor(card, 1));
+  });
+
+  it("remembers which one it dealt, so a reload does not change the question", () => {
+    const state = brawl("finalboss");
+    for (const trial of state.combat!.trials) {
+      expect(typeof trial.pick).toBe("number");
+    }
+    const reloaded: GameState = JSON.parse(JSON.stringify(state));
+    expect(nowPlaying(reloaded)!.challenge).toEqual(nowPlaying(state)!.challenge);
   });
 });
 

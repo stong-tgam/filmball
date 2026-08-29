@@ -26,7 +26,7 @@
  */
 
 import { ENEMIES, nameWithArticle, verb } from "./enemies";
-import { challengeFor, type Challenge } from "./challenges";
+import { challengeFor, poolSize, type Challenge } from "./challenges";
 import { draw as drawCard } from "./cards";
 import { key, neighbours } from "./hex";
 import { makeRng } from "./rng";
@@ -258,14 +258,18 @@ function deal(
   shorter: boolean,
 ): { trial: Trial; deck: Card[]; rngState: number } {
   const pull = drawCard(deck, rngState);
-  const challenge = challengeFor(pull.card);
   const rng = makeRng(pull.rngState);
+  // Which of that card's pool. One card can stand behind several questions now, so the
+  // draw picks and the trial remembers.
+  const pick = rng.int(0, poolSize(pull.card) - 1);
+  const challenge = challengeFor(pull.card, pick);
   // Shuffled here and stored, never in the view: buttons that reshuffled on render
   // would move under a child's finger on every tick of the clock.
   const options = challenge.options ? rng.shuffle([...challenge.options]) : undefined;
   return {
     trial: {
       card: pull.card,
+      pick,
       seconds: secondsFor(challenge, team, shorter),
       hinted: false,
       options,
@@ -332,7 +336,7 @@ export function nowPlaying(
   if (!trial) return null;
   return {
     trial,
-    challenge: challengeFor(trial.card),
+    challenge: challengeFor(trial.card, trial.pick),
     index: combat.at + 1,
     of: combat.trials.length,
   };

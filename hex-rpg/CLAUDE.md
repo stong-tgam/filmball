@@ -374,6 +374,13 @@ Key rules, so nothing gets "improved" back to a guess:
     inline. Calling the store from inside a `setState` updater is a side effect in the
     render phase, and React is entitled to run it twice — which would cost the team two
     health for one clock.
+  - **But the clock is *reset* during render, never in an effect**, and so is the card's
+    deal/look/run stage. An effect runs after the frame paints, which left a new card
+    showing the previous one's number — a 25-second True or Poo opening on 60 because
+    the puzzle before it had 60 — and, worse, left the interval ticking against a card
+    that had already been answered. `lostTrial` fires on zero, so that was a lost fight
+    waiting for a slow tap. The scout's mid-clock seconds are added as a *difference*
+    for the same reason: a reset would make Keep looking a restart.
 - **Games are saved after every change** (`src/game/save.ts`, and a `useGame.subscribe`
   in the store rather than a call in each of twenty setters — the twenty-first would be
   the one somebody forgot, and a save that is right most of the time loses an evening
@@ -450,6 +457,16 @@ Key rules, so nothing gets "improved" back to a guess:
   table can call either**. The whole hand is dealt up front so the team can see what it
   has taken on before the first clock starts — three cards is the dragon telling you
   what the next five minutes are.
+  - **There is more content than there are cards** (`DECK`, `poolSize`,
+    `Trial.pick`). Fifty-two cards is fixed — there is one club of each rank — so a
+    fourteenth True or Poo had nowhere to live until each rank held a **pool** and the
+    deal picked from it. Clubs run two deep, the rest one, and the pools are allowed to
+    be **ragged**: requiring thirteen at a time or none is exactly the friction that
+    stops a good one getting added at the table.
+    - The pick is **stored on the trial**, not re-rolled. A reload that handed the team
+      a different question mid-clock would be the app cheating, and a seed has to replay
+      the evening it played. `challengeFor` wraps an out-of-range pick, so a save
+      written against a bigger pool than this build has still opens.
   - **Time is flat per game kind; only the content gets harder with rank** (`SECONDS`,
     `secondsFor`). Taking the clock away *and* making the thing harder is two
     punishments for one card, and the one a table actually feels is the content. This is
@@ -567,8 +584,9 @@ What is left is listed under "Still open" in the README.
   passes to the next *team*; the last turn is the dragon.
 - `combat.ts` — `startCombat`, `nowPlaying`, `wonTrial`, `lostTrial`, `useHint`,
   `useSkill`, `endCombat`. A fight is a run of cards, and the table calls each one.
-- `challenges.ts` — the fifty-two mini-games, one per card. Hand-written, and shaped
-  like what an LLM would return so the backlog swap is a source change, not a redesign.
+- `challenges.ts` — the mini-games. A **pool per rank**, so the contents can outgrow
+  the deck: 65 today, of which 26 are True or Poo. Hand-written, and shaped like what an
+  LLM would return so the backlog swap is a source change, not a redesign.
 - `skills.ts` — a button and a passive per role, and what health is for.
 - `gear.ts` — what each slot buys, and the five rules a "thing" lets the table break.
 - `enemies.ts` — profiles (`cards`, not health), placement, `enemyAt`.

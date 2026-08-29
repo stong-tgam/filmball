@@ -298,12 +298,22 @@ export type LogEntry = {
 /**
  * One card, and the mini-game it asked for.
  *
- * The card is stored and the challenge is looked up from it (`challengeFor`), so a
- * saved game resumes on the same prompt with the same clock - and so a family who swap
- * the fifty-two contents for generated ones later do not invalidate anybody's save.
+ * The card and the pick are stored and the challenge is looked up from them
+ * (`challengeFor`), so a saved game resumes on the same prompt with the same clock -
+ * and so a family who swap the contents for generated ones later do not invalidate
+ * anybody's save.
  */
 export type Trial = {
   card: Card;
+  /**
+   * Which challenge from that card's pool.
+   *
+   * There is more content than there are cards (`poolSize`), so the card alone no
+   * longer says which question you are looking at. Stored rather than re-rolled,
+   * because a reload that handed the team a *different* question mid-clock would be
+   * the app cheating - and because a seed has to replay the evening it played.
+   */
+  pick: number;
   /**
    * Seconds on the clock, worked out when the card is dealt.
    *

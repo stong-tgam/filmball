@@ -174,21 +174,70 @@ const ACT: Said[] = [
   { prompt: "A dragon with a cold", hint: "Big wings, tiny sneeze." },
 ];
 
-/** Statements a child can reason about. Every one of these is checked. */
-const TRUTH: (Said & { answer: "True" | "Poo" })[] = [
-  { prompt: "A spider has eight legs.", hint: "Count the legs on a picture of one.", answer: "True" },
-  { prompt: "Fish can blink.", hint: "What would they blink with?", answer: "Poo" },
-  { prompt: "The sun is a star.", hint: "It only looks bigger because it is near.", answer: "True" },
-  { prompt: "Bats are birds.", hint: "Birds lay eggs. Bats do not.", answer: "Poo" },
-  { prompt: "Honey never goes off.", hint: "They found some in a pyramid.", answer: "True" },
-  { prompt: "A tomato is a fruit.", hint: "It has seeds inside.", answer: "True" },
-  { prompt: "Camels store water in their humps.", hint: "The hump is squishy, not sloshy.", answer: "Poo" },
-  { prompt: "Octopuses have three hearts.", hint: "More than you, anyway.", answer: "True" },
-  { prompt: "Goldfish forget everything after three seconds.", hint: "They can be taught tricks.", answer: "Poo" },
-  { prompt: "Sound travels faster through water than through air.", hint: "Whales talk a very long way.", answer: "True" },
-  { prompt: "The Great Wall of China can be seen from the moon.", hint: "It is long, but it is only as wide as a road.", answer: "Poo" },
-  { prompt: "Sharks are older than trees.", hint: "Sharks are much older than you think.", answer: "True" },
-  { prompt: "Lightning never strikes the same place twice.", hint: "Ask a very tall building.", answer: "Poo" },
+/**
+ * Statements a child can reason about. Every one of these is checked.
+ *
+ * **Two per rank**, and the pool is what makes that possible: the deck is fifty-two
+ * cards and there is exactly one club of each rank, so a fourteenth True or Poo used to
+ * have nowhere to live. `DECK` holds a *pool* per rank now and the deal picks from it,
+ * which is also the shape the LLM backlog needs - contents grow without the deck
+ * changing size.
+ */
+const TRUTH: (Said & { answer: "True" | "Poo" })[][] = [
+  [
+    { prompt: "A spider has eight legs.", hint: "Count the legs on a picture of one.", answer: "True" },
+    { prompt: "Penguins can fly.", hint: "Think about what those wings are shaped for.", answer: "Poo" },
+  ],
+  [
+    { prompt: "Fish can blink.", hint: "What would they blink with?", answer: "Poo" },
+    { prompt: "The moon makes its own light.", hint: "Where does moonlight come from at night?", answer: "Poo" },
+  ],
+  [
+    { prompt: "The sun is a star.", hint: "It only looks bigger because it is near.", answer: "True" },
+    { prompt: "A baby has more bones than a grown-up.", hint: "Some of a baby's bones join up as they grow.", answer: "True" },
+  ],
+  [
+    { prompt: "Bats are birds.", hint: "Birds lay eggs. Bats do not.", answer: "Poo" },
+    { prompt: "Your nose never stops growing.", hint: "It droops with age - that is not the same as growing.", answer: "Poo" },
+  ],
+  [
+    { prompt: "Honey never goes off.", hint: "They found some in a pyramid.", answer: "True" },
+    { prompt: "Butterflies taste with their feet.", hint: "They land on a flower before they drink from it.", answer: "True" },
+  ],
+  [
+    { prompt: "A tomato is a fruit.", hint: "It has seeds inside.", answer: "True" },
+    { prompt: "A group of crows is called a murder.", hint: "It is the least friendly word for a group of anything.", answer: "True" },
+  ],
+  [
+    { prompt: "Camels store water in their humps.", hint: "The hump is squishy, not sloshy.", answer: "Poo" },
+    { prompt: "Some frogs freeze solid all winter and hop away in spring.", hint: "They make their own antifreeze.", answer: "True" },
+  ],
+  [
+    { prompt: "Octopuses have three hearts.", hint: "More than you, anyway.", answer: "True" },
+    // The owner's, added at the table. Better than anything in the first batch: it is
+    // true, it is about the child's own head, and nobody believes it at first.
+    { prompt: "Your eyes see everything upside down.", hint: "Your brain turns the picture the right way up for you.", answer: "True" },
+  ],
+  [
+    { prompt: "Goldfish forget everything after three seconds.", hint: "They can be taught tricks.", answer: "Poo" },
+    { prompt: "People only use ten per cent of their brains.", hint: "Ask what the other ninety per cent would be doing.", answer: "Poo" },
+  ],
+  [
+    { prompt: "Sound travels faster through water than through air.", hint: "Whales talk a very long way.", answer: "True" },
+    { prompt: "Wombat poo comes out shaped like cubes.", hint: "Cubes do not roll off the rock you left them on.", answer: "True" },
+  ],
+  [
+    { prompt: "The Great Wall of China can be seen from the moon.", hint: "It is long, but it is only as wide as a road.", answer: "Poo" },
+    { prompt: "Chewing gum stays in your tummy for seven years.", hint: "Your tummy is not a bin. It empties.", answer: "Poo" },
+  ],
+  [
+    { prompt: "Sharks are older than trees.", hint: "Sharks are much older than you think.", answer: "True" },
+    { prompt: "A day on Venus lasts longer than a year on Venus.", hint: "It spins very slowly and goes round the sun quickly.", answer: "True" },
+  ],
+  [
+    { prompt: "Lightning never strikes the same place twice.", hint: "Ask a very tall building.", answer: "Poo" },
+    { prompt: "There are more stars in the sky than grains of sand on every beach on Earth.", hint: "Both numbers are enormous. One is much more enormous.", answer: "True" },
+  ],
 ];
 
 /**
@@ -215,26 +264,49 @@ const PUZZLE: (Said & { answer: string; wrong: [string, string, string] })[] = [
   { prompt: "What goes up but never comes down?", hint: "It goes up once a year.", answer: "Your age", wrong: ["A balloon", "The sun", "A kite"] },
 ];
 
-/** Every challenge, keyed by suit and rank. Built once. */
-const DECK: Record<ChallengeKind, Challenge[]> = {
-  draw: DRAW.map((d, i) => ({ ...d, kind: "draw", rank: RANKS[i], seconds: SECONDS.draw })),
-  act: ACT.map((d, i) => ({ ...d, kind: "act", rank: RANKS[i], seconds: SECONDS.act })),
-  truth: TRUTH.map((d, i) => ({
-    ...d,
-    kind: "truth",
-    rank: RANKS[i],
-    seconds: SECONDS.truth,
-    options: TRUE_OR_POO,
-  })),
-  puzzle: PUZZLE.map(({ wrong, ...d }, i) => ({
-    ...d,
-    kind: "puzzle",
-    rank: RANKS[i],
-    seconds: SECONDS.puzzle,
-    // Answer first; `startCombat` shuffles it onto the trial from the seeded generator.
-    options: [d.answer, ...wrong],
-  })),
+/**
+ * Every challenge, keyed by suit and then rank - and each rank holds a **pool**.
+ *
+ * The pool is the thing that lets the contents outgrow the deck. There are fifty-two
+ * cards and only ever will be, but nothing says one card means one challenge: the deal
+ * picks from the pool for that rank (`deal` in `combat.ts`, storing `Trial.pick` so a
+ * save comes back on the same one). Clubs run two deep today and the rest one; adding
+ * to any of them is appending to an array.
+ *
+ * Pools may be **ragged** on purpose. Requiring every rank to hold the same number
+ * would mean writing thirteen at a time or none, which is exactly the friction that
+ * stops good content getting added at the table.
+ */
+const DECK: Record<ChallengeKind, Challenge[][]> = {
+  draw: DRAW.map((d, i) => [{ ...d, kind: "draw", rank: RANKS[i], seconds: SECONDS.draw }]),
+  act: ACT.map((d, i) => [{ ...d, kind: "act", rank: RANKS[i], seconds: SECONDS.act }]),
+  truth: TRUTH.map((pool, i) =>
+    pool.map((d) => ({
+      ...d,
+      kind: "truth" as const,
+      rank: RANKS[i],
+      seconds: SECONDS.truth,
+      options: TRUE_OR_POO,
+    })),
+  ),
+  puzzle: PUZZLE.map(({ wrong, ...d }, i) => [
+    {
+      ...d,
+      kind: "puzzle" as const,
+      rank: RANKS[i],
+      seconds: SECONDS.puzzle,
+      // Answer first; the deal shuffles it onto the trial from the seeded generator.
+      options: [d.answer, ...wrong],
+    },
+  ]),
 };
+
+/** How many challenges sit behind one card, so the deal knows what to pick between. */
+export function poolSize(card: Card): number {
+  if (card.suit === "joker") return DECK.draw[0].length;
+  const at = RANKS.indexOf(card.rank);
+  return DECK[GAME_OF[card.suit]][at < 0 ? 0 : at].length;
+}
 
 /**
  * The challenge a card asks for.
@@ -244,15 +316,16 @@ const DECK: Record<ChallengeKind, Challenge[]> = {
  * the deck rather than being a dead draw. Nothing in the game should ever be a card
  * that does nothing.
  */
-export function challengeFor(card: Card): Challenge {
-  if (card.suit === "joker") return DECK.draw[0];
+export function challengeFor(card: Card, pick = 0): Challenge {
+  if (card.suit === "joker") return DECK.draw[0][0];
   const kind = GAME_OF[card.suit];
   const at = RANKS.indexOf(card.rank);
-  return DECK[kind][at < 0 ? 0 : at];
+  const pool = DECK[kind][at < 0 ? 0 : at];
+  return pool[((pick % pool.length) + pool.length) % pool.length];
 }
 
 /** Everything in the box, for the tests and for a future content editor. */
-export const allChallenges = (): Challenge[] => Object.values(DECK).flat();
+export const allChallenges = (): Challenge[] => Object.values(DECK).flat(2);
 
 /** How hard this one is, in words, for the card on screen. */
 export const difficultyOf = (rank: Rank): "easy" | "tricky" | "hard" => {
