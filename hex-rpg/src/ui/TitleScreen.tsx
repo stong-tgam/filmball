@@ -15,7 +15,6 @@ import { useState } from "react";
 import { MAX_PARTY, MIN_PARTY, ROLES, TURN_ORDER } from "../game/players";
 import { howLongAgo } from "../game/save";
 import { allHexes } from "../game/hex";
-import { DEFAULT_TURN_LIMIT } from "../game/setup";
 import RoleToken from "./RoleToken";
 import CrayonDefs from "./art/CrayonDefs";
 import type { Role } from "../game/types";
@@ -59,7 +58,7 @@ export default function TitleScreen({
           {/* Counted and read off the board rather than written out: the last two
               numbers here went stale the moment the board shrank in v0.22. */}
           {allHexes().length} tiles nobody can see, one device passed round the table,
-          and a dragon in the middle of it. Kill it before turn {DEFAULT_TURN_LIMIT}.
+          and a dragon in the middle of it. Every fight is a game you play together.
         </p>
 
         {saved !== null && (

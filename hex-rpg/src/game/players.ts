@@ -122,7 +122,7 @@ export type RoleProfile = {
 export const ROLES: Record<Role, RoleProfile> = {
   knight: {
     name: "Knight",
-    blurb: "Tough. Takes one more hit, and carries the party's spare coat.",
+    blurb: "Wears a lost fight so nobody else does — and can refuse to have lost it.",
     healthBonus: 1,
     attackBonus: 0,
     moveBonus: 0,
@@ -138,7 +138,7 @@ export const ROLES: Record<Role, RoleProfile> = {
   },
   rogue: {
     name: "Rogue",
-    blurb: "Hits harder, and goes through pockets. Every roll counts for one more.",
+    blurb: "Peeks at the hint, and goes through pockets for one thing more.",
     healthBonus: 0,
     attackBonus: 1,
     moveBonus: 0,
@@ -154,7 +154,7 @@ export const ROLES: Record<Role, RoleProfile> = {
   },
   scout: {
     name: "Scout",
-    blurb: "Two tiles a turn, sees two rings out, and knows what to look for in a wood.",
+    blurb: "Buys the team more seconds, sees a ring further, knows a wood.",
     healthBonus: 0,
     attackBonus: 0,
     moveBonus: 1,
@@ -170,7 +170,7 @@ export const ROLES: Record<Role, RoleProfile> = {
   },
   doctor: {
     name: "Doctor",
-    blurb: "Patches people up, and is the only one who can bring a friend back.",
+    blurb: "Gives a friend a health back — and their skill with it.",
     healthBonus: 0,
     attackBonus: 0,
     moveBonus: 0,
@@ -186,7 +186,7 @@ export const ROLES: Record<Role, RoleProfile> = {
   },
   fisherman: {
     name: "Fisher",
-    blurb: "Fishes the river for food and treasure, hooks a friend across, and swims.",
+    blurb: "Throws a bad card back. Fishes, swims, and hooks a friend across.",
     healthBonus: 0,
     attackBonus: 0,
     moveBonus: 0,
