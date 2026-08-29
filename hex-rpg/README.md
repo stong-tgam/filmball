@@ -825,11 +825,19 @@ table feels is the content. Fifty-two challenges are hand-written in
 one carries a hint — including the two games with no right answer, where a hint is a
 second thing to draw rather than a step towards an answer.
 
-**The app poses and times; the family judges.** There is no scoring and there never
-will be. No machine can tell whether a drawing looked enough like a dragon, and one
-that tried would be wrong in front of a child. The screen ends every challenge with
-*We did it!* and *We could not*, and those two buttons are the whole adjudication
-system.
+**The app poses and times; the family judges — where there is anything to judge.** No
+machine can tell whether a drawing looked enough like a dragon, and one that tried would
+be wrong in front of a child, so Quick Draw and Act It Out end with the table tapping
+*We did it!* or *We could not*.
+
+**Where there is a right answer, the app marks it.** True or Poo is two buttons; a
+Puzzle is four, shuffled, with three hand-written wrong answers beside the right one —
+the off-by-one, the subtraction done backwards, the pattern continued by the wrong rule.
+Asking a family to adjudicate whether a tomato is a fruit when the app already knows is
+making them do the app's job, and it is the hard half: on a drawing a table agrees in a
+second, and on a puzzle they argue. A wrong tap loses the card exactly as the clock
+does; the Slingshot forgives one, which is what four buttons make room for and two do
+not.
 
 One piece of stagecraft that turned out to be load-bearing: **Quick Draw and Act It Out
 hide the card from everybody but the performer.** The device sits on the table with
@@ -885,8 +893,8 @@ The five things, one per suit and a wild:
 |---|---|---|
 | Frying Pan | ♥ Quick Draw | **both of you** draw it, on the same paper |
 | Wooden Sword | ♠ Act It Out | make **noises**. Still no words |
-| Big Stick | ♣ True or Poo | **call both** — say True *and* Poo, one of you is right |
-| Slingshot | ♦ Puzzle | have **two goes** — wrong once, say one more |
+| Big Stick | ♣ True or Poo | **ask the others** — the other team calls this one for you |
+| Slingshot | ♦ Puzzle | have **two goes** — get it wrong once and pick again |
 | Broom | any | **swap over** — somebody else does it, and you have seen the card |
 
 Plus the fisherman's rod (**reel it in** — the guessers may ask one yes-or-no question),
