@@ -2109,3 +2109,16 @@ button.ghost:disabled { border-style: dashed; }
    rather than pushing them off the bottom on a tablet. */
 .modal.fight { max-height: 92vh; overflow-y: auto; }
 .fight-supply .stock { max-height: 30vh; overflow-y: auto; }
+/* "one word" on the challenge card. Small, but it is the rule that decides whether a
+   perfect drawing counts, so it sits on the card and not in a paragraph. */
+.game-oneword {
+  grid-column: 1 / -1;
+  justify-self: start;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #1b2127;
+  color: #f7f4ec;
+}

@@ -832,6 +832,23 @@ table feels is the content. Every challenge is hand-written in
 including the two games with no right answer, where a hint is a second thing to draw
 rather than a step towards an answer.
 
+**What you draw or act is one word.** The first version of this list was the most
+expensive mistake in the build: at a real table, *fewer than half* of these were
+completed by ten-year-olds. The prompts were scenes — "a knight on a horse", "trying
+not to laugh at a funeral" — and a scene is not harder to draw, it is harder to **say**.
+A child draws a perfect knight, somebody shouts "knight!", and it does not count. Every
+product that has solved this solves it the same way: Google's Quick, Draw! runs on a few
+hundred single common nouns, and so does a kids' Pictionary deck. Difficulty is how hard
+the thing is to get *across* — Sun is one circle and some lines, Astronaut is a person, a
+helmet, a tank and a reason. The card says ONE WORD on it, because the guessers need to
+know that more than the performer does.
+
+**True or Poo had the opposite problem.** The same table found it too easy, and looking
+at the old floor it is obvious why: "a spider has eight legs", "bats are birds" are not
+questions, they are recall. Every statement now has to be one where the obvious answer
+is worth doubting — something that sounds made up and is true, or something everybody
+has heard and is not.
+
 **There is more content than there are cards.** The deck is fifty-two and always will
 be, but each rank holds a *pool* and the deal picks from it, so the contents can grow
 without the deck changing size. Sixty-five today, of which **twenty-six are True or

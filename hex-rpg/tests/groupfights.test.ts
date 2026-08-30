@@ -25,7 +25,7 @@ import {
   useSkill,
 } from "../src/game/combat";
 import { GEAR_RULES, gearBlurb, ruleFor, rulePlaysOn, usesOf } from "../src/game/gear";
-import { allChallenges, challengeFor, poolSize } from "../src/game/challenges";
+import { allChallenges, challengeFor, guessesOneWord, poolSize } from "../src/game/challenges";
 import { HOLD_THE_LINE_COST, LINGER_SECONDS, SKILLS, hasSkill, whoTakesTheHit } from "../src/game/skills";
 import { createTeams, teamSizes } from "../src/game/teams";
 import { createInitialState } from "../src/game/setup";
@@ -246,6 +246,26 @@ describe("more content than there are cards", () => {
         expect(poolSize({ suit, rank }), `${suit} ${rank}`).toBeGreaterThanOrEqual(1);
       }
     }
+  });
+
+  it("gives Quick Draw and Act It Out a ONE WORD target, always", () => {
+    // The rule that cost the most in the first version: fewer than half of these were
+    // completed at a real table, because the prompts were *scenes* - "a knight on a
+    // horse", "trying not to laugh at a funeral". A scene is not harder to draw, it is
+    // harder to say: a perfect knight gets shouted at as "knight!" and does not count.
+    for (const c of allChallenges()) {
+      if (!guessesOneWord(c.kind)) continue;
+      expect(c.prompt, `${c.kind}: "${c.prompt}"`).not.toMatch(/\s/);
+      expect(c.prompt, c.prompt).not.toMatch(/^(A|An|The) /i);
+    }
+  });
+
+  it("only claims one word where a single word is what gets guessed", () => {
+    // True or Poo and Puzzle are answered from buttons, so the label would be a lie.
+    expect(guessesOneWord("draw")).toBe(true);
+    expect(guessesOneWord("act")).toBe(true);
+    expect(guessesOneWord("truth")).toBe(false);
+    expect(guessesOneWord("puzzle")).toBe(false);
   });
 
   it("keeps every prompt and every hint its own", () => {

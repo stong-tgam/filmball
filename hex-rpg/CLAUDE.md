@@ -471,6 +471,27 @@ Key rules, so nothing gets "improved" back to a guess:
     `secondsFor`). Taking the clock away *and* making the thing harder is two
     punishments for one card, and the one a table actually feels is the content. This is
     a deliberate reading of "the number is the difficulty level".
+  - **What you draw or act is ONE WORD** (`guessesOneWord`, and a test that fails on a
+    space or a leading article). This is the single most expensive thing the first
+    version got wrong: measured at a real table, **fewer than half of these were
+    completed by ten-year-olds.** The prompts were *scenes* — "a knight on a horse",
+    "trying not to laugh at a funeral", "a dragon with a cold" — and a scene is not
+    harder to draw, it is harder to **say**. A child draws a perfect knight, somebody
+    shouts "knight!", and it is not the answer: an unwinnable win condition dressed up
+    as a hard drawing.
+    - Every product that has solved this solves it the same way. Google's Quick, Draw!
+      runs on a few hundred single common nouns; a kids' Pictionary or charades deck is
+      the same. **Difficulty is how hard the thing is to get *across*, never how many
+      words it takes to say it** — Sun is one circle and some lines, Astronaut is a
+      person, a helmet, a tank and a reason.
+    - The card says ONE WORD on it, because **the guessers need that more than the
+      performer does**. It is the difference between shouting "knight!" and shouting a
+      sentence nobody can match.
+  - **True or Poo had the opposite problem** and its floor was raised at the same table:
+    "a spider has eight legs", "penguins can fly", "bats are birds" are not questions,
+    they are recall. Every statement now has to be one where **the obvious answer is
+    worth doubting** — a thing that sounds made up and is true, or a thing everybody has
+    heard and is not. Its clock went 25 → 30 to pay for that.
   - **Quick Draw and Act It Out hide the prompt from everybody but the performer.** The
     device is on the table with four people round it, so the card goes face down, the
     person doing it taps to look, and taps again to hide it before the clock starts.

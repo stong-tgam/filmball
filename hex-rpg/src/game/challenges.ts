@@ -113,23 +113,35 @@ export const GAME_NAME: Record<ChallengeKind, string> = {
 };
 
 export const GAME_HOW: Record<ChallengeKind, string> = {
-  draw: "One of you draws it. Everybody else shouts guesses.",
-  act: "One of you acts it out — no words, no noises. Everybody else guesses.",
-  truth: "Is it true, or is it poo? Decide together and call it out.",
+  draw: "One of you draws it. Everybody else shouts guesses — it is always one word.",
+  act: "One of you acts it out — no words, no noises. Everybody else guesses one word.",
+  truth: "Is it true, or is it poo? Decide together and call it.",
   puzzle: "Work it out together, out loud.",
 };
 
 /**
+ * True where the answer is a single word the guessers have to land on exactly.
+ *
+ * Drawn on screen (`ONE_WORD` on the card) because the guessers need it more than the
+ * performer does: knowing the target is one word is the difference between shouting
+ * "knight!" and shouting a sentence nobody can match.
+ */
+export const guessesOneWord = (kind: ChallengeKind): boolean =>
+  kind === "draw" || kind === "act";
+
+/**
  * How long each kind gets.
  *
- * Drawing needs the longest because somebody has to find a pencil; a shout of TRUE or
- * POO needs the least because thinking about it is the whole game and a long clock
- * just lets an adult talk a child out of the right answer.
+ * Drawing needs the longest because somebody has to find a pencil; True or Poo needs
+ * the least, because thinking about it *is* the game and a long clock only lets an
+ * adult talk a child out of the right answer.
  */
 export const SECONDS: Record<ChallengeKind, number> = {
   draw: 60,
   act: 45,
-  truth: 25,
+  // Thirty, up from twenty-five, because the statements got harder after a real table
+  // found them too easy. A question worth doubting needs a moment to doubt it in.
+  truth: 30,
   puzzle: 60,
 };
 
@@ -141,37 +153,59 @@ type Said = { prompt: string; hint: string };
 /** True or Poo is always the same two buttons, and the right one is on the card. */
 export const TRUE_OR_POO = ["True", "Poo"];
 
-/** Easiest first, hardest last. Thirteen each, in rank order. */
+/**
+ * Easiest first, hardest last. Thirteen each, in rank order.
+ *
+ * **Everything you draw or act is ONE WORD.** This is the rule the first version got
+ * wrong and it cost more than anything else in the game: measured at a real table,
+ * fewer than half of these were completed by ten-year-olds. The prompts were *scenes* -
+ * "a knight on a horse", "trying not to laugh at a funeral", "a dragon with a cold" -
+ * and a scene is not harder to draw, it is harder to **say**. A child draws a perfect
+ * knight, somebody shouts "knight!", and it is not the answer. That is an unwinnable
+ * win condition dressed up as a hard drawing.
+ *
+ * So: one word, the way every product that has solved this does it. Google's
+ * Quick, Draw! runs on a few hundred single common nouns; a kids' Pictionary or
+ * charades deck is the same. **Difficulty is how hard the thing is to get *across*,
+ * never how many words it takes to say it.**
+ *
+ * - **Draw** is concrete nouns, ordered by how many distinct parts the picture needs
+ *   before it stops being ambiguous. A sun is one circle and some lines; an astronaut
+ *   is a person, a helmet, a tank and a reason.
+ * - **Act** is actions and animals, ordered the same way - and remembering that the
+ *   rule is no words *and no noises*, which is what makes Sneeze easy and Snore hard.
+ */
+
 const DRAW: Said[] = [
-  { prompt: "A ball", hint: "You kick it." },
-  { prompt: "A house", hint: "Start with the roof." },
-  { prompt: "A fish", hint: "Draw some bubbles too." },
-  { prompt: "A tree", hint: "Put an apple in it." },
-  { prompt: "A cat", hint: "Do the whiskers." },
-  { prompt: "A birthday cake", hint: "Candles. Lots of candles." },
-  { prompt: "A bicycle", hint: "Two circles first." },
-  { prompt: "An elephant", hint: "The nose does all the work." },
-  { prompt: "A castle", hint: "Square on top, like teeth." },
-  { prompt: "A dragon", hint: "Wings, and something on fire." },
-  { prompt: "A pirate ship", hint: "Put a flag on it." },
-  { prompt: "A knight on a horse", hint: "Draw the horse first, then sit somebody on it." },
-  { prompt: "A thunderstorm", hint: "A cloud, and a zigzag under it." },
+  { prompt: "Sun", hint: "A circle, and lines coming off it." },
+  { prompt: "Fish", hint: "Add bubbles." },
+  { prompt: "House", hint: "Start with the roof." },
+  { prompt: "Cat", hint: "Do the whiskers." },
+  { prompt: "Flower", hint: "Petals round a middle." },
+  { prompt: "Snowman", hint: "Three circles, then a carrot." },
+  { prompt: "Bicycle", hint: "Two circles first." },
+  { prompt: "Elephant", hint: "The nose does all the work." },
+  { prompt: "Castle", hint: "Square teeth along the top." },
+  { prompt: "Skeleton", hint: "Ribs, then a big round head." },
+  { prompt: "Octopus", hint: "Count the legs as you go." },
+  { prompt: "Dragon", hint: "Wings, and something on fire." },
+  { prompt: "Astronaut", hint: "It is the round helmet that gives it away." },
 ];
 
 const ACT: Said[] = [
-  { prompt: "Brushing your teeth", hint: "Do not forget to spit." },
-  { prompt: "A hopping rabbit", hint: "Ears." },
-  { prompt: "Eating spaghetti", hint: "Twirl it, then slurp it." },
-  { prompt: "A cat waking up", hint: "Stretch first. Really stretch." },
-  { prompt: "Carrying something far too heavy", hint: "Let your knees wobble." },
-  { prompt: "Sneaking past a sleeping giant", hint: "Show them how big he is first." },
-  { prompt: "A robot running out of battery", hint: "Start stiff, end in a heap." },
-  { prompt: "Fishing, and catching a big one", hint: "Show how big with your arms." },
-  { prompt: "Being blown along by a tornado", hint: "Spin, and hold onto your hat." },
-  { prompt: "A knight putting on armour", hint: "Every piece is heavy, one at a time." },
-  { prompt: "Trying not to laugh at a funeral", hint: "Sad face, shaking shoulders." },
-  { prompt: "Waking up late for school", hint: "Look at a clock, then panic." },
-  { prompt: "A dragon with a cold", hint: "Big wings, tiny sneeze." },
+  { prompt: "Sleep", hint: "Hands under your head." },
+  { prompt: "Eat", hint: "Pick something up and put it in your mouth." },
+  { prompt: "Swim", hint: "Big arms. Hold your nose." },
+  { prompt: "Rabbit", hint: "Ears, then hop." },
+  { prompt: "Monkey", hint: "Scratch, and let your arms hang." },
+  { prompt: "Sneeze", hint: "The build-up is the whole thing." },
+  { prompt: "Penguin", hint: "Arms straight down. Little steps." },
+  { prompt: "Juggle", hint: "Three of them. Keep looking up." },
+  { prompt: "Fishing", hint: "Cast, wait, then show them how big." },
+  { prompt: "Robot", hint: "Every joint bends once, and only once." },
+  { prompt: "Superhero", hint: "Land on one knee first." },
+  { prompt: "Shiver", hint: "Start at the shoulders." },
+  { prompt: "Snore", hint: "No noises, remember. Show it with your face." },
 ];
 
 /**
@@ -182,61 +216,66 @@ const ACT: Said[] = [
  * have nowhere to live. `DECK` holds a *pool* per rank now and the deal picks from it,
  * which is also the shape the LLM backlog needs - contents grow without the deck
  * changing size.
+ *
+ * **The floor was raised after a real table.** Ten-year-olds found these too easy, and
+ * looking at the old easy end it is obvious why: "a spider has eight legs", "penguins
+ * can fly", "bats are birds" are not questions, they are recall. Every statement here
+ * now has to be one where **the obvious answer is worth doubting** - either a thing
+ * that sounds made up and is true, or a thing everybody has heard and is not.
  */
 const TRUTH: (Said & { answer: "True" | "Poo" })[][] = [
   [
-    { prompt: "A spider has eight legs.", hint: "Count the legs on a picture of one.", answer: "True" },
-    { prompt: "Penguins can fly.", hint: "Think about what those wings are shaped for.", answer: "Poo" },
-  ],
-  [
-    { prompt: "Fish can blink.", hint: "What would they blink with?", answer: "Poo" },
-    { prompt: "The moon makes its own light.", hint: "Where does moonlight come from at night?", answer: "Poo" },
-  ],
-  [
-    { prompt: "The sun is a star.", hint: "It only looks bigger because it is near.", answer: "True" },
-    { prompt: "A baby has more bones than a grown-up.", hint: "Some of a baby's bones join up as they grow.", answer: "True" },
-  ],
-  [
-    { prompt: "Bats are birds.", hint: "Birds lay eggs. Bats do not.", answer: "Poo" },
     { prompt: "Your nose never stops growing.", hint: "It droops with age - that is not the same as growing.", answer: "Poo" },
+    { prompt: "Fish can blink.", hint: "What would they blink with?", answer: "Poo" },
+  ],
+  [
+    { prompt: "Camels store water in their humps.", hint: "The hump is squishy, not sloshy.", answer: "Poo" },
+    { prompt: "Goldfish forget everything after three seconds.", hint: "They can be taught tricks.", answer: "Poo" },
+  ],
+  [
+    { prompt: "Polar bears have white fur.", hint: "Look closely at one. Then look at its nose.", answer: "Poo" },
+    { prompt: "Chewing gum stays in your tummy for seven years.", hint: "Your tummy is not a bin. It empties.", answer: "Poo" },
   ],
   [
     { prompt: "Honey never goes off.", hint: "They found some in a pyramid.", answer: "True" },
     { prompt: "Butterflies taste with their feet.", hint: "They land on a flower before they drink from it.", answer: "True" },
   ],
   [
-    { prompt: "A tomato is a fruit.", hint: "It has seeds inside.", answer: "True" },
-    { prompt: "A group of crows is called a murder.", hint: "It is the least friendly word for a group of anything.", answer: "True" },
+    { prompt: "People only use ten per cent of their brains.", hint: "Ask what the other ninety per cent would be doing.", answer: "Poo" },
+    { prompt: "The Great Wall of China can be seen from the moon.", hint: "It is long, but it is only as wide as a road.", answer: "Poo" },
   ],
   [
-    { prompt: "Camels store water in their humps.", hint: "The hump is squishy, not sloshy.", answer: "Poo" },
-    { prompt: "Some frogs freeze solid all winter and hop away in spring.", hint: "They make their own antifreeze.", answer: "True" },
+    { prompt: "A baby has more bones than a grown-up.", hint: "Some of a baby's bones join up as they grow.", answer: "True" },
+    { prompt: "A shrimp's heart is in its head.", hint: "There is not much else up there.", answer: "True" },
   ],
   [
     { prompt: "Octopuses have three hearts.", hint: "More than you, anyway.", answer: "True" },
-    // The owner's, added at the table. Better than anything in the first batch: it is
-    // true, it is about the child's own head, and nobody believes it at first.
+    // The owner's own, added at the table.
     { prompt: "Your eyes see everything upside down.", hint: "Your brain turns the picture the right way up for you.", answer: "True" },
   ],
   [
-    { prompt: "Goldfish forget everything after three seconds.", hint: "They can be taught tricks.", answer: "Poo" },
-    { prompt: "People only use ten per cent of their brains.", hint: "Ask what the other ninety per cent would be doing.", answer: "Poo" },
+    { prompt: "Sound travels faster through water than through air.", hint: "Whales talk a very long way.", answer: "True" },
+    { prompt: "Nobody could hear a firework go off in space.", hint: "Sound needs something to travel through.", answer: "True" },
   ],
   [
-    { prompt: "Sound travels faster through water than through air.", hint: "Whales talk a very long way.", answer: "True" },
+    { prompt: "Bananas are berries, but strawberries are not.", hint: "Botanists decide this, and they are not sorry.", answer: "True" },
+    { prompt: "Water goes down the plughole the other way round in Australia.", hint: "Your bath is far too small for the Earth to bother with.", answer: "Poo" },
+  ],
+  [
+    { prompt: "Some frogs freeze solid all winter and hop away in spring.", hint: "They make their own antifreeze.", answer: "True" },
     { prompt: "Wombat poo comes out shaped like cubes.", hint: "Cubes do not roll off the rock you left them on.", answer: "True" },
   ],
   [
-    { prompt: "The Great Wall of China can be seen from the moon.", hint: "It is long, but it is only as wide as a road.", answer: "Poo" },
-    { prompt: "Chewing gum stays in your tummy for seven years.", hint: "Your tummy is not a bin. It empties.", answer: "Poo" },
+    { prompt: "Mount Everest is the tallest mountain on Earth.", hint: "Highest and tallest are not the same word. Where do you start measuring?", answer: "Poo" },
+    { prompt: "A group of crows is called a murder.", hint: "It is the least friendly word for a group of anything.", answer: "True" },
   ],
   [
+    { prompt: "The Eiffel Tower is taller in summer than in winter.", hint: "Metal does something when it gets hot.", answer: "True" },
     { prompt: "Sharks are older than trees.", hint: "Sharks are much older than you think.", answer: "True" },
-    { prompt: "A day on Venus lasts longer than a year on Venus.", hint: "It spins very slowly and goes round the sun quickly.", answer: "True" },
   ],
   [
-    { prompt: "Lightning never strikes the same place twice.", hint: "Ask a very tall building.", answer: "Poo" },
-    { prompt: "There are more stars in the sky than grains of sand on every beach on Earth.", hint: "Both numbers are enormous. One is much more enormous.", answer: "True" },
+    { prompt: "A day on Venus lasts longer than a year on Venus.", hint: "It spins very slowly and goes round the sun quickly.", answer: "True" },
+    { prompt: "There are more trees on Earth than stars in our galaxy.", hint: "Both numbers are enormous. Trees are more enormous.", answer: "True" },
   ],
 ];
 

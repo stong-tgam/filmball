@@ -21,6 +21,7 @@ import {
   GAME_HOW,
   GAME_NAME,
   SUIT_OF,
+  guessesOneWord,
   challengeFor,
   difficultyOf,
   type Challenge,
@@ -236,6 +237,12 @@ export default function CombatModal({
               <span className="game-rank">{playing.trial.card.rank}</span>
               <span className="game-name">{GAME_NAME[playing.challenge.kind]}</span>
               <span className="game-hard">{difficultyOf(playing.trial.card.rank)}</span>
+              {/* The guessers need this more than the performer does: knowing the
+                  target is one word is the difference between shouting "knight!" and
+                  shouting a sentence nobody can match. */}
+              {guessesOneWord(playing.challenge.kind) && (
+                <span className="game-oneword">one word</span>
+              )}
             </div>
             <p className="game-how">{GAME_HOW[playing.challenge.kind]}</p>
 
