@@ -7,6 +7,7 @@
 | `hex-rpg-cards.html` | missing — the printed event and item cards |
 | `hex-rpg-tiles.html` | missing — the tile artwork v0.1 was meant to port |
 | `hex-rpg-tokens.html` | missing |
+| `prototypes/` | present — standalone mock-ups, not in the build; see its own README |
 
 The rulebook arrived at v0.7 and the game was aligned to it; see the README's
 "What the rulebook changed" table for what moved.
