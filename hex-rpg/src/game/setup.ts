@@ -23,18 +23,63 @@ import {
 } from "./hex";
 import { makeRng, type Rng } from "./rng";
 import { createPlayers } from "./players";
-import { placeEnemies } from "./enemies";
+import { createTeams } from "./teams";
+import { placeEnemies, spawnThieves } from "./enemies";
+import { placeHazards } from "./hazards";
+import { bridgeUp } from "./bridges";
+import { remember } from "./vision";
+import { beginTurn } from "./turn";
 import { createItemPile } from "./items";
-import { MAX_ELEMENTS, type Element, type GameState, type Tile } from "./types";
+import { freshDeck } from "./cards";
+import { createEventDeck } from "./events";
+import { MAX_ELEMENTS, type Element, type GameState, type Role, type Tile } from "./types";
 
-export const CITY_COUNT = 5;
+/** Hexes on the board. A hexagon of radius R holds 3R(R+1)+1 of them. */
+export const TILE_COUNT = 3 * RADIUS * (RADIUS + 1) + 1;
+
+/**
+ * How much furniture the board carries - and all three are **counted off the board's
+ * size**, not written down.
+ *
+ * They used to be plain numbers, and every time `RADIUS` moved somebody had to
+ * remember to move them too. Nobody did: cutting the board to 37 tiles in v0.22 came
+ * with a hand-tuned drop from 5 cities to 3, and putting the ring back in v0.24 would
+ * have left a 61-tile board with a small board's worth of shops, woods and chests on
+ * it - a map that is mostly plain grass, which is a map that says nothing. The
+ * divisors reproduce every hand-tuned number this file has ever had, at both sizes.
+ */
+export const CITY_COUNT = Math.round(TILE_COUNT / 12);
 /** Cities must be this far apart, so no two are a single step from each other. */
-export const CITY_MIN_DISTANCE = 3;
-export const FOREST_CLUSTERS = 7;
+export const CITY_MIN_DISTANCE = 2;
+export const FOREST_CLUSTERS = Math.round(TILE_COUNT / 9);
 /** Woods are seeded this far apart, so they spread over the board instead of massing
  *  in one corner and leaving whole rows as empty grass. */
 export const FOREST_MIN_DISTANCE = 3;
-export const DEFAULT_TURN_LIMIT = 25;
+/**
+ * **An evening is sixteen goes.** How many *turns* that is depends on how many teams.
+ *
+ * The table asked for eight turns, two movements a turn, at most two fights - which is
+ * the four- and five-player game, where the party splits in two. Two or three players
+ * are one team and get **one** movement a turn, so eight turns would hand them half an
+ * evening: measured at three mini-games a game against six, and about half the ground
+ * covered. The thing being budgeted was never the turn, it was the go.
+ *
+ * So the limit is derived (`turnLimitFor`): one team plays sixteen turns, two play
+ * eight. Every table gets the same evening, and the four-player game is exactly the
+ * eight turns that was asked for.
+ */
+export const GOES_IN_AN_EVENING = 16;
+
+/** The turn limit for a party split into this many teams. */
+export const turnLimitFor = (teams: number): number =>
+  Math.max(1, Math.round(GOES_IN_AN_EVENING / Math.max(1, teams)));
+
+/**
+ * The two-team game, which is the one the rules are written for: eight turns, and the
+ * eighth is the dragon (`finalStand`). Kept as a named constant because the tests, the
+ * sim and the README all talk about "eight turns".
+ */
+export const DEFAULT_TURN_LIMIT = turnLimitFor(2);
 
 type Draft = Map<string, Tile>;
 
@@ -47,6 +92,8 @@ const blankBoard = (): Draft =>
         base: "field",
         sides: Array<Element>(6).fill("field"),
         river: false,
+        bridge: false,
+        chest: false,
         rail: false,
         destroyedUntil: null,
         searched: false,
@@ -111,6 +158,43 @@ function carveRiver(board: Draft, rng: Rng): void {
 
   for (let i = 1; i < route.length; i++) {
     for (const h of hexLine(route[i - 1], route[i])) at(board, h).river = true;
+  }
+}
+
+/**
+ * Chests sunk in the river, board-wide.
+ *
+ * A **share of the river**, not of the board.
+ *
+ * It was `TILE_COUNT / 15`, and that was wrong in a way only a bigger board could show:
+ * the river is a *line* across the map, so it grows with the radius while the tile
+ * count grows with the square of it. At radius 4 the board had four chests in ten water
+ * tiles; at radius 5 the same rule wanted six chests in eleven, so **most of the river
+ * had one** - and a chest you trip over on the way past is exactly what this constant
+ * was introduced to stop. Counting off the water keeps it rare at every board size.
+ */
+export const CHEST_SHARE_OF_RIVER = 0.35;
+
+/** How many chests a river of this length carries. Never fewer than two. */
+export const chestsFor = (water: number): number =>
+  Math.max(2, Math.round(water * CHEST_SHARE_OF_RIVER));
+
+/**
+ * Chests are hauled out **at the bridges**.
+ *
+ * They used to be sunk anywhere in the water, which was right while anybody could wade
+ * in. Now that the river is a wall (`bridges.ts`) a chest in open water would be the
+ * fisherman's private stash - the best loot in the game behind one role, and that role
+ * is the one that cannot hand anything over. At the crossings, everybody can reach
+ * them, and the bridge becomes a landmark worth remembering rather than only a way
+ * through.
+ */
+function sinkChests(board: Draft, rng: Rng): void {
+  const crossings = [...board.values()].filter((t) => t.river && t.bridge);
+  const water = [...board.values()].filter((t) => t.river);
+  // A share of the river, but only ever placed where somebody can stand.
+  for (const tile of rng.shuffle(crossings).slice(0, chestsFor(water.length))) {
+    tile.chest = true;
   }
 }
 
@@ -272,7 +356,13 @@ export function generateBoard(seed: number): Record<string, Tile> {
   const board = blankBoard();
 
   carveRiver(board, rng);
+  // The railway before the bridges, because the bridges are where it crosses; and the
+  // bridges before the chests, because a chest is hauled out at a crossing.
   layRailway(board, rng);
+  const bridged = bridgeUp(Object.fromEntries(board));
+  for (const [label, tile] of Object.entries(bridged)) board.set(label, tile);
+
+  sinkChests(board, rng);
   placeCities(board, rng);
   growForests(board, rng);
   composeSides(board, rng);
@@ -285,34 +375,57 @@ export function generateBoard(seed: number): Record<string, Tile> {
  * it. Hazards, items and events arrive in later phases, and the phases they belong
  * to are already named in `Phase`.
  */
-export function createInitialState(seed: number): GameState {
+export function createInitialState(seed: number, roster?: Role[]): GameState {
   // A second generator, so adding a draw here can never shift the board a seed
   // produces. Board and party stay independently reproducible.
   const rng = makeRng(seed ^ 0x9e3779b9);
 
-  const players = createPlayers(rng);
+  // Everybody starts knowing the ground they can see from where they woke up.
+  const players = createPlayers(rng, roster).map(remember);
+  const tiles = generateBoard(seed);
+  // Monsters first, then hazards around them: two things on one tile is a fight
+  // nobody chose, and the thieves are both at once.
+  const monsters = placeEnemies(rng, players);
+  const hazards = placeHazards(rng, players, tiles, monsters);
+  // Three poker decks, none sharing a shuffle: events, searches, and the one monsters
+  // deal their mini-games from.
+  const poker = freshDeck(rng.state());
+  // Rulebook §6: only the search deck carries jokers.
+  const searches = freshDeck(poker.rngState, true);
+  const challenges = freshDeck(searches.rngState);
+  const events = createEventDeck(challenges.rngState);
 
   return {
     seed,
-    rngState: rng.state(),
+    rngState: events.rngState,
     turn: 1,
-    turnLimit: DEFAULT_TURN_LIMIT,
+    turnLimit: turnLimitFor(createTeams(players).length),
     phase: "playerMove",
     activePlayerIndex: 0,
-    tiles: generateBoard(seed),
+    tiles,
     players,
-    enemies: placeEnemies(rng, players),
-    hazards: [],
+    teams: createTeams(players),
+    enemies: [...monsters, ...spawnThieves(rng, hazards)],
+    hazards,
     combat: null,
+    ending: null,
     itemPile: createItemPile(rng),
-    eventDeck: [],
-    pokerDeck: [],
+    eventDeck: events.deck,
+    pokerDeck: poker.deck,
+    searchDeck: searches.deck,
+    challengeDeck: challenges.deck,
+    draw: null,
+    find: null,
     log: [
       { turn: 1, text: `New game, seed ${seed}.` },
       { turn: 1, text: "— Turn 1 —" },
     ],
   };
 }
+
+/** A new game with its first card already turned over. */
+export const startGame = (seed: number, roster?: Role[]): GameState =>
+  beginTurn(createInitialState(seed, roster));
 
 /** Handy for tests and for the UI's board summary. */
 export function countTerrain(tiles: Record<string, Tile>) {
@@ -325,4 +438,3 @@ export function countTerrain(tiles: Record<string, Tile>) {
   return counts;
 }
 
-export const TILE_COUNT = 3 * RADIUS * (RADIUS + 1) + 1;

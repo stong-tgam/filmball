@@ -1,0 +1,626 @@
+<title>The Escape Spot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Nunito:wght@400;600;700&display=swap">
+<style>
+  /* Terrain and character colours are lifted straight out of the game's own
+     styles.css and palette.ts, so this mock reads like the thing it is mocking. */
+  :root {
+    --paper:  #f7f4ec;
+    --ink:    #1b2127;
+    --ink-soft: #5c5a53;
+    --rule:   #d9d3c4;
+    --accent: #f0a02c;
+    --red:    #c62b34;
+    --good:   #2f7d4a;
+
+    --field: #cbd67f;
+    --forest: #7fae72;
+    --canopy: #2f6b40;
+    --city: #c9bfae;
+    --building: #8d8577;
+    --water: #4f9ed9;
+    --stroke: #3c4650;
+
+    --mob: #e8734a;
+    --midboss: #0d8080;
+    --dragon: #e02424;
+
+    --ground: #e7e3d7;
+    --ground-ink: #34322c;
+    --ground-soft: #6b675c;
+    --ground-rule: #cdc7b6;
+
+    --display: "Patrick Hand", "Bradley Hand", "Segoe Print", cursive;
+    --body: Nunito, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #14181d; --ground-ink: #e8edf2; --ground-soft: #94a3b1; --ground-rule: #2c353f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #14181d; --ground-ink: #e8edf2; --ground-soft: #94a3b1; --ground-rule: #2c353f;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ground-ink);
+    font: 400 16px/1.5 var(--body); font-variant-numeric: tabular-nums;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 72rem; margin: 0 auto; padding: 26px 18px 60px; }
+
+  header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 6px; }
+  h1 { font-family: var(--display); font-weight: 400; font-size: clamp(30px, 5vw, 44px); margin: 0; line-height: 1; }
+  .badge {
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
+    color: var(--accent); border: 1px solid currentColor; border-radius: 999px; padding: 3px 10px;
+  }
+  .blurb { margin: 0 0 18px; max-width: 46rem; color: var(--ground-soft); font-size: 15px; }
+
+  .stage { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) 20rem; align-items: start; }
+  @media (max-width: 860px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+
+  .board-card {
+    background: var(--paper); border-radius: 12px; padding: 12px;
+    box-shadow: 0 1px 0 rgba(0,0,0,.28), 0 14px 28px -22px rgba(0,0,0,.9);
+  }
+  svg.map { display: block; width: 100%; height: auto; touch-action: manipulation; }
+  .hex { cursor: pointer; }
+  .hex:focus { outline: none; }
+  .hex:focus-visible .edge { stroke: var(--accent); stroke-width: 4; }
+  .edge { fill: none; stroke: var(--stroke); stroke-width: 1.4; }
+  .hex.sel .edge { stroke: var(--accent); stroke-width: 4.5; }
+  .hex.crossed .face { opacity: .4; }
+  .hex.won .edge { stroke: var(--good); stroke-width: 5; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+  button {
+    font: 600 15px/1 var(--body); min-height: 46px; padding: 0 16px;
+    border-radius: 9px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+    cursor: pointer;
+  }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); border-color: transparent; color: #2a1c02; }
+  button.armed { background: var(--red); border-color: transparent; color: #fff; }
+  button.ghost { background: transparent; color: var(--ground-ink); border-color: var(--ground-rule); }
+  button:disabled { opacity: .42; cursor: default; }
+  .turns { margin-left: auto; font-size: 14px; color: var(--ground-soft); }
+  .turns b { font-size: 22px; color: var(--ground-ink); font-family: var(--display); }
+
+  .say {
+    margin: 10px 0 0; min-height: 1.5em; font-family: var(--display); font-size: 21px; line-height: 1.2;
+  }
+  .say.hot { color: var(--accent); }
+  .say.win { color: var(--good); }
+  .say.miss { color: var(--red); }
+
+  /* ---------- the clue rail ---------- */
+  aside { display: grid; gap: 10px; align-content: start; }
+  aside h2 {
+    font-family: var(--display); font-weight: 400; font-size: 24px; margin: 0;
+  }
+  aside .note { margin: 0; font-size: 13px; color: var(--ground-soft); }
+  .clue {
+    background: var(--paper); color: var(--ink); border-radius: 10px;
+    display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: center;
+    padding: 11px 13px; text-align: left; width: 100%; border: 1px solid transparent;
+    box-shadow: 0 1px 0 rgba(0,0,0,.28), 0 10px 20px -18px rgba(0,0,0,.9);
+    min-height: 0;
+  }
+  .clue.on { border-color: var(--accent); }
+  .clue .glyph { width: 40px; height: 40px; }
+  .clue .words { font-family: var(--display); font-size: 19px; line-height: 1.12; }
+  .clue .from { display: block; font-family: var(--body); font-size: 11px; font-weight: 700;
+    letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft); margin-top: 3px; }
+  .locked { opacity: .45; }
+  .locked .words { color: var(--ink-soft); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 14px; font-size: 13px; color: var(--ground-soft); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--stroke); }
+
+  footer.foot {
+    margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--ground-rule);
+    color: var(--ground-soft); font-size: 13.5px; max-width: 48rem;
+  }
+  footer.foot p { margin: 0 0 8px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>The escape spot</h1>
+    <span class="badge">prototype &middot; not the game</span>
+  </header>
+  <p class="blurb">
+    Clues come in from mini&#8209;games, searches and beaten monsters. <b>Tap a hex to cross it off</b>
+    &mdash; again for a maybe, again to clear. When you think you know, arm <b>Dig here</b> and tap the
+    spot. A wrong dig tells you how far off you were and costs a turn.
+  </p>
+
+  <div class="stage">
+    <div>
+      <div class="board-card"><svg class="map" id="map" role="img" aria-label="The valley map"></svg></div>
+      <div class="toolbar">
+        <button class="primary" id="dig">Dig here</button>
+        <button class="ghost" id="clear">Clear my marks</button>
+        <button class="ghost" id="peek">Designer&rsquo;s peek</button>
+        <button class="ghost" id="again">New map</button>
+        <span class="turns">turns left <b id="turns">8</b></span>
+      </div>
+      <p class="say" id="say">Four clues in. Cross off what cannot be it.</p>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--field)"></i> field</span>
+        <span><i class="sw" style="background:var(--forest)"></i> trees</span>
+        <span><i class="sw" style="background:var(--city)"></i> town</span>
+        <span><i class="sw" style="background:var(--water)"></i> water</span>
+        <span><i class="sw" style="background:var(--mob);border-radius:50%"></i> bandit</span>
+        <span><i class="sw" style="background:var(--midboss);border-radius:50%"></i> ogre</span>
+        <span><i class="sw" style="background:var(--dragon);border-radius:50%"></i> dragon</span>
+      </div>
+    </div>
+
+    <aside>
+      <h2>What you know</h2>
+      <p class="note">Tap a clue to hold it in mind. The app never crosses tiles off for you &mdash;
+        that part is the game.</p>
+      <div id="clues"></div>
+    </aside>
+  </div>
+
+  <footer class="foot">
+    <p><b>What this is testing.</b> Whether crossing hexes off by tapping feels good on a tablet,
+      whether four or five clues is the right amount of thinking for a ten&#8209;year&#8209;old, and whether
+      a wrong dig telling you the distance keeps it fair rather than frustrating.</p>
+    <p><b>What is faked.</b> Clues are all handed to you at the start; in the real game they arrive one
+      at a time as you win mini&#8209;games, search tiles and beat monsters. Nothing here is wired to the
+      game &mdash; the map, the monsters and the puzzle are generated fresh each time you press New map.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------------------------------------------------------- plumbing */
+  var RADIUS = 3, MID = { q: 0, r: 0 };
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var DIRS = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+  function key(h) { return h.q + "," + h.r; }
+  function dist(a, b) {
+    return (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
+  }
+  function allHexes() {
+    var out = [];
+    for (var q = -RADIUS; q <= RADIUS; q++) {
+      for (var r = -RADIUS; r <= RADIUS; r++) {
+        if (Math.abs(q + r) <= RADIUS) out.push({ q: q, r: r });
+      }
+    }
+    return out;
+  }
+
+  /* ---------------------------------------------------------- the map itself */
+  function buildMap(seed) {
+    var rng = mulberry32(seed);
+    var tiles = {};
+    allHexes().forEach(function (h) {
+      tiles[key(h)] = { hex: h, has: { field: true }, monster: null };
+    });
+    var list = Object.keys(tiles);
+    function pick(arr) { return arr[Math.floor(rng() * arr.length)]; }
+
+    // A river: walk from one rim tile roughly across to the far side.
+    var rim = list.filter(function (k) { return dist(tiles[k].hex, MID) === RADIUS; });
+    var at = tiles[pick(rim)].hex;
+    var goal = { q: -at.q, r: -at.r };
+    for (var step = 0; step < 9; step++) {
+      tiles[key(at)].has.water = true;
+      if (dist(at, goal) === 0) break;
+      var opts = DIRS.map(function (d) { return { q: at.q + d[0], r: at.r + d[1] }; })
+        .filter(function (n) { return tiles[key(n)]; })
+        .sort(function (a, b) { return dist(a, goal) - dist(b, goal); });
+      at = rng() < 0.72 ? opts[0] : (opts[1] || opts[0]);
+    }
+
+    // Three towns, never touching each other.
+    var towns = 0, guard = 0;
+    while (towns < 3 && guard++ < 200) {
+      var k = pick(list), t = tiles[k];
+      if (t.has.water || t.has.city || dist(t.hex, MID) === 0) continue;
+      var near = DIRS.some(function (d) {
+        var n = tiles[key({ q: t.hex.q + d[0], r: t.hex.r + d[1] })];
+        return n && n.has.city;
+      });
+      if (near) continue;
+      t.has.city = true; towns++;
+    }
+
+    // Woods.
+    var woods = 0; guard = 0;
+    while (woods < 9 && guard++ < 300) {
+      var t2 = tiles[pick(list)];
+      if (t2.has.city || t2.has.forest || dist(t2.hex, MID) === 0) continue;
+      t2.has.forest = true; woods++;
+    }
+
+    // Monsters, visible on the board — that is the point of the change.
+    tiles[key(MID)].monster = "dragon";
+    var placed = 0; guard = 0;
+    while (placed < 6 && guard++ < 300) {
+      var t3 = tiles[pick(list)];
+      if (t3.monster || dist(t3.hex, MID) < 2) continue;
+      t3.monster = placed < 1 ? "midboss" : "mob";
+      placed++;
+    }
+    return tiles;
+  }
+
+  /* -------------------------------------------------------------- the clues */
+  // Every shape is checkable by *looking at one hex*. No counting, no memory.
+  var SHAPES = [
+    { id: "trees", glyph: "trees",
+      yes: "There are trees on it.", no: "There are no trees on it.",
+      test: function (t) { return !!t.has.forest; } },
+    { id: "water", glyph: "water",
+      yes: "There is water on it.", no: "There is no water on it.",
+      test: function (t) { return !!t.has.water; } },
+    { id: "town", glyph: "town",
+      yes: "It is next to a town.", no: "It is not next to a town.",
+      test: function (t, tiles) {
+        return DIRS.some(function (d) {
+          var n = tiles[key({ q: t.hex.q + d[0], r: t.hex.r + d[1] })];
+          return n && n.has.city;
+        });
+      } },
+    { id: "rim", glyph: "rim",
+      yes: "It is on the outside edge.", no: "It is not on the outside edge.",
+      test: function (t) { return dist(t.hex, MID) === RADIUS; } },
+    { id: "monster", glyph: "monster",
+      yes: "A monster is standing on it.", no: "No monster is standing on it.",
+      test: function (t) { return !!t.monster; } },
+    { id: "north", glyph: "north",
+      yes: "It is in the northern half.", no: "It is in the southern half.",
+      test: function (t) { return t.hex.r < 0; } },
+    { id: "plain", glyph: "plain",
+      yes: "There is nothing on it but grass.", no: "There is something on it.",
+      test: function (t) {
+        return !t.has.forest && !t.has.city && !t.has.water && !t.monster;
+      } }
+  ];
+  var FROM = ["won a mini-game", "searched a tile", "beat a bandit", "searched a tile",
+              "won a mini-game", "beat the ogre", "searched a tile"];
+  var MAX_CLUES = 5;
+
+  // Pick the answer first, then add clues until exactly one hex survives. Solvable
+  // by construction, which is the only way to be sure it is solvable at all.
+  function buildPuzzle(tiles, seed) {
+    var rng = mulberry32(seed ^ 0x9e37);
+    var all = Object.keys(tiles).filter(function (k) { return dist(tiles[k].hex, MID) > 0; });
+    var best = null;
+
+    for (var attempt = 0; attempt < 400; attempt++) {
+      var target = all[Math.floor(rng() * all.length)];
+      var left = all.slice();
+      var clues = [], trail = [left.length];
+      // Five is the ceiling. Seven clues narrows beautifully and is more cards than a
+      // ten-year-old can hold in their head, which is the actual constraint.
+      var pool = SHAPES.slice().sort(function () { return rng() - 0.5; });
+      for (var i = 0; i < pool.length && left.length > 1 && clues.length < MAX_CLUES; i++) {
+        var shape = pool[i];
+        var truth = shape.test(tiles[target], tiles);
+        var kept = left.filter(function (k) { return shape.test(tiles[k], tiles) === truth; });
+        if (kept.length === left.length) continue;   // tells you nothing
+        clues.push({ shape: shape, truth: truth, from: FROM[clues.length % FROM.length] });
+        left = kept;
+        trail.push(left.length);
+      }
+      if (left.length !== 1 || left[0] !== target) continue;
+
+      // What makes a puzzle worth solving is the *shape* of the narrowing. A run that
+      // goes 36 -> 6 -> 5 -> 3 -> 1 is technically solvable and asks nobody to think:
+      // the first clue did eighty per cent of it and the rest were decoration. So score
+      // the *harshest single cut* and prefer the gentlest — a puzzle where every clue
+      // earns its place is one where each roughly halves what is left.
+      var harshest = 1;
+      for (var j = 1; j < trail.length; j++) {
+        harshest = Math.min(harshest, trail[j] / trail[j - 1]);
+      }
+      var penultimate = trail[trail.length - 2];
+      var score = harshest * 100 + clues.length * 4;
+      if (clues.length < 3 || penultimate < 3) score -= 500;
+      if (!best || score > best.score) {
+        best = { target: target, clues: clues, trail: trail, score: score };
+      }
+    }
+    return best;
+  }
+
+  /* ------------------------------------------------------------------ drawing */
+  var S = 40, SQ3 = Math.sqrt(3);
+  function centre(h) { return { x: S * SQ3 * (h.q + h.r / 2), y: S * 1.5 * h.r }; }
+  function corners(c) {
+    var pts = [];
+    for (var i = 0; i < 6; i++) {
+      var a = Math.PI / 180 * (60 * i + 30);
+      pts.push((c.x + S * Math.cos(a)).toFixed(1) + "," + (c.y + S * Math.sin(a)).toFixed(1));
+    }
+    return pts.join(" ");
+  }
+  function el(name, attrs, kids) {
+    var n = document.createElementNS("http://www.w3.org/2000/svg", name);
+    Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    (kids || []).forEach(function (c) { n.appendChild(c); });
+    return n;
+  }
+  function tree(x, y, s) {
+    var g = el("g", { transform: "translate(" + x + "," + y + ")" });
+    g.appendChild(el("rect", { x: -1.2 * s, y: 1.6 * s, width: 2.4 * s, height: 2.6 * s, fill: "#6b4a2f" }));
+    g.appendChild(el("polygon", { points: "0," + (-3.6 * s) + " " + (4 * s) + "," + (2 * s) + " " + (-4 * s) + "," + (2 * s), fill: "var(--canopy)" }));
+    return g;
+  }
+  function house(x, y, s) {
+    var g = el("g", { transform: "translate(" + x + "," + y + ")" });
+    g.appendChild(el("rect", { x: -3 * s, y: -1.4 * s, width: 6 * s, height: 4.4 * s, fill: "var(--building)" }));
+    g.appendChild(el("polygon", { points: (-3.8 * s) + "," + (-1.4 * s) + " 0," + (-4.4 * s) + " " + (3.8 * s) + "," + (-1.4 * s), fill: "#6a6357" }));
+    return g;
+  }
+  function beast(kind) {
+    var fill = kind === "dragon" ? "var(--dragon)" : kind === "midboss" ? "var(--midboss)" : "var(--mob)";
+    var r = kind === "dragon" ? 16 : kind === "midboss" ? 13 : 11;
+    var g = el("g", {});
+    if (kind === "dragon") {
+      g.appendChild(el("polygon", { points: "-22,-6 -10,-16 -9,-2", fill: fill, opacity: ".85" }));
+      g.appendChild(el("polygon", { points: "22,-6 10,-16 9,-2", fill: fill, opacity: ".85" }));
+    }
+    g.appendChild(el("circle", { cx: 0, cy: 0, r: r, fill: fill, stroke: "#141a1f", "stroke-width": 2.5 }));
+    g.appendChild(el("circle", { cx: -r * 0.34, cy: -r * 0.18, r: r * 0.19, fill: "#fff" }));
+    g.appendChild(el("circle", { cx: r * 0.34, cy: -r * 0.18, r: r * 0.19, fill: "#fff" }));
+    g.appendChild(el("path", {
+      d: "M " + (-r * 0.45) + " " + (r * 0.38) + " l " + (r * 0.3) + " " + (-r * 0.22) +
+         " l " + (r * 0.3) + " " + (r * 0.22) + " l " + (r * 0.3) + " " + (-r * 0.22),
+      fill: "none", stroke: "#141a1f", "stroke-width": 2, "stroke-linecap": "round"
+    }));
+    return g;
+  }
+  function clueGlyph(kind, truth) {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "-22 -22 44 44");
+    svg.setAttribute("class", "glyph");
+    var bg = kind === "water" ? "var(--water)" : kind === "trees" ? "var(--forest)"
+      : kind === "town" ? "var(--city)" : kind === "rim" || kind === "plain" ? "var(--field)"
+      : "#e6e1d4";
+    svg.appendChild(el("circle", { cx: 0, cy: 0, r: 20, fill: bg }));
+    if (kind === "trees") svg.appendChild(tree(0, -1, 2.6));
+    if (kind === "water") svg.appendChild(el("path", {
+      d: "M -13 3 q 6.5 -8 13 0 q 6.5 8 13 0", fill: "none", stroke: "#fff",
+      "stroke-width": 4, "stroke-linecap": "round", transform: "translate(-6.5,0)"
+    }));
+    if (kind === "town") svg.appendChild(house(0, 0, 2.1));
+    if (kind === "rim") {
+      svg.appendChild(el("polygon", { points: corners({ x: 0, y: 0 }).split(" ").map(function (p) {
+        var xy = p.split(","); return (xy[0] / S * 15) + "," + (xy[1] / S * 15);
+      }).join(" "), fill: "none", stroke: "var(--ink)", "stroke-width": 3 }));
+    }
+    if (kind === "monster") svg.appendChild(beast("mob"));
+    if (kind === "north") {
+      svg.appendChild(el("polygon", { points: "0,-14 6,4 0,-1 -6,4", fill: "var(--red)" }));
+      var nn = el("text", { x: 0, y: 17, "text-anchor": "middle", fill: "var(--ink)",
+        "font-family": "Patrick Hand, cursive", "font-size": 15 });
+      nn.textContent = "N"; svg.appendChild(nn);
+    }
+    if (kind === "plain") {
+      svg.appendChild(el("path", { d: "M -12 6 q 4 -9 8 0 M 0 8 q 4 -9 8 0",
+        fill: "none", stroke: "var(--canopy)", "stroke-width": 3, "stroke-linecap": "round" }));
+    }
+    if (!truth) {
+      svg.appendChild(el("line", { x1: -17, y1: 17, x2: 17, y2: -17, stroke: "var(--red)", "stroke-width": 5, "stroke-linecap": "round" }));
+    }
+    return svg;
+  }
+
+  /* -------------------------------------------------------------------- game */
+  var state = null;
+  var mapEl = document.getElementById("map");
+  var cluesEl = document.getElementById("clues");
+  var sayEl = document.getElementById("say");
+  var turnsEl = document.getElementById("turns");
+  var digBtn = document.getElementById("dig");
+
+  function say(text, tone) { sayEl.textContent = text; sayEl.className = "say" + (tone ? " " + tone : ""); }
+
+  function start(seed) {
+    var tiles, puzzle, tries = 0;
+    do { tiles = buildMap(seed + tries); puzzle = buildPuzzle(tiles, seed + tries); tries++; }
+    while (!puzzle && tries < 30);
+    state = {
+      seed: seed, tiles: tiles, target: puzzle.target, clues: puzzle.clues,
+      trail: puzzle.trail,
+      marks: {}, turns: 8, armed: false, over: false, peek: false, held: -1
+    };
+    digBtn.classList.remove("armed");
+    digBtn.textContent = "Dig here";
+    turnsEl.textContent = "8";
+    say(state.clues.length + " clues in. Cross off what cannot be it.");
+    drawClues(); drawMap();
+  }
+
+  function drawClues() {
+    cluesEl.innerHTML = "";
+    state.clues.forEach(function (c, i) {
+      var b = document.createElement("button");
+      b.className = "clue" + (state.held === i ? " on" : "");
+      b.appendChild(clueGlyph(c.shape.glyph, c.truth));
+      var w = document.createElement("span");
+      w.className = "words";
+      w.textContent = c.truth ? c.shape.yes : c.shape.no;
+      var f = document.createElement("span");
+      f.className = "from";
+      f.textContent = c.from;
+      w.appendChild(f);
+      b.appendChild(w);
+      b.addEventListener("click", function () {
+        state.held = state.held === i ? -1 : i;
+        drawClues();
+      });
+      cluesEl.appendChild(b);
+    });
+  }
+
+  function drawMap() {
+    while (mapEl.firstChild) mapEl.removeChild(mapEl.firstChild);
+    var pts = allHexes().map(centre);
+    var minX = Math.min.apply(null, pts.map(function (p) { return p.x; })) - S - 6;
+    var maxX = Math.max.apply(null, pts.map(function (p) { return p.x; })) + S + 6;
+    var minY = Math.min.apply(null, pts.map(function (p) { return p.y; })) - S - 6;
+    var maxY = Math.max.apply(null, pts.map(function (p) { return p.y; })) + S + 6;
+    mapEl.setAttribute("viewBox", minX + " " + minY + " " + (maxX - minX) + " " + (maxY - minY));
+
+    var nMark = el("text", {
+      x: 0, y: minY + 26, "text-anchor": "middle", fill: "var(--ink-soft)",
+      "font-family": "Patrick Hand, cursive", "font-size": 26
+    });
+    nMark.textContent = "N";
+    mapEl.appendChild(nMark);
+
+    Object.keys(state.tiles).forEach(function (k) {
+      var t = state.tiles[k], c = centre(t.hex), mark = state.marks[k];
+      var base = t.has.city ? "var(--city)" : t.has.forest ? "var(--forest)" : "var(--field)";
+      var g = el("g", {
+        class: "hex" + (mark === "x" ? " crossed" : "") + (state.held >= 0 ? "" : "") +
+               (state.over && k === state.target ? " won" : ""),
+        tabindex: "0", role: "button"
+      });
+      g.setAttribute("aria-label", "hex " + k);
+
+      g.appendChild(el("polygon", { class: "face", points: corners(c), fill: base }));
+      if (t.has.water) {
+        // Draw a spoke from the middle to each neighbouring water tile's shared edge.
+        // Neighbours then meet exactly, and the river reads as one thing crossing the
+        // valley instead of six unrelated puddles.
+        var wet = 0;
+        DIRS.forEach(function (d) {
+          var n = state.tiles[key({ q: t.hex.q + d[0], r: t.hex.r + d[1] })];
+          if (!n || !n.has.water) return;
+          wet++;
+          var nc = centre(n.hex);
+          g.appendChild(el("line", {
+            class: "face", x1: c.x, y1: c.y, x2: (c.x + nc.x) / 2, y2: (c.y + nc.y) / 2,
+            stroke: "var(--water)", "stroke-width": S * 0.44, "stroke-linecap": "round"
+          }));
+        });
+        g.appendChild(el("circle", {
+          class: "face", cx: c.x, cy: c.y, r: S * (wet ? 0.22 : 0.3), fill: "var(--water)"
+        }));
+      }
+      if (t.has.forest) {
+        g.appendChild(tree(c.x - S * 0.34, c.y - S * 0.30, 2.4));
+        g.appendChild(tree(c.x + S * 0.30, c.y + S * 0.10, 2.1));
+      }
+      if (t.has.city) {
+        g.appendChild(house(c.x + S * 0.10, c.y + S * 0.16, 2.0));
+      }
+      g.appendChild(el("polygon", { class: "edge", points: corners(c) }));
+
+      if (t.monster) {
+        var m = beast(t.monster);
+        m.setAttribute("transform", "translate(" + c.x + "," + (c.y - S * 0.05) + ")");
+        g.appendChild(m);
+      }
+
+      if (mark === "x") {
+        ["M " + (c.x - 20) + " " + (c.y - 20) + " L " + (c.x + 20) + " " + (c.y + 20),
+         "M " + (c.x + 20) + " " + (c.y - 20) + " L " + (c.x - 20) + " " + (c.y + 20)].forEach(function (d) {
+          g.appendChild(el("path", { d: d, stroke: "#3a3630", "stroke-width": 5, "stroke-linecap": "round", opacity: ".85", fill: "none" }));
+        });
+      } else if (mark === "?") {
+        var q = el("text", {
+          x: c.x, y: c.y + 11, "text-anchor": "middle", fill: "#3a3630",
+          "font-family": "Patrick Hand, cursive", "font-size": 34, opacity: ".9"
+        });
+        q.textContent = "?";
+        g.appendChild(q);
+      }
+      if (state.peek && k === state.target) {
+        g.appendChild(el("circle", { cx: c.x, cy: c.y, r: S * 0.52, fill: "none", stroke: "var(--good)", "stroke-width": 5, "stroke-dasharray": "7 6" }));
+      }
+      if (state.over && k === state.target) {
+        var star = el("text", { x: c.x, y: c.y + 12, "text-anchor": "middle", fill: "#1b2127",
+          "font-family": "Patrick Hand, cursive", "font-size": 38 });
+        star.textContent = "✦";
+        g.appendChild(star);
+      }
+
+      function act() { onHex(k); }
+      g.addEventListener("click", act);
+      g.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); act(); }
+      });
+      mapEl.appendChild(g);
+    });
+  }
+
+  function onHex(k) {
+    if (state.over) return;
+    if (state.armed) {
+      state.armed = false;
+      digBtn.classList.remove("armed");
+      digBtn.textContent = "Dig here";
+      if (k === state.target) {
+        state.over = true;
+        say("That is the spot. The way out opens — everybody standing here gets out.", "win");
+      } else {
+        state.turns--;
+        turnsEl.textContent = state.turns;
+        var d = dist(state.tiles[k].hex, state.tiles[state.target].hex);
+        state.marks[k] = "x";
+        if (state.turns <= 0) {
+          say("Nothing there, and that was the last turn. The dragon keeps the valley.", "miss");
+          state.over = true;
+        } else {
+          say("Nothing there — but you were " + d + (d === 1 ? " tile" : " tiles") + " away.",
+              d <= 1 ? "hot" : "miss");
+        }
+      }
+      drawMap();
+      return;
+    }
+    var m = state.marks[k];
+    state.marks[k] = m === undefined ? "x" : m === "x" ? "?" : undefined;
+    if (state.marks[k] === undefined) delete state.marks[k];
+    drawMap();
+  }
+
+  digBtn.addEventListener("click", function () {
+    if (state.over) return;
+    state.armed = !state.armed;
+    digBtn.classList.toggle("armed", state.armed);
+    digBtn.textContent = state.armed ? "Tap the spot\u2026 (cancel)" : "Dig here";
+    say(state.armed ? "Where do you want to dig?" : "Cross off what cannot be it.");
+  });
+  document.getElementById("clear").addEventListener("click", function () {
+    state.marks = {}; drawMap();
+  });
+  document.getElementById("peek").addEventListener("click", function () {
+    state.peek = !state.peek; drawMap();
+    say(state.peek
+      ? "Designer's peek — the answer is ringed, and the clues narrow it " +
+        state.trail.join(" \u2192 ") + "."
+      : "Cross off what cannot be it.");
+  });
+  document.getElementById("again").addEventListener("click", function () {
+    start(Math.floor(Math.random() * 1e9));
+  });
+
+  start(Math.floor(Math.random() * 1e9));
+})();
+</script>

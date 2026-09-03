@@ -36,6 +36,40 @@ type Props = {
   selected: boolean;
   /** A tile the active player may move to this turn. */
   legal: boolean;
+  /** Ground the tornado has just been through. */
+  wrecked: boolean;
+  /**
+   * Ground this player has walked past but cannot see right now (`Player.seen`).
+   *
+   * Drawn faded, because it is a memory: the terrain is still true, and everything
+   * that moves is not. The fade is the whole of how a child tells "this is how it was"
+   * from "this is how it is".
+   */
+  remembered?: boolean;
+  /**
+   * Ground that falls into the abyss when this turn ends (`collapse.ts`).
+   *
+   * Drawn cracked and named in the label, because it is the only thing on the board a
+   * player is *required* to react to. On a map nobody can see, this is also the only
+   * thing that says which way the middle is - and that is a trade made on purpose.
+   */
+  doomed?: boolean;
+  /**
+   * A mark for ground that has not been turned over yet, or null once it has.
+   *
+   * The one thing the tile itself is allowed to promise. Everything else about a hex
+   * you can see is terrain you read for yourself; this is a fact about the tile's
+   * state that there is no way to look at and know, and without it a child cannot
+   * tell "nobody has searched here" from "somebody already has" and searches the
+   * same square twice. `"chest"` on the water, `"ground"` everywhere else.
+   */
+  findings?: "chest" | "ground" | null;
+  /**
+   * Print the tile's name on it. False in the close-up view, where there is no map and
+   * a grid reference on a neighbouring hex would hand the party their own position.
+   * The label is still used to seed the scenery, so tiles stay put between renders.
+   */
+  showLabel?: boolean;
   onSelect: (label: string) => void;
 };
 
@@ -246,7 +280,50 @@ function Railway({ size, dirs }: { size: number; dirs: number[] }) {
   );
 }
 
-function TileView({ tile, label, size, railDirs, selected, legal, onSelect }: Props) {
+/**
+ * The mark on unsearched ground.
+ *
+ * Up in the tile's top corner, clear of the centre, because the centre is where the
+ * player tokens and the monsters go and this must stay readable underneath a stack of
+ * them. Two marks, because there are two kinds of search: an X on the ground, and a
+ * chest on the water. Both are drawn in the same ink as the tile outlines rather than
+ * in a signal colour - it is a note in the margin, not an alert.
+ */
+function Findings({ kind, size }: { kind: "chest" | "ground"; size: number }) {
+  const r = size * 0.19;
+  const arm = r * 0.52;
+  return (
+    <g className={`tile-findings tile-findings-${kind}`} transform={`translate(${size * 0.4} ${-size * 0.52})`} pointerEvents="none">
+      <circle className="findings-ring" r={r} />
+      {kind === "ground" ? (
+        <g className="findings-mark">
+          <line x1={-arm} y1={-arm} x2={arm} y2={arm} />
+          <line x1={-arm} y1={arm} x2={arm} y2={-arm} />
+        </g>
+      ) : (
+        <g className="findings-mark">
+          <rect x={-arm} y={-arm * 0.7} width={arm * 2} height={arm * 1.5} rx={arm * 0.25} />
+          <line x1={-arm} y1={0} x2={arm} y2={0} />
+        </g>
+      )}
+    </g>
+  );
+}
+
+function TileView({
+  tile,
+  label,
+  size,
+  railDirs,
+  selected,
+  legal,
+  wrecked,
+  doomed = false,
+  remembered = false,
+  findings = null,
+  showLabel = true,
+  onSelect,
+}: Props) {
   const { x, y } = hexToPixel(tile.hex, size);
   const rng = makeRng(hash(label));
   const grouped = runs(tile.sides);
@@ -258,11 +335,11 @@ function TileView({ tile, label, size, railDirs, selected, legal, onSelect }: Pr
   return (
     <g
       transform={`translate(${x.toFixed(2)} ${y.toFixed(2)})`}
-      className={`tile tile-${tile.base}${selected ? " is-selected" : ""}${legal ? " is-legal" : ""}`}
+      className={`tile tile-${tile.base}${selected ? " is-selected" : ""}${legal ? " is-legal" : ""}${wrecked ? " is-wrecked" : ""}${doomed ? " is-doomed" : ""}${remembered ? " is-remembered" : ""}`}
       onClick={() => onSelect(label)}
       role="button"
       tabIndex={0}
-      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}${legal ? ", you can move here" : ""}`}
+      aria-label={`${label}: ${description}${tile.rail ? ", railway" : ""}${wrecked ? ", wrecked by the tornado" : ""}${doomed ? ", crumbling — it falls when this turn ends" : ""}${remembered ? ", remembered from earlier" : ""}${findings === "chest" ? ", a chest in the water" : findings === "ground" ? ", not searched yet" : ""}${legal ? ", you can move here" : ""}`}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -287,6 +364,20 @@ function TileView({ tile, label, size, railDirs, selected, legal, onSelect }: Pr
 
       {tile.rail && <Railway size={size} dirs={railDirs} />}
 
+      {findings && <Findings kind={findings} size={size} />}
+
+      {wrecked && <polygon points={hexPoints(size)} className="tile-wrecked" />}
+      {doomed && (
+        <g className="tile-doomed" pointerEvents="none">
+          <polygon points={hexPoints(size)} className="doomed-wash" />
+          {/* A crack across it. Drawn rather than washed, because a colour on its own
+              is one more colour on a board that already has several. */}
+          <path
+            className="doomed-crack"
+            d={`M ${-size * 0.72} ${-size * 0.18} l ${size * 0.4} ${size * 0.16} l ${size * 0.3} ${-size * 0.22} l ${size * 0.42} ${size * 0.26} l ${size * 0.36} ${-size * 0.14}`}
+          />
+        </g>
+      )}
       {legal && (
         <g className="legal" pointerEvents="none">
           <polygon points={hexPoints(size)} className="tile-legal" />
@@ -296,9 +387,11 @@ function TileView({ tile, label, size, railDirs, selected, legal, onSelect }: Pr
         </g>
       )}
       <polygon points={hexPoints(size)} className="tile-outline" />
-      <text className="tile-label" y={size * 0.82} textAnchor="middle" fontSize={size * 0.28}>
-        {label}
-      </text>
+      {showLabel && (
+        <text className="tile-label" y={size * 0.82} textAnchor="middle" fontSize={size * 0.28}>
+          {label}
+        </text>
+      )}
     </g>
   );
 }

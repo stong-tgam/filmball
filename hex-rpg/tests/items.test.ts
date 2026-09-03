@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  ARMOUR,
+  BONE,
+  BOOTS,
+  CAKE,
   EQUIPMENT,
   FOOD,
+  FOOD_PRICE,
+  GEAR_PRICE,
   SUPPLY_CAP,
+  WEAPONS,
   consume,
   createItemPile,
   equip,
@@ -11,23 +18,32 @@ import {
   shopStock,
 } from "../src/game/items";
 import {
-  FIND_ODDS,
   buy,
+  canHeal,
   canSearch,
   canTrade,
   eat,
+  heal,
   openShop,
-  returnUnclaimedLoot,
+  coinsFound,
+  hasFindings,
+  readSearchCard,
   search,
+  sell,
+  sellable,
   stockFor,
-  takeLoot,
 } from "../src/game/actions";
-import { attack } from "../src/game/combat";
+import { endCombat, takeSpoil } from "../src/game/combat";
+import { intoFight, winAll } from "./fight";
+import { hasSkill } from "../src/game/skills";
+import { ENEMIES } from "../src/game/enemies";
+import { withMaxHealth } from "../src/game/players";
+import { hasMoved } from "../src/game/players";
 import { createInitialState } from "../src/game/setup";
-import { activePlayer, endTurn, moveRange, movePlayer } from "../src/game/turn";
+import { activePlayer, endTurn, moveRange, movePlayer, takeOn } from "../src/game/turn";
 import { makeRng } from "../src/game/rng";
-import { key, label } from "../src/game/hex";
-import type { GameState, Player, Terrain } from "../src/game/types";
+import { distance, key, label } from "../src/game/hex";
+import type { GameState, Player, Role, Terrain } from "../src/game/types";
 
 const game = (seed = 4471) => createInitialState(seed);
 
@@ -41,15 +57,27 @@ function standing(base: Terrain, state = game()): GameState {
 }
 
 const gearOf = (name: string) => makeItem(EQUIPMENT.find((e) => e.name === name)!, name);
+const SWORD = WEAPONS[0];
+const COAT = ARMOUR[0];
+const SHOES = BOOTS[0];
 
 describe("the item pile", () => {
-  it("holds every copy of every piece of gear, and no food", () => {
+  it("holds the rulebook's fifteen pieces of gear, and no food", () => {
     const pile = createItemPile(makeRng(1));
-    expect(pile).toHaveLength(EQUIPMENT.reduce((n, e) => n + e.copies, 0));
+    expect(pile).toHaveLength(15);
     expect(pile.some((i) => i.slot === "supply")).toBe(false);
-    for (const template of EQUIPMENT) {
-      expect(pile.filter((i) => i.name === template.name)).toHaveLength(template.copies);
-    }
+    expect(pile.filter((i) => i.slot === "weapon")).toHaveLength(WEAPONS.length);
+    expect(pile.filter((i) => i.slot === "armor")).toHaveLength(ARMOUR.length);
+    expect(pile.filter((i) => i.slot === "boots")).toHaveLength(BOOTS.length);
+  });
+
+  it("prices everything the way §11 does", () => {
+    for (const item of createItemPile(makeRng(1))) expect(item.cost).toBe(GEAR_PRICE);
+    for (const food of FOOD) expect(food.cost).toBe(FOOD_PRICE);
+  });
+
+  it("makes every weapon +1 attack, every coat +1 health, every boot +1 tile", () => {
+    for (const item of EQUIPMENT) expect(item.value).toBe(1);
   });
 
   it("gives every item its own id, so copies move independently", () => {
@@ -74,26 +102,26 @@ describe("wearing things", () => {
   const bare = (): Player => ({ ...game().players[0] });
 
   it("fills an empty slot", () => {
-    const { player, returned } = equip(bare(), gearOf("Sword"));
-    expect(player.weapon?.name).toBe("Sword");
+    const { player, returned } = equip(bare(), gearOf(SWORD));
+    expect(player.weapon?.name).toBe(SWORD);
     expect(returned).toBeNull();
   });
 
   it("swaps what is already there and hands the old one back", () => {
-    const armed = equip(bare(), gearOf("Big Stick")).player;
-    const { player, returned } = equip(armed, gearOf("Great Axe"));
-    expect(player.weapon?.name).toBe("Great Axe");
-    expect(returned?.name).toBe("Big Stick");
+    const armed = equip(bare(), gearOf(WEAPONS[3])).player;
+    const { player, returned } = equip(armed, gearOf(SWORD));
+    expect(player.weapon?.name).toBe(SWORD);
+    expect(returned?.name).toBe(WEAPONS[3]);
   });
 
   it("keeps each slot separate", () => {
     let player = bare();
-    for (const name of ["Sword", "Chain Mail", "Fast Boots"]) {
+    for (const name of [SWORD, COAT, SHOES]) {
       player = equip(player, gearOf(name)).player;
     }
-    expect(equipped(player, "weapon")?.name).toBe("Sword");
-    expect(equipped(player, "armor")?.name).toBe("Chain Mail");
-    expect(equipped(player, "boots")?.name).toBe("Fast Boots");
+    expect(equipped(player, "weapon")?.name).toBe(SWORD);
+    expect(equipped(player, "armor")?.name).toBe(COAT);
+    expect(equipped(player, "boots")?.name).toBe(SHOES);
   });
 
   it("stacks food up to the cap and then refuses", () => {
@@ -109,33 +137,52 @@ describe("wearing things", () => {
 
   it("boots add a tile of movement", () => {
     const player = bare();
-    const booted = equip(player, gearOf("Fast Boots")).player;
+    const booted = equip(player, gearOf(SHOES)).player;
     expect(moveRange(booted)).toBe(moveRange(player) + 1);
+  });
+
+  it("armour adds max health, per §12 - it is not a damage shield", () => {
+    const player = bare();
+    const coated = withMaxHealth(equip(player, gearOf(COAT)).player);
+    expect(coated.maxHealth).toBe(player.maxHealth + 1);
   });
 });
 
 describe("eating", () => {
+  const cake = FOOD.find((f) => f.name === CAKE)!;
+  const bone = FOOD.find((f) => f.name === BONE)!;
+
   const hungry = (): Player => ({
     ...game().players[0],
-    health: 4,
-    supply: [makeItem(FOOD[1], "stew")],
+    health: 1,
+    maxHealth: 5,
+    supply: [makeItem(cake, "cake")],
   });
 
   it("heals and leaves the pack", () => {
-    const { player, used } = consume(hungry(), "stew");
-    expect(used?.name).toBe("Hot Stew");
-    expect(player.health).toBe(4 + FOOD[1].value);
+    const { player, used } = consume(hungry(), "cake");
+    expect(used?.name).toBe(CAKE);
+    expect(player.health).toBe(1 + cake.value);
     expect(player.supply).toEqual([]);
   });
 
+  it("gives the cake two and everything else one, per §12", () => {
+    expect(cake.value).toBe(2);
+    expect(bone.value).toBe(0);
+    for (const food of FOOD) {
+      if (food.name === CAKE || food.name === BONE) continue;
+      expect(food.value).toBe(1);
+    }
+  });
+
   it("never heals past the maximum", () => {
-    const nearlyFull = { ...hungry(), health: 9, maxHealth: 10 };
-    expect(consume(nearlyFull, "stew").player.health).toBe(10);
+    const nearlyFull = { ...hungry(), health: 4, maxHealth: 5 };
+    expect(consume(nearlyFull, "cake").player.health).toBe(5);
   });
 
   it("does nothing for food nobody is carrying, or for the dead", () => {
     expect(consume(hungry(), "nope").used).toBeNull();
-    expect(consume({ ...hungry(), dead: true }, "stew").used).toBeNull();
+    expect(consume({ ...hungry(), gone: true }, "cake").used).toBeNull();
   });
 
   it("works on another player's turn - it is not an action", () => {
@@ -144,27 +191,85 @@ describe("eating", () => {
     const fed: GameState = {
       ...state,
       players: state.players.map((p) =>
-        p.id === other.id ? { ...p, health: 3, supply: [makeItem(FOOD[0], "bread")] } : p,
+        p.id === other.id
+          ? { ...p, health: 1, maxHealth: 5, supply: [makeItem(cake, "cake")] }
+          : p,
       ),
     };
-    const after = eat(fed, other.id, "bread");
+    const after = eat(fed, other.id, "cake");
     const healed = after.players.find((p) => p.id === other.id)!;
 
     expect(activePlayer(after).id).not.toBe(other.id);
-    expect(healed.health).toBe(3 + FOOD[0].value);
+    expect(healed.health).toBe(1 + cake.value);
     expect(healed.actedThisTurn).toBe(false);
   });
 });
 
 describe("searching", () => {
-  it("is offered on open ground and in woods, but not in a city", () => {
+  it("is offered on open ground, in woods and round the streets", () => {
+    // Cities became searchable alongside the mishaps: the shop and a rummage cost the
+    // same one action, so on a city tile it is a choice rather than a free extra.
     const on = (base: Terrain) => {
       const state = standing(base);
       return canSearch(state, activePlayer(state));
     };
     expect(on("field")).toBe(true);
     expect(on("forest")).toBe(true);
-    expect(on("city")).toBe(false);
+    expect(on("city")).toBe(true);
+  });
+
+  it("reads the card the rulebook's way: red finds, black does not, joker is a thief", () => {
+    expect(readSearchCard({ suit: "hearts", rank: "3" })).toBe("found");
+    expect(readSearchCard({ suit: "spades", rank: "A" })).toBe("nothing");
+    expect(readSearchCard({ suit: "clubs", rank: "7" })).toBe("nothing");
+    expect(readSearchCard({ suit: "diamonds", rank: "K" })).toBe("found");
+    expect(readSearchCard({ suit: "joker", rank: "Joker" })).toBe("thief");
+  });
+
+  it("pays a purse worth the picture card, and nothing on any other card", () => {
+    expect(coinsFound({ suit: "hearts", rank: "J" })).toBe(1);
+    expect(coinsFound({ suit: "hearts", rank: "Q" })).toBe(2);
+    expect(coinsFound({ suit: "hearts", rank: "K" })).toBe(3);
+    expect(coinsFound({ suit: "hearts", rank: "9" })).toBe(0);
+    expect(coinsFound({ suit: "hearts", rank: "A" })).toBe(0);
+    // Black picture cards are the ground biting back; they never also pay.
+    expect(coinsFound({ suit: "spades", rank: "K" })).toBe(0);
+    // Never more than one dollar over what a piece of gear sells for, or a purse
+    // starts being a better outcome than the sword you were looking for.
+    expect(Math.max(...["J", "Q", "K"].map((rank) => coinsFound({ suit: "hearts", rank } as never))))
+      .toBeLessThanOrEqual(GEAR_PRICE + 1);
+  });
+
+  it("hands over the gear *and* the purse on a red picture card", () => {
+    const base = standing("forest");
+    const state: GameState = { ...base, searchDeck: [{ suit: "diamonds", rank: "Q" }] };
+    const after = search(state);
+    const me = activePlayer(after);
+    expect(me.money).toBe(activePlayer(base).money + 2);
+    // Coin on top of the find, never instead of it: gear is the only thing that makes
+    // a party stronger, and paying in coin instead is a nerf wearing an economy's hat.
+    expect(after.itemPile.length).toBe(state.itemPile.length - 1);
+    expect([me.weapon, me.armor, me.boots].filter(Boolean).length).toBe(1);
+  });
+
+  it("says where the money was, in the words of the ground it was under", () => {
+    const woods = search({ ...standing("forest"), searchDeck: [{ suit: "hearts", rank: "J" }] });
+    const streets = search({ ...standing("city"), searchDeck: [{ suit: "hearts", rank: "J" }] });
+    expect(woods.log.some((l) => l.text.includes("roots"))).toBe(true);
+    expect(streets.log.some((l) => l.text.includes("market stall"))).toBe(true);
+    expect(woods.log.at(-1)?.text).toContain("$1");
+  });
+
+  it("marks ground worth searching, and stops marking it once it is spent", () => {
+    const state = standing("forest");
+    const tile = state.tiles[key(activePlayer(state).hex)];
+    expect(hasFindings(tile)).toBe(true);
+    expect(hasFindings({ ...tile, searched: true })).toBe(false);
+
+    // The mark is about the tile, not about whose turn it is or what they have
+    // already done - the map draws it on ground nobody is standing on.
+    const spent = search(state);
+    expect(hasFindings(spent.tiles[key(activePlayer(spent).hex)])).toBe(false);
   });
 
   it("gives up a tile's findings once and once only", () => {
@@ -175,49 +280,64 @@ describe("searching", () => {
     expect(search(first)).toBe(first);
   });
 
-  it("spends the turn's action", () => {
-    expect(activePlayer(search(standing("field"))).actedThisTurn).toBe(true);
+  it("spends the turn's action and one card", () => {
+    const before = standing("field");
+    const after = search(before);
+    expect(activePlayer(after).actedThisTurn).toBe(true);
+    expect(after.searchDeck.length).toBe(before.searchDeck.length - 1);
   });
 
-  it("turns up gear, coins or nothing - and always one of the three", () => {
-    let found = { gear: 0, coins: 0, nothing: 0 };
-    for (let seed = 1; seed <= 40; seed++) {
-      const before = standing("forest", game(seed));
-      const after = search(before);
-      const me = activePlayer(after);
-      const wasCarrying = activePlayer(before);
-
-      if (after.itemPile.length < before.itemPile.length) found.gear++;
-      else if (me.money > wasCarrying.money) found.coins++;
-      else found.nothing++;
-    }
-    expect(found.gear).toBeGreaterThan(0);
-    expect(found.coins).toBeGreaterThan(0);
-    expect(found.gear + found.coins + found.nothing).toBe(40);
+  it("hands over a piece of gear on a red card", () => {
+    const state: GameState = {
+      ...standing("forest"),
+      searchDeck: [{ suit: "hearts", rank: "9" }],
+    };
+    const after = search(state);
+    const me = activePlayer(after);
+    expect(after.itemPile.length).toBe(state.itemPile.length - 1);
+    expect([me.weapon, me.armor, me.boots].filter(Boolean).length).toBe(1);
   });
 
-  it("finds more in the woods than in the open", () => {
-    expect(FIND_ODDS.forest.item).toBeGreaterThan(FIND_ODDS.field.item);
+  it("hands over nothing on a black card", () => {
+    const state: GameState = {
+      ...standing("forest"),
+      searchDeck: [{ suit: "clubs", rank: "9" }],
+    };
+    const after = search(state);
+    expect(after.itemPile).toEqual(state.itemPile);
+    expect(after.log.at(-1)?.text).toContain("found nothing");
   });
 
-  it("pays out coins instead when the world has run out of gear", () => {
-    const empty: GameState = { ...standing("forest"), itemPile: [] };
+  it("takes a dollar on the joker, and the bone first if there is one", () => {
+    const base = standing("field");
+    const jokered: GameState = { ...base, searchDeck: [{ suit: "joker", rank: "Joker" }] };
+
+    const poorer = search(jokered);
+    expect(activePlayer(poorer).money).toBe(activePlayer(base).money - 1);
+
+    // Rulebook §12: the bone's one job is to be the thing a thief takes.
+    const bone = makeItem(FOOD.find((f) => f.name === BONE)!, "bone");
+    const withBone: GameState = {
+      ...jokered,
+      players: jokered.players.map((p, i) => (i === 0 ? { ...p, supply: [bone] } : p)),
+    };
+    const saved = search(withBone);
+    expect(activePlayer(saved).money).toBe(activePlayer(withBone).money);
+    expect(activePlayer(saved).supply).toEqual([]);
+  });
+
+  it("pays in coin when the world has run out of gear", () => {
+    // Every piece is already on somebody's back. A search that said "nothing" here
+    // would make the last third of the game a run of dead turns.
+    const empty: GameState = {
+      ...standing("field"),
+      itemPile: [],
+      searchDeck: [{ suit: "hearts", rank: "A" }],
+    };
     const after = search(empty);
     expect(after.itemPile).toEqual([]);
     expect(activePlayer(after).actedThisTurn).toBe(true);
-  });
-
-  it("takes what it finds out of the pile for good", () => {
-    for (let seed = 1; seed <= 30; seed++) {
-      const before = standing("forest", game(seed));
-      const after = search(before);
-      const taken = before.itemPile.length - after.itemPile.length;
-      if (taken === 0) continue;
-      expect(taken).toBe(1);
-      const me = activePlayer(after);
-      const carried = [me.weapon, me.armor, me.boots].filter(Boolean);
-      expect(carried.length).toBeGreaterThan(0);
-    }
+    expect(activePlayer(after).money).toBe(activePlayer(empty).money + 1);
   });
 });
 
@@ -234,30 +354,27 @@ describe("the market", () => {
   it("sells food that never runs out, and gear off the world's one pile", () => {
     const state = shopping();
     const stock = stockFor(state);
-    expect(stock.food).toHaveLength(FOOD.length);
+    expect(stock.food.length).toBeGreaterThan(0);
     expect(stock.gear).toEqual(state.itemPile.slice(0, 3));
   });
 
   it("takes the money and hands over the goods", () => {
     const state = shopping();
-    const bread = stockFor(state).food[0];
+    const food = stockFor(state).food[0];
     const before = activePlayer(state);
-    const after = buy(state, bread.id);
+    const after = buy(state, food.id);
     const me = activePlayer(after);
 
-    expect(me.money).toBe(before.money - bread.cost);
+    expect(me.money).toBe(before.money - FOOD_PRICE);
     expect(me.supply).toHaveLength(1);
-    expect(me.supply[0].name).toBe("Bread");
-  });
-
-  it("does not let food purchases eat the gear pile", () => {
-    const state = shopping();
-    const after = buy(state, stockFor(state).food[0].id);
-    expect(after.itemPile).toEqual(state.itemPile);
   });
 
   it("takes bought gear out of the pile for good", () => {
-    const state = { ...shopping(), players: shopping().players.map((p, i) => (i === 0 ? { ...p, money: 99 } : p)) };
+    const rich = shopping();
+    const state: GameState = {
+      ...rich,
+      players: rich.players.map((p, i) => (i === 0 ? { ...p, money: 99 } : p)),
+    };
     const item = stockFor(state).gear[0];
     const after = buy(state, item.id);
 
@@ -265,20 +382,35 @@ describe("the market", () => {
     expect(after.itemPile).toHaveLength(state.itemPile.length - 1);
   });
 
-  it("puts what the new gear replaces back into the world", () => {
-    const rich = shopping();
+  it("pays out for what you sell - §11's main income", () => {
+    const state = shopping();
     const stocked: GameState = {
-      ...rich,
-      players: rich.players.map((p, i) =>
-        i === 0 ? { ...p, money: 99, weapon: gearOf("Big Stick") } : p,
+      ...state,
+      players: state.players.map((p, i) =>
+        i === 0 ? { ...p, weapon: gearOf(SWORD) } : p,
       ),
     };
-    const sword = stockFor(stocked).gear.find((i) => i.slot === "weapon");
-    if (!sword) return; // this seed's shelf has no weapon; the rule is covered below
-    const after = buy(stocked, sword.id);
+    const before = activePlayer(stocked);
+    expect(sellable(before).map((i) => i.name)).toContain(SWORD);
 
-    expect(activePlayer(after).weapon?.id).toBe(sword.id);
-    expect(after.itemPile.some((i) => i.name === "Big Stick")).toBe(true);
+    const after = sell(stocked, before.weapon!.id);
+    expect(activePlayer(after).weapon).toBeNull();
+    expect(activePlayer(after).money).toBe(before.money + GEAR_PRICE);
+    expect(after.itemPile.some((i) => i.name === SWORD)).toBe(true);
+  });
+
+  it("drops the health a sold coat was providing", () => {
+    const state = shopping();
+    const coated: GameState = {
+      ...state,
+      players: state.players.map((p, i) =>
+        i === 0 ? withMaxHealth({ ...p, armor: gearOf(COAT) }) : p,
+      ),
+    };
+    const before = activePlayer(coated);
+    const after = sell(coated, before.armor!.id);
+    expect(activePlayer(after).maxHealth).toBe(before.maxHealth - 1);
+    expect(activePlayer(after).health).toBeLessThanOrEqual(activePlayer(after).maxHealth);
   });
 
   it("refuses what the player cannot afford", () => {
@@ -296,7 +428,11 @@ describe("the market", () => {
       ...state,
       players: state.players.map((p, i) =>
         i === 0
-          ? { ...p, money: 99, supply: Array.from({ length: SUPPLY_CAP }, (_, n) => makeItem(FOOD[0], `b${n}`)) }
+          ? {
+              ...p,
+              money: 99,
+              supply: Array.from({ length: SUPPLY_CAP }, (_, n) => makeItem(FOOD[5], `b${n}`)),
+            }
           : p,
       ),
     };
@@ -304,70 +440,154 @@ describe("the market", () => {
   });
 });
 
+describe("the doctor", () => {
+  /** The doctor is last in turn order; put them on the clock. */
+  const doctorsTurn = (state = game()): GameState => ({ ...state, activePlayerIndex: 3 });
+
+  it("can patch up somebody next to them, as their action", () => {
+    const state = doctorsTurn();
+    const doctor = state.players[3];
+    const patient = { ...state.players[0], hex: doctor.hex, health: 1 };
+    const staged: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.id === patient.id ? patient : p)),
+    };
+
+    expect(canHeal(staged, doctor)).toBe(true);
+    const after = heal(staged, patient.id);
+    expect(after.players[0].health).toBe(2);
+    expect(activePlayer(after).actedThisTurn).toBe(true);
+  });
+
+  it("gives somebody out of health their skill back, which is the whole job", () => {
+    const state = doctorsTurn();
+    const doctor = state.players[3];
+    const flat = { ...state.players[0], health: 0, hex: doctor.hex };
+    const staged: GameState = {
+      ...state,
+      players: state.players.map((p) => (p.id === flat.id ? flat : p)),
+    };
+    const after = heal(staged, flat.id);
+
+    expect(after.players[0].health).toBe(1);
+    expect(hasSkill(after.players[0])).toBe(true);
+    expect(after.log.at(-1)?.text).toContain("skill back");
+  });
+
+  it("is the only role that can", () => {
+    const state = game();
+    for (const player of state.players) {
+      const near = { ...state.players[1], hex: player.hex, health: 1 };
+      const staged: GameState = {
+        ...state,
+        activePlayerIndex: state.players.findIndex((p) => p.id === player.id),
+        players: state.players.map((p) => (p.id === near.id ? near : p)),
+      };
+      expect(canHeal(staged, player)).toBe(player.role === "doctor");
+    }
+  });
+
+  it("cannot reach somebody across the board", () => {
+    const state = doctorsTurn();
+    const doctor = state.players[3];
+    expect(canHeal(state, doctor)).toBe(
+      state.players.some(
+        (p) => p.id !== doctor.id && p.health < p.maxHealth && distance(p.hex, doctor.hex) <= 1,
+      ),
+    );
+  });
+});
+
 describe("loot", () => {
   /** Beat the first enemy of a kind and return the settled state. */
-  function beat(kind: "midboss" | "finalboss") {
+  function beat(kind: "mob" | "midboss" | "finalboss", winner: Role = "knight") {
     const base = game();
     const enemy = base.enemies.find((e) => e.kind === kind)!;
-    let state: GameState = {
+    const at = base.players.findIndex((p) => p.role === winner);
+    const state: GameState = {
       ...base,
       players: base.players.map((p, i) =>
-        i === 0 ? { ...p, hex: enemy.hex, health: 99, maxHealth: 99 } : { ...p, dead: true },
+        i === at ? { ...p, hex: enemy.hex, health: 99, maxHealth: 99 } : p,
       ),
-      enemies: base.enemies.map((e) =>
-        e.id === enemy.id ? { ...e, damageTaken: e.maxHealth - 1 } : e,
-      ),
-      combat: {
-        enemyId: enemy.id,
-        playerId: base.players[0].id,
-        from: label(enemy.hex),
-        round: 0,
-        playerRoll: null,
-        enemyRoll: null,
-        outcome: "ongoing",
-      },
     };
-    state = attack(state);
-    return { state, enemyId: enemy.id };
+    return { state: winAll(intoFight(state, enemy, [base.players[at].id])), enemyId: enemy.id };
   }
 
-  it("pays out coins the moment the enemy goes down", () => {
+  it("drops what §10 says, plus at most something to eat", () => {
+    for (const kind of ["mob", "midboss", "finalboss"] as const) {
+      const { state } = beat(kind);
+      const spoils = state.combat!.spoils;
+      expect(state.combat?.outcome).toBe("enemyDefeated");
+
+      // §10's gear count is unchanged. A monster may also be carrying one piece of
+      // food (`SUPPLY_DROP_CHANCE`), which never competes with gear and so cannot
+      // unbalance the rule it sits on top of.
+      const gear = spoils.filter((i: { slot: string }) => i.slot !== "supply");
+      const rations = spoils.filter((i: { slot: string }) => i.slot === "supply");
+      expect(gear.length).toBeLessThanOrEqual(ENEMIES[kind].drops);
+      expect(rations.length).toBeLessThanOrEqual(1);
+
+      // The knight is the winner in this fixture, so no rogue bonus applies.
+      expect(state.combat?.picksLeft).toBeLessThanOrEqual(ENEMIES[kind].picks);
+    }
+  });
+
+  it("lets the rogue keep one more, because they go through the pockets", () => {
+    const asRogue = (kind: "mob" | "midboss") => {
+      const { state } = beat(kind, "rogue");
+      return state.combat!;
+    };
+    for (const kind of ["mob", "midboss"] as const) {
+      const looted = asRogue(kind);
+      const plain = beat(kind).state.combat!;
+      // One more than §10, capped by what actually dropped - a rogue cannot keep
+      // three things off a body that only had two on it.
+      expect(looted.picksLeft).toBe(Math.min(ENEMIES[kind].picks + 1, looted.spoils.length));
+      expect(looted.picksLeft).toBeGreaterThanOrEqual(plain.picksLeft);
+    }
+  });
+
+  it("pays a small purse on top of the items", () => {
+    // §10 is items-only, and this bends it deliberately: the amounts are small enough
+    // that selling is still where the money is. Keep them that way.
     const before = game().players[0].money;
+    expect(beat("mob").state.players[0].money).toBe(before + ENEMIES.mob.purse);
+    expect(beat("midboss").state.players[0].money).toBe(before + ENEMIES.midboss.purse);
+    expect(ENEMIES.mob.purse).toBeLessThan(GEAR_PRICE);
+  });
+
+  it("hands over an item when the winner keeps it, and counts the pick", () => {
     const { state } = beat("midboss");
-    expect(state.combat?.outcome).toBe("enemyDefeated");
-    expect(state.players[0].money).toBeGreaterThan(before);
-  });
-
-  it("drops gear from the pile for the winner to pick over", () => {
-    const { state, enemyId } = beat("finalboss");
-    const dragon = state.enemies.find((e) => e.id === enemyId)!;
-    expect(dragon.loot).toHaveLength(2);
-    expect(state.itemPile).toHaveLength(game().itemPile.length - 2);
-  });
-
-  it("hands over an item when the winner takes it", () => {
-    const { state, enemyId } = beat("midboss");
-    const prize = state.enemies.find((e) => e.id === enemyId)!.loot[0];
-    const after = takeLoot(state, prize.id);
+    const prize = state.combat!.spoils[0];
+    const after = takeSpoil(state, prize.id);
     const me = after.players[0];
 
     expect([me.weapon?.id, me.armor?.id, me.boots?.id]).toContain(prize.id);
-    expect(after.enemies.find((e) => e.id === enemyId)!.loot).toEqual([]);
+    expect(after.combat?.picksLeft).toBe(state.combat!.picksLeft - 1);
   });
 
-  it("puts anything left behind back into the world", () => {
-    const { state, enemyId } = beat("finalboss");
-    const returned = returnUnclaimedLoot(state);
-    expect(returned.enemies.find((e) => e.id === enemyId)!.loot).toEqual([]);
-    expect(returned.itemPile).toHaveLength(game().itemPile.length);
+  it("stops once the picks are used up", () => {
+    let { state } = beat("mob");
+    while ((state.combat?.picksLeft ?? 0) > 0 && state.combat!.spoils.length > 0) {
+      state = takeSpoil(state, state.combat!.spoils[0].id);
+    }
+    const spent = state;
+    if (spent.combat!.spoils.length > 0) {
+      expect(takeSpoil(spent, spent.combat!.spoils[0].id)).toBe(spent);
+    }
   });
 
-  it("cannot be looted twice, or before the fight is settled", () => {
-    const { state, enemyId } = beat("midboss");
-    const prize = state.enemies.find((e) => e.id === enemyId)!.loot[0];
-    const once = takeLoot(state, prize.id);
-    expect(takeLoot(once, prize.id)).toBe(once);
-    expect(takeLoot(game(), "anything")).toEqual(game());
+  it("puts everything left behind back into the pile", () => {
+    const { state } = beat("finalboss");
+    const left = state.combat!.spoils.length;
+    const closed = endCombat(state);
+    expect(closed.combat).toBeNull();
+    expect(closed.itemPile.length).toBe(state.itemPile.length + left);
+  });
+
+  it("wins the game when the dragon goes down", () => {
+    const { state } = beat("finalboss");
+    expect(state.ending).toBe("victory");
   });
 });
 
@@ -385,17 +605,20 @@ describe("one action a turn", () => {
     const state: GameState = {
       ...base,
       players: base.players.map((p, i) =>
-        i === 1 ? { ...p, hex: { q: next.q - 1, r: next.r } } : { ...p, dead: true },
+        i === 1 ? { ...p, hex: { q: next.q - 1, r: next.r } } : { ...p, gone: true },
       ),
       activePlayerIndex: 1,
     };
-    const fighting = movePlayer(state, label(next));
+    // Walking on only *finds* it - the team gets asked. Taking it on is the action.
+    const met = movePlayer(state, label(next));
+    expect(met.players[1].actedThisTurn).toBe(false);
+    const fighting = takeOn(met);
     expect(fighting.players[1].actedThisTurn).toBe(true);
   });
 
   it("hands the next player a clean slate", () => {
     const after = endTurn(search(standing("field")));
     expect(activePlayer(after).actedThisTurn).toBe(false);
-    expect(activePlayer(after).movedThisTurn).toBe(false);
+    expect(hasMoved(activePlayer(after))).toBe(false);
   });
 });

@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:gallery": "vite build --config vite.gallery.config.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "build:play": "vite build --config vite.play.config.ts && node tools/inline.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

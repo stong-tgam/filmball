@@ -10,8 +10,14 @@ import { useMemo } from "react";
 import Tile from "./Tile";
 import TokenLayer from "./TokenLayer";
 import EnemyLayer from "./EnemyLayer";
+import HazardLayer from "./HazardLayer";
+import FogTile from "./FogTile";
 import { DIRS, add, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
-import type { Enemy, Player, Tile as TileData } from "../game/types";
+import { hasFindings, searchKind } from "../game/actions";
+import { isDestroyed } from "../game/hazards";
+import { doomed, hasFallen } from "../game/collapse";
+import { canSee, enemyVisible, hasSeen, playerVisible } from "../game/vision";
+import type { Enemy, Hazard, Player, Tile as TileData } from "../game/types";
 
 const SIZE = 40;
 const PADDING = SIZE * 0.9;
@@ -23,7 +29,19 @@ type Props = {
   legalMoves: Map<string, number>;
   players: Player[];
   enemies: Enemy[];
-  activeId: string;
+  hazards: Hazard[];
+  /** The turn number, which decides which wrecked tiles have recovered. */
+  turn: number;
+  /** With the turn, which rings of the board have fallen in. See `collapse.ts`. */
+  turnLimit: number;
+  /** The team whose go it is: every one of their tokens pulses. */
+  activeIds: string[];
+  /**
+   * Whose eyes the board is drawn through. There is no bird's-eye view: everything
+   * outside this player's sight is blank paper, and it goes blank again the moment
+   * they walk away. See `game/vision.ts` for why nothing is remembered.
+   */
+  viewer: Player;
   /** The active player's colour: legal moves are drawn in it. */
   activeColour: string;
   onSelect: (label: string | null) => void;
@@ -56,7 +74,11 @@ export default function Board({
   legalMoves,
   players,
   enemies,
-  activeId,
+  hazards,
+  turn,
+  turnLimit,
+  activeIds,
+  viewer,
   activeColour,
   onSelect,
 }: Props) {
@@ -112,21 +134,54 @@ export default function Board({
         })}
       </g>
 
-      {entries.map(([label, tile]) => (
-        <Tile
-          key={label}
-          label={label}
-          tile={tile}
-          size={SIZE}
-          railDirs={rails[label]}
-          selected={selected === label}
-          legal={legalMoves.has(label)}
-          onSelect={onSelect}
-        />
-      ))}
+      {entries.map(([label, tile]) =>
+        // Gone into the abyss: drawn as nothing at all, which is what it is now.
+        // Gone into the abyss: drawn as nothing at all, which is what it is now.
+        hasFallen(tile.hex, turn, turnLimit) ? null : hasSeen(viewer, tile.hex) ? (
+          <Tile
+            key={label}
+            label={label}
+            tile={tile}
+            size={SIZE}
+            railDirs={rails[label]}
+            selected={selected === label}
+            legal={legalMoves.has(label)}
+            wrecked={isDestroyed(tile, turn)}
+            doomed={doomed(tile.hex, turn, turnLimit)}
+            // Ground you remember rather than ground you can see. Terrain only: a
+            // monster walks, a hazard walks, and somebody else may have searched it
+            // since - so a memory that showed any of that would be the app lying
+            // rather than the app forgetting.
+            remembered={!canSee(viewer, tile.hex)}
+            findings={canSee(viewer, tile.hex) && hasFindings(tile) ? searchKind(tile) : null}
+            onSelect={onSelect}
+          />
+        ) : (
+          <FogTile
+            key={label}
+            label={label}
+            tile={tile}
+            size={SIZE}
+            selected={selected === label}
+            legal={legalMoves.has(label)}
+            onSelect={onSelect}
+          />
+        ),
+      )}
 
-      <EnemyLayer enemies={enemies} size={SIZE} />
-      <TokenLayer players={players} activeId={activeId} size={SIZE} />
+      {/* Monsters hide; hazards never do. A tornado you cannot see coming is not a
+          funny setback, and the players who are not moving need something to watch. */}
+      <EnemyLayer
+        enemies={enemies.filter((e) => enemyVisible(e, viewer))}
+        size={SIZE}
+        purses={Object.fromEntries(hazards.map((h) => [h.kind, h.carrying]))}
+      />
+      <HazardLayer hazards={hazards} size={SIZE} />
+      <TokenLayer
+        players={players.filter((p) => playerVisible(p, viewer))}
+        activeIds={activeIds}
+        size={SIZE}
+      />
     </svg>
   );
 }

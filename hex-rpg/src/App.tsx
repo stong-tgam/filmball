@@ -1,21 +1,58 @@
 import { useState } from "react";
 import Board from "./ui/Board";
+import Compass from "./ui/Compass";
+import CrayonDefs from "./ui/art/CrayonDefs";
 import ActionBar from "./ui/ActionBar";
 import Log from "./ui/Log";
 import { ActivePlayerBanner, PartyList } from "./ui/PlayerPanel";
+import ArtRoom from "./ui/ArtRoom";
+import Hourglass from "./ui/Hourglass";
 import CombatModal from "./ui/CombatModal";
 import ShopModal from "./ui/ShopModal";
+import GameOver from "./ui/GameOver";
+import EventCardModal from "./ui/EventCard";
+import FindCard from "./ui/FindCard";
+import HookModal from "./ui/HookModal";
+import GiveModal from "./ui/GiveModal";
+import TitleScreen from "./ui/TitleScreen";
+import { readSave } from "./game/save";
+import type { Role } from "./game/types";
 import {
   useActivePlayer,
+  useCanDonate,
+  useCanHeal,
+  useCanFightThief,
+  useCanPayOff,
+  useThiefHere,
+  useCanFish,
+  useCanGive,
+  useFighters,
+  useNowPlaying,
+  useActiveTeam,
+  useCanTakeOn,
+  useEnemyHere,
+  useSkillChoices,
+  useGearChoices,
+  useCanHoldTheLine,
+  useCanHook,
   useCanSearch,
+  useGiveTargets,
+  useHookTargets,
   useCanTrade,
   useCombatants,
   useGame,
+  useHealTargets,
   useLegalMoves,
 } from "./game/store";
-import { stockFor } from "./game/actions";
+import { sellable, stockFor } from "./game/actions";
+import { ENEMIES } from "./game/enemies";
+import { key } from "./game/hex";
 import { elementsOf } from "./game/setup";
-import { ROLES } from "./game/players";
+import { ROLES, hasMoved } from "./game/players";
+import { canSee, smellsSmoke } from "./game/vision";
+import { doomed, rimWarning } from "./game/collapse";
+import { sense } from "./game/sense";
+import { searchKind } from "./game/actions";
 import "./styles.css";
 
 const TERRAIN_BLURB: Record<string, string> = {
@@ -36,27 +73,81 @@ export default function App() {
   const selected = useGame((s) => s.selected);
   const select = useGame((s) => s.select);
   const newGame = useGame((s) => s.newGame);
+  const resume = useGame((s) => s.resume);
+  // Read the shelf once, on mount: `readSave` touches localStorage, and re-reading it
+  // on every render would also make the "20 minutes ago" line jitter as you look at it.
+  const [shelved] = useState(() => readSave());
+  const [seated, setSeated] = useState(false);
+  /** The art room, in front of everything. Held here, not in `GameState`: which
+   *  pictures this device uses is a fact about the device, not about the game. */
+  const [drawing, setDrawing] = useState(false);
+  /** The turn timer, on by default. Some evenings the point is the talking. */
+  const [timed, setTimed] = useState(true);
   const moveTo = useGame((s) => s.moveTo);
   const endTurn = useGame((s) => s.endTurn);
   const player = useActivePlayer();
   const legalMoves = useLegalMoves();
   const fight = useCombatants();
-  const attack = useGame((s) => s.attack);
-  const flee = useGame((s) => s.flee);
+  const nowPlaying = useNowPlaying();
+  const wonTrial = useGame((s) => s.wonTrial);
+  const lostTrial = useGame((s) => s.lostTrial);
+  const answerTrial = useGame((s) => s.answerTrial);
+  const useHint = useGame((s) => s.useHint);
+  const useSkill = useGame((s) => s.useSkill);
   const closeCombat = useGame((s) => s.closeCombat);
   const takeLoot = useGame((s) => s.takeLoot);
   const search = useGame((s) => s.search);
   const eat = useGame((s) => s.eat);
+  // The overhead board is a grown-up's debug peek, off by default. The game is the
+  // first-person view; being able to flip between them is only here so the map idea
+  // can be judged against the thing it replaced.
+  const [overhead, setOverhead] = useState(false);
   const shopOpen = useGame((s) => s.shopOpen);
   const openShop = useGame((s) => s.openShop);
   const closeShop = useGame((s) => s.closeShop);
   const buy = useGame((s) => s.buy);
+  const clearDraw = useGame((s) => s.clearDraw);
+  const clearFind = useGame((s) => s.clearFind);
   const canSearch = useCanSearch();
+  const canFish = useCanFish();
+  const canHook = useCanHook();
+  const hookTargets = useHookTargets();
+  const fish = useGame((s) => s.fish);
+  const castHook = useGame((s) => s.hook);
+  const [hooking, setHooking] = useState(false);
+  const canGive = useCanGive();
+  const fightParty = useFighters();
+  const activeTeam = useActiveTeam();
+  const skillChoices = useSkillChoices();
+  const gearChoices = useGearChoices();
+  const useGear = useGame((s) => s.useGear);
+  const canHoldTheLine = useCanHoldTheLine();
+  const holdTheLine = useGame((s) => s.holdTheLine);
+  const enemyHere = useEnemyHere();
+  const canTakeOn = useCanTakeOn();
+  const takeOn = useGame((s) => s.takeOn);
+  const giveTargets = useGiveTargets();
+  const handOver = useGame((s) => s.give);
+  const [giving, setGiving] = useState(false);
   const canTrade = useCanTrade();
+  const canDonate = useCanDonate();
+  const canHeal = useCanHeal();
+  const canPayOff = useCanPayOff();
+  const canFightThief = useCanFightThief();
+  const thiefHere = useThiefHere();
+  const healTargets = useHealTargets();
+  const donate = useGame((s) => s.donate);
+  const heal = useGame((s) => s.heal);
+  const payOff = useGame((s) => s.payOff);
+  const takeOnThief = useGame((s) => s.fightThief);
+  const sell = useGame((s) => s.sell);
 
   const [seedInput, setSeedInput] = useState("");
   const tile = selected ? game.tiles[selected] : null;
-  const over = game.phase === "gameOver";
+  // The sidebar must never say more than the board shows, or tapping around the fog
+  // becomes a way to read the whole map without walking it.
+  const seesSelected = tile ? canSee(player, tile.hex) : false;
+  const over = game.phase === "gameOver" || game.ending !== null;
 
   const composition = tile
     ? elementsOf(tile)
@@ -75,17 +166,82 @@ export default function App() {
     else select(label);
   };
 
+  // The title screen owns the first moment: who is playing, or carry on from the game
+  // on the shelf. Held in the view rather than in `GameState` because it is a question
+  // about *this device* and not about the game — a resumed save must not put the party
+  // back through the picker.
+  // The art room stands in front of everything, including the title screen: it is a
+  // thing you do to the game rather than in it.
+  if (drawing) return <ArtRoom onClose={() => setDrawing(false)} />;
+
+  if (!seated) {
+    return (
+      <TitleScreen
+        saved={shelved?.at ?? null}
+        onResume={() => {
+          if (resume()) setSeated(true);
+        }}
+        onStart={(roster: Role[]) => {
+          newGame(undefined, roster);
+          setSeated(true);
+        }}
+        onArtRoom={() => setDrawing(true)}
+      />
+    );
+  }
+
   return (
     <div className="app">
+      {/* The wobble filters and hatch patterns every drawing points into. Mounted once. */}
+      <CrayonDefs />
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.4 — gear and money</span>
+          <span className="version">v0.31 — the game the family plays</span>
         </div>
+        <button
+          type="button"
+          className="peek"
+          title="Replace any of the game's pictures with your own drawings"
+          onClick={() => setDrawing(true)}
+        >
+          Our drawings
+        </button>
+        <button
+          type="button"
+          className="peek"
+          aria-pressed={overhead}
+          title="The map you have walked: ground you have seen, remembered but faded"
+          onClick={() => setOverhead((on) => !on)}
+        >
+          {overhead ? "Back to the ground" : "Your map"}
+        </button>
         <p className="turn-counter">
           Turn <strong>{game.turn}</strong>
           <span className="of">/{game.turnLimit}</span>
         </p>
+
+        {/* The sand runs only while somebody could actually be acting: not behind a
+            card they are reading, not during a fight, and not once the game is over.
+            A timer that ran while a child read the event card would be punishing them
+            for the app's own theatre. */}
+        <button
+          type="button"
+          className="glass-toggle"
+          aria-pressed={timed}
+          title={timed ? "Turn the hourglass off" : "Turn the hourglass on"}
+          onClick={() => setTimed((on) => !on)}
+        >
+          {timed ? (
+            <Hourglass
+              turnKey={`${game.turn}:${player.id}`}
+              running={!over && !game.combat && !game.draw && !game.find}
+              onOut={endTurn}
+            />
+          ) : (
+            "Hourglass off"
+          )}
+        </button>
         <div className="seedbar">
           <label htmlFor="seed">Seed</label>
           <input
@@ -104,49 +260,110 @@ export default function App() {
 
       {over ? (
         <div className="banner banner-over">
-          <h2>Time is up</h2>
-          <p className="banner-blurb">
-            Turn {game.turnLimit} was the last one. Start a new game to play again.
-          </p>
+          <h2>Game over</h2>
+          <p className="banner-blurb">Start a new game to play again.</p>
         </div>
       ) : (
-        <ActivePlayerBanner player={player} moves={legalMoves.size} />
+        <ActivePlayerBanner
+          // Keyed on whose turn it is, so React remounts the banner and the entrance
+          // animation replays. With one device going round a table, "it is your go"
+          // has to be impossible to miss.
+          key={player.id}
+          player={player}
+          team={activeTeam}
+          moves={legalMoves.size}
+          smoke={smellsSmoke(game, player)}
+          rim={rimWarning(game, player)}
+          standingOnIt={doomed(player.hex, game.turn, game.turnLimit)}
+        />
       )}
 
       <main className="stage">
-        <Board
-          tiles={game.tiles}
-          selected={selected}
-          legalMoves={legalMoves}
-          players={game.players}
-          enemies={game.enemies}
-          activeId={player.id}
-          activeColour={ROLES[player.role].colour}
-          onSelect={tapTile}
-        />
+        {overhead ? (
+          <Board
+            tiles={game.tiles}
+            selected={selected}
+            legalMoves={legalMoves}
+            players={game.players}
+            enemies={game.enemies}
+            hazards={game.hazards}
+            turn={game.turn}
+            turnLimit={game.turnLimit}
+            activeIds={activeTeam?.memberIds ?? [player.id]}
+            viewer={player}
+            activeColour={ROLES[player.role].colour}
+            onSelect={tapTile}
+          />
+        ) : (
+          <Compass
+            viewer={player}
+            tiles={game.tiles}
+            turn={game.turn}
+            turnLimit={game.turnLimit}
+            sensed={sense(game, player)}
+            legalMoves={legalMoves}
+            onMove={moveTo}
+          />
+        )}
+        {/* Under the map, not off in the corner of the sidebar.
+            A child looks at the ground, decides, and reaches for the button - and on a
+            tablet passed round a table that reach has to be short and in the same place
+            their eyes already are. Up in the sidebar it was a diagonal across the whole
+            screen from the hex they had just tapped. */}
+        <div className="deck">
+          {/* Free, and not the turn's action - so it sits with the map and the buttons
+              rather than among them, and above the one that ends the turn. */}
+
+          <ActionBar
+            canMove={legalMoves.size > 0}
+            moved={hasMoved(player)}
+            acted={player.actedThisTurn}
+            canSearch={canSearch}
+            searchKind={searchKind(game.tiles[key(player.hex)])}
+            canFish={canFish}
+            freshWater={!game.tiles[key(player.hex)]?.searched}
+            canHook={canHook}
+            canGive={canGive}
+            canTrade={canTrade}
+            canDonate={canDonate}
+            canHeal={canHeal}
+            canPayOff={canPayOff}
+            canTakeOn={canTakeOn}
+          enemyHere={
+            enemyHere ? { name: ENEMIES[enemyHere.kind].name, cards: ENEMIES[enemyHere.kind].cards } : null
+          }
+          onTakeOn={takeOn}
+          canFightThief={canFightThief}
+            thief={thiefHere}
+            onSearch={search}
+            onFish={fish}
+            onHook={() => setHooking(true)}
+            onGive={() => setGiving(true)}
+            onTrade={openShop}
+            onDonate={donate}
+            onHeal={() => healTargets[0] && heal(healTargets[0].id)}
+            onPayOff={payOff}
+            onFightThief={takeOnThief}
+            onEndTurn={endTurn}
+            disabled={over || game.combat !== null}
+          />
+        </div>
       </main>
 
       <aside className="sidebar">
-        <ActionBar
-          canMove={legalMoves.size > 0}
-          moved={player.movedThisTurn}
-          acted={player.actedThisTurn}
-          canSearch={canSearch}
-          canTrade={canTrade}
-          onSearch={search}
-          onTrade={openShop}
-          onEndTurn={endTurn}
-          disabled={over || game.combat !== null}
-        />
-
         <section className="panel">
           <h2>Party</h2>
-          <PartyList players={game.players} activeId={player.id} onEat={eat} />
+          <PartyList players={game.players} teams={game.teams} activeId={player.id} onEat={eat} />
         </section>
 
+        {overhead && (
         <section className="panel">
           <h2>Tile</h2>
-          {tile ? (
+          {tile && !seesSelected ? (
+            <p className="muted">
+              You cannot see that far. Walk over and look, or ask whoever is closer.
+            </p>
+          ) : tile ? (
             <>
               <p className="tile-name">
                 <span className="mono">{selected}</span> — {tile.base}
@@ -166,6 +383,7 @@ export default function App() {
             <p className="muted">Tap a quiet tile to look at it.</p>
           )}
         </section>
+        )}
 
         <section className="panel panel-log">
           <h2>Log</h2>
@@ -176,13 +394,60 @@ export default function App() {
       {game.combat && fight && (
         <CombatModal
           combat={game.combat}
-          player={fight.player}
           enemy={fight.enemy}
-          onAttack={attack}
-          onFlee={flee}
+          party={fightParty}
+          playing={nowPlaying}
+          onWon={wonTrial}
+          onLost={lostTrial}
+          onAnswer={answerTrial}
+          onHint={useHint}
+          skills={skillChoices}
+          onSkill={useSkill}
+          gear={gearChoices}
+          onGear={useGear}
+          canHold={canHoldTheLine}
+          onHold={holdTheLine}
           onTakeLoot={takeLoot}
+          onEat={eat}
           onClose={closeCombat}
+          ground={game.tiles[key(fight.enemy.hex)]}
         />
+      )}
+
+      {game.draw && !game.combat && !game.ending && (
+        <EventCardModal draw={game.draw} turn={game.turn} onClose={clearDraw} />
+      )}
+
+      {/* Behind the turn's card, so a search on the last turn is never what the next
+          player sees first. Nothing else can be open: a search is the turn's action. */}
+      {game.find && !game.draw && !game.combat && !game.ending && (
+        <FindCard find={game.find} onClose={clearFind} />
+      )}
+
+      {giving && canGive && !game.combat && !game.ending && (
+        <GiveModal
+          offers={giveTargets}
+          onGive={(toId, itemId) => {
+            handOver(toId, itemId);
+            setGiving(false);
+          }}
+          onClose={() => setGiving(false)}
+        />
+      )}
+
+      {hooking && canHook && !game.combat && !game.ending && (
+        <HookModal
+          targets={hookTargets}
+          onCast={(id, how) => {
+            castHook(id, how);
+            setHooking(false);
+          }}
+          onClose={() => setHooking(false)}
+        />
+      )}
+
+      {game.ending && (
+        <GameOver ending={game.ending} turn={game.turn} onNewGame={() => newGame()} />
       )}
 
       {shopOpen && !game.combat && (
@@ -190,7 +455,9 @@ export default function App() {
           player={player}
           gear={stockFor(game).gear}
           food={stockFor(game).food}
+          sellable={sellable(player)}
           onBuy={buy}
+          onSell={sell}
           onClose={closeShop}
         />
       )}
