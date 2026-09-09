@@ -187,25 +187,46 @@ button:active { transform: translateY(1px); }
 /* The mark on ground nobody has searched yet. A note in the margin: same ink as the
    tile outlines, on a pale disc so it survives being drawn over dark forest. It has
    to stay legible with a player token and a monster chit stacked on the tile centre,
-   which is why it lives up in the corner and why the disc is there at all. */
+   which is why it lives up in the corner and why the disc is there at all.
+
+   Softened for v0.32: the whole board is visible from turn one now, so at the start
+   of a game this mark is on nearly every tile at once - up to three dozen of them,
+   where it used to be on at most the handful the old compass view ever showed. The
+   full-strength version that survived being one mark among a few reads as an alarm
+   repeated three dozen times; quieter is what keeps it a note in the margin rather
+   than the loudest thing on the board. It still darkens on hover/focus, for the one
+   tile you are actually about to search. */
 .tile-findings .findings-ring {
   fill: #f3ead6;
-  fill-opacity: 0.82;
+  fill-opacity: 0.4;
   stroke: #1d2429;
-  stroke-opacity: 0.55;
+  stroke-opacity: 0.3;
   stroke-width: 1.2;
 }
 
 .tile-findings .findings-mark {
   fill: none;
   stroke: #1d2429;
-  stroke-opacity: 0.75;
+  stroke-opacity: 0.45;
   stroke-width: 1.8;
   stroke-linecap: round;
 }
 
-/* A chest is a shape, not a scribble: it needs the lid band filled to read at 46px. */
+/* A chest is a shape, not a scribble: it needs the lid band filled to read at 46px -
+   and it stays bolder than the plain ground mark on purpose, because a chest is the
+   best find in the game and is rare enough that it should never blend in. */
 .tile-findings-chest .findings-mark rect { fill: #d8a13c; fill-opacity: 0.85; }
+.tile-findings-chest .findings-ring { fill-opacity: 0.6; stroke-opacity: 0.5; }
+
+.tile:hover .tile-findings .findings-ring,
+.tile:focus-visible .tile-findings .findings-ring {
+  fill-opacity: 0.82;
+  stroke-opacity: 0.55;
+}
+.tile:hover .tile-findings .findings-mark,
+.tile:focus-visible .tile-findings .findings-mark {
+  stroke-opacity: 0.75;
+}
 
 .compass-findings { color: var(--accent); }
 
@@ -277,8 +298,8 @@ button:active { transform: translateY(1px); }
   font-size: 13px;
   text-align: left;
 }
-.secret-clues { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; }
-.secret-clues li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.secret-clues { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.secret-clues li { padding: 0 0 4px; border-bottom: 1px solid var(--line); }
 .secret-clue-from { display: block; color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
 
 /* Drawn straight onto the board's own SVG, so a mark lines up with the tile it is on
@@ -291,6 +312,37 @@ button:active { transform: translateY(1px); }
   font-size: 30px;
   text-anchor: middle;
   opacity: 0.9;
+}
+
+/* A held clue's actual tiles, on the board. Teal so it can never be mistaken for a
+   legal move (drawn in the active player's own colour) or a doomed tile (orange/red) -
+   this has to read as "look here", not as an action. */
+.clue-match {
+  fill: none;
+  stroke: #4f9ed9;
+  stroke-width: 4;
+  stroke-dasharray: 5 4;
+  opacity: 0.9;
+}
+
+.secret-clue {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  color: var(--ink);
+  font-weight: 400;
+  cursor: pointer;
+}
+.secret-clue:hover { background: #ffffff0d; }
+.secret-clue.is-held {
+  border-color: #4f9ed9;
+  background: #4f9ed91a;
 }
 
 /* ---------- narrow screens: sidebar drops below the board ----------

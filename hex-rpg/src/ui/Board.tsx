@@ -44,6 +44,12 @@ type Props = {
   /** Tap marks the table has made against the map's secret - "x" ruled out, "?" a
    *  maybe. Shared across the party, not per player: they are one table. */
   secretMarks: Record<string, "x" | "?">;
+  /**
+   * Every tile the currently-held clue is actually true of, or null when no clue is
+   * held. This is the thing that makes a clue in the sidebar mean something on the
+   * board rather than being a sentence the table has to check by eye, tile by tile.
+   */
+  matchingClue: Set<string> | null;
   onSelect: (label: string | null) => void;
 };
 
@@ -80,6 +86,7 @@ export default function Board({
   activeIds,
   activeColour,
   secretMarks,
+  matchingClue,
   onSelect,
 }: Props) {
   const entries = useMemo(() => Object.entries(tiles), [tiles]);
@@ -151,6 +158,26 @@ export default function Board({
             onSelect={onSelect}
           />
         ),
+      )}
+
+      {/* A held clue, made visible: every tile it is actually true of, right now. A
+          stroke rather than a wash, so it draws the eye without covering the terrain,
+          the tokens or a monster chit sitting on the tile underneath it. */}
+      {matchingClue && (
+        <g className="clue-matches" pointerEvents="none">
+          {entries.map(([label, tile]) => {
+            if (!matchingClue.has(label) || hasFallen(tile.hex, turn, turnLimit)) return null;
+            const p = hexToPixel(tile.hex, SIZE);
+            return (
+              <polygon
+                key={label}
+                points={hexPoints(SIZE)}
+                transform={`translate(${p.x} ${p.y})`}
+                className="clue-match"
+              />
+            );
+          })}
+        </g>
       )}
 
       {/* The secret's marks: the table's own notes, crossing off what cannot be it. */}

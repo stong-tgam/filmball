@@ -49,7 +49,7 @@ import { ENEMIES } from "./game/enemies";
 import { key } from "./game/hex";
 import { elementsOf } from "./game/setup";
 import { ROLES, hasMoved } from "./game/players";
-import { clueSentence } from "./game/secret";
+import { clueSentence, tilesMatchingClue } from "./game/secret";
 import { doomed, rimWarning } from "./game/collapse";
 import { searchKind } from "./game/actions";
 import "./styles.css";
@@ -82,6 +82,10 @@ export default function App() {
   const [drawing, setDrawing] = useState(false);
   /** The turn timer, on by default. Some evenings the point is the talking. */
   const [timed, setTimed] = useState(true);
+  /** Which clue the table is holding in mind, if any - tapping one shows exactly
+   *  which tiles it is true of, on the board itself. Pure UI state, like `selected`:
+   *  a clue is not more or less revealed for being looked at. */
+  const [heldClue, setHeldClue] = useState<number | null>(null);
   const moveTo = useGame((s) => s.moveTo);
   const endTurn = useGame((s) => s.endTurn);
   const player = useActivePlayer();
@@ -145,6 +149,8 @@ export default function App() {
   const over = game.phase === "gameOver" || game.ending !== null;
   const secretMark = selected ? game.secret.marks[selected] : undefined;
   const revealedClues = game.secret.chain.slice(0, game.secret.revealed);
+  const heldClueData = heldClue !== null ? revealedClues[heldClue] : undefined;
+  const matchingClue = heldClueData ? tilesMatchingClue(game, heldClueData) : null;
 
   const composition = tile
     ? elementsOf(tile)
@@ -278,6 +284,7 @@ export default function App() {
           activeIds={activeTeam?.memberIds ?? [player.id]}
           activeColour={ROLES[player.role].colour}
           secretMarks={game.secret.marks}
+          matchingClue={matchingClue}
           onSelect={tapTile}
         />
         {/* Under the map, not off in the corner of the sidebar.
@@ -379,14 +386,24 @@ export default function App() {
           {revealedClues.length === 0 ? (
             <p className="muted">No clues yet.</p>
           ) : (
-            <ul className="secret-clues">
-              {revealedClues.map((clue, i) => (
-                <li key={i}>
-                  {clueSentence(clue)}
-                  <span className="secret-clue-from"> — {clue.from}</span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="secret-clues">
+                {revealedClues.map((clue, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      className={`secret-clue${heldClue === i ? " is-held" : ""}`}
+                      onClick={() => setHeldClue((cur) => (cur === i ? null : i))}
+                      title="Show every tile this is actually true of, on the board"
+                    >
+                      {clueSentence(clue)}
+                      <span className="secret-clue-from"> — {clue.from}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="muted small">Tap a clue to see which tiles it means.</p>
+            </>
           )}
         </section>
 

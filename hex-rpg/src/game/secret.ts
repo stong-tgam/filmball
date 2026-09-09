@@ -128,6 +128,24 @@ export const clueSentence = (clue: Clue): string =>
   clue.truth ? shapeOf(clue.shape).yes : shapeOf(clue.shape).no;
 
 /**
+ * Every tile a clue is actually true of, right now.
+ *
+ * A clue on its own is just a sentence - "there are no trees on it" says nothing about
+ * *where* until somebody checks it against every tile on a board they can now see in
+ * full. This is that check, done once for the whole board, so the UI can show a held
+ * clue as a highlight rather than making the table do the elimination by eye alone.
+ */
+export function tilesMatchingClue(state: GameState, clue: Clue): Set<string> {
+  const board: Board = { tiles: state.tiles, enemies: state.enemies };
+  const shape = shapeOf(clue.shape);
+  const out = new Set<string>();
+  for (const tile of Object.values(state.tiles)) {
+    if (shape.test(tile, board) === clue.truth) out.add(key(tile.hex));
+  }
+  return out;
+}
+
+/**
  * Pick the target, then add clues until exactly one tile is left standing.
  *
  * The candidate pool excludes anywhere that would not read as a plausible spot to dig:

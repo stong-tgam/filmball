@@ -698,6 +698,14 @@ hiding terrain - it just does it by hiding an answer instead of a map.
   previously overridden to `false` by the deleted `Compass.tsx`). Nothing hides a
   child's own position any more, so there is no reason to hide anyone else's either -
   "meet me at C2" is now something the table can actually say.
+- **The "unsearched ground" mark is quieter than it was.** `Findings` in `Tile.tsx`
+  was tuned to read clearly as one mark among the handful the old compass view ever
+  showed at once. On the fully-visible board it is on nearly every tile at the start
+  of a game - three dozen of them, all at once - and at its old strength that read as
+  an alarm repeated three dozen times rather than as the "note in the margin" it was
+  meant to be. `styles.css`'s `.tile-findings` rules are softened accordingly (lower
+  opacity, not a smaller mark - it still has to survive being drawn over dark forest)
+  and darken again on hover/focus, for the one tile actually being considered.
 
 ## The map's secret (v0.32)
 
@@ -738,6 +746,15 @@ changed getting there.
   over by then) and a search that actually finds something (`search` in `actions.ts`,
   gated on `Find.kind` being a real find rather than nothing, a mishap, a thief or a
   trap). Both call `revealSecretClue`, which is a no-op once the chain is exhausted.
+- **A held clue lights up every tile it is actually true of** (`tilesMatchingClue`,
+  `App.tsx`'s `heldClue` state, `Board.tsx`'s `.clue-match` outline). Added after the
+  first playtest: a clue on its own is a sentence in a sidebar list, and nothing
+  connected it to the board it was supposedly about - the table had to do the
+  elimination by eye, checking one sentence against thirty-odd tiles from memory. Tap
+  the clue and the matching tiles get a dashed teal outline instead; tap it again to
+  clear it. Deliberately a UI toggle and not part of `GameState` - like `selected`, a
+  clue is not more revealed for having been looked at, so nothing about holding one is
+  worth saving or replaying.
 - **Marking a tile is free and shared** (`markSecretTile`, cycling nothing → ruled out
   → a maybe → nothing). Free because it is bookkeeping the whole table does together,
   not a move any one player makes; shared, not per player, because unlike the old

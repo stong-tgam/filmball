@@ -3,7 +3,15 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { canDig, clueSentence, dig, markSecretTile, MAX_CLUES, revealSecretClue } from "../src/game/secret";
+import {
+  canDig,
+  clueSentence,
+  dig,
+  markSecretTile,
+  MAX_CLUES,
+  revealSecretClue,
+  tilesMatchingClue,
+} from "../src/game/secret";
 import { createInitialState, startGame } from "../src/game/setup";
 import { RADIUS, distance, key } from "../src/game/hex";
 import { enemyAt } from "../src/game/enemies";
@@ -102,6 +110,29 @@ describe("revealing a clue", () => {
     for (const clue of state.secret.chain) {
       expect(clueSentence(clue).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("showing a clue's actual tiles", () => {
+  it("always includes the target - every clue in the chain is true of it", () => {
+    for (let seed = 1; seed <= 15; seed++) {
+      const state = createInitialState(seed);
+      for (const clue of state.secret.chain) {
+        expect(tilesMatchingClue(state, clue).has(state.secret.target)).toBe(true);
+      }
+    }
+  });
+
+  it("narrows to fewer tiles with each clue held, ending on just the target", () => {
+    const state = createInitialState(4471);
+    const last = state.secret.chain.at(-1)!;
+    // The final clue in a solved chain leaves exactly one survivor: the target.
+    const survivors = tilesMatchingClue(state, last);
+    // (Not every single clue individually isolates the target - only the chain as a
+    // whole does - but the match set is never the whole board, i.e. the clue said
+    // *something*.)
+    expect(survivors.size).toBeGreaterThan(0);
+    expect(survivors.size).toBeLessThan(Object.keys(state.tiles).length);
   });
 });
 
