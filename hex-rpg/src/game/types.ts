@@ -97,21 +97,6 @@ export type Player = {
   /** Owes a turn - looking after the traveller, per rulebook §5.5. */
   stunned: boolean;
   /**
-   * Every tile this player has laid eyes on, by label.
-   *
-   * **Theirs, not the party's.** Pooling it would delete the one conversation the
-   * hidden board exists to create - you still have to tell your sister where the shop
-   * is, because she has not been there. What it removes is the *bookkeeping*: a
-   * seven-year-old was never going to keep a paper map of ninety tiles, and asking them
-   * to was the part of the rule that did not survive the board getting bigger.
-   *
-   * It remembers **ground, never contents**. A monster walks, a hazard walks, another
-   * player walks, and ground somebody has searched since you passed is no longer
-   * unsearched - so a memory that showed any of those would be the app lying rather
-   * than the app forgetting.
-   */
-  seen: string[];
-  /**
    * Went into the abyss when the rim fell (`collapse.ts`), and is out of the game.
    *
    * **The only way anybody ever leaves.** There used to be a second flag, `dead`, for
@@ -178,12 +163,6 @@ export type Enemy = {
   escapedOnce: boolean;
   /** Robbers and pirates carry what they have stolen. */
   loot: Item[];
-  /**
-   * Whether anybody has walked into it yet. Monsters are hidden until somebody steps
-   * on their tile, so an unfound monster is drawn to nobody. Hazards are the
-   * opposite and are always on the board.
-   */
-  found: boolean;
   defeated: boolean;
 };
 
@@ -401,12 +380,65 @@ export type Combat = {
 };
 
 /**
- * Won or lost. Rulebook §14: beat the final boss inside the limit.
+ * Won or lost. Rulebook §14: beat the final boss inside the limit. **v0.32 adds a
+ * second way to win**: `"escaped"`, for the team that works out the map's secret and
+ * digs the right spot.
  *
  * `partyLost` is gone. A team never wipes - there is nothing left in the game that can
  * end an evening early, which is the point of health only ever costing you your skill.
  */
-export type Ending = "victory" | "outOfTime";
+export type Ending = "victory" | "outOfTime" | "escaped";
+
+/**
+ * One of the seven true-or-false shapes the escape spot's clues are built from.
+ *
+ * Every shape is checkable by looking at one tile - no counting, no memory, and (since
+ * v0.32 retired the fog) no walking over to check either, because the whole board is on
+ * screen. See `src/game/secret.ts` for what each one actually tests.
+ */
+export type ClueShapeId = "trees" | "water" | "town" | "rim" | "monster" | "north" | "plain";
+
+/**
+ * One clue in the secret's solution chain.
+ *
+ * `truth` is decided once, when the chain is built (`buildSecret`) - the target tile is
+ * picked first and every clue in its chain is true *of that tile*, which is what makes
+ * the puzzle solvable by construction rather than by luck. `from` is filled in only when
+ * the clue is actually revealed to the table, by whatever earned it - a save with an
+ * empty `from` on a clue past `Secret.revealed` is one nobody has been told yet.
+ */
+export type Clue = {
+  shape: ClueShapeId;
+  truth: boolean;
+  from: string;
+};
+
+/**
+ * The map's secret: a target tile nobody is told outright, and a chain of clues that
+ * narrows the whole board down to exactly it.
+ *
+ * Generated once, at setup (`buildSecret`), from the finished board and the finished
+ * monster placement - so a clue is never wrong about what is standing where. Revealing
+ * one is a side effect of something the party already did: beating a monster, or a
+ * search that actually found something. Nothing about `Secret` is ever read by name in
+ * the log or the sidebar until it has been revealed - that is the whole game.
+ */
+export type Secret = {
+  /** The tile label. Never shown to the table; only ever tested against by a dig. */
+  target: string;
+  /** The full solution, in reveal order. Not all of it may be `revealed` yet. */
+  chain: Clue[];
+  /** How many of `chain` the table has actually been told. */
+  revealed: number;
+  /**
+   * Tap marks the table has made, shared across the whole party - they are sitting at
+   * one table, not exploring the fog of two separate memories the way `Player.seen`
+   * used to. `"x"` for ruled out, `"?"` for a maybe.
+   */
+  marks: Record<string, "x" | "?">;
+  /** Wrong digs so far. Flavour and a log line, not a limit. */
+  digsMissed: number;
+};
 
 export type Phase =
   | "setup"
@@ -442,6 +474,10 @@ export type GameState = {
   combat: Combat | null;
   /** How it finished, once it has. */
   ending: Ending | null;
+  /** Which team escaped, when `ending` is `"escaped"`. Null otherwise. */
+  escapedTeam: string | null;
+  /** The map's secret, and how much of it the table has been told. */
+  secret: Secret;
   itemPile: Item[];
   eventDeck: EventCard[];
   /** Drives the turn's event draw. */

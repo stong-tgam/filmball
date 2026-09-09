@@ -21,13 +21,11 @@ import {
 } from "../src/ui/art/overrides";
 import { hazardSlot, monsterSlot, roleSlot } from "../src/artslots";
 import { HAZARDS } from "../src/game/hazards";
-import { sense } from "../src/game/sense";
-import { createInitialState } from "../src/game/setup";
 import { EQUIPMENT, FOOD } from "../src/game/items";
 import { ENEMIES } from "../src/game/enemies";
 import { TURN_ORDER } from "../src/game/players";
 import { ALL_FEATURES } from "../src/game/combat";
-import type { EnemyKind, GameState, HazardKind } from "../src/game/types";
+import type { EnemyKind, HazardKind } from "../src/game/types";
 
 const PICTURE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
 
@@ -141,32 +139,3 @@ describe("the store", () => {
   });
 });
 
-describe("what the compass shows", () => {
-  it("carries the picture with the blip, so the dot and the token cannot drift apart", () => {
-    const base = createInitialState(4471);
-    // Everything on top of the knight, so one call sees a monster, a wanderer and a
-    // friend at once.
-    const here = base.players[0].hex;
-    const crowded: GameState = {
-      ...base,
-      enemies: base.enemies.map((e) => ({
-        ...e,
-        dormant: false,
-        found: true,
-        hex: { q: here.q + 1, r: here.r },
-      })),
-      hazards: base.hazards.map((h) => ({ ...h, hex: { q: here.q, r: here.r + 1 } })),
-      players: base.players.map((p, i) => (i === 1 ? { ...p, hex: { q: here.q - 1, r: here.r } } : p)),
-    };
-
-    const felt = sense(crowded, crowded.players[0]);
-    expect(felt.length).toBeGreaterThan(0);
-
-    const offered = new Set(everySlot().map((e) => e.slot));
-    for (const thing of felt) {
-      // Every blip names a real picture, and one the art room offers to replace.
-      expect(thing.art, thing.name).toMatch(/^(role|monster|hazard):/);
-      expect(offered.has(thing.art), `${thing.name} → ${thing.art}`).toBe(true);
-    }
-  });
-});

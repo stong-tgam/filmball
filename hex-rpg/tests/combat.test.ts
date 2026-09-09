@@ -152,7 +152,6 @@ describe("meeting an enemy", () => {
     // The whole reason this is a button: a fight is three minutes of everybody's
     // evening with a clock on it, so walking onto something must not spend it.
     expect(after.combat).toBeNull();
-    expect(after.enemies.find((e) => e.id === enemy.id)?.found).toBe(true);
     expect(canTakeOn(after)).toBe(true);
     expect(after.players[0].actedThisTurn).toBe(false);
   });
@@ -233,10 +232,12 @@ describe("winning and losing a run of cards", () => {
     expect(done.phase).toBe("playerMove");
   });
 
-  it("leaves a monster on the board once it has been walked into", () => {
+  it("leaves a monster standing there once it has been walked into", () => {
     const { state, enemy } = facing("mob");
     const after = movePlayer(state, key(enemy.hex));
-    expect(after.enemies.find((e) => e.id === enemy.id)?.found).toBe(true);
+    const still = after.enemies.find((e) => e.id === enemy.id);
+    expect(still?.defeated).toBe(false);
+    expect(key(still!.hex)).toBe(key(enemy.hex));
   });
 });
 

@@ -21,7 +21,6 @@ export function ActivePlayerBanner({
   player,
   team,
   moves,
-  smoke,
   rim,
   standingOnIt,
 }: {
@@ -29,8 +28,6 @@ export function ActivePlayerBanner({
   /** The team whose go it is. All of them walk; all of them play the mini-game. */
   team?: Team;
   moves: number;
-  /** The dragon is within smelling distance. The one hint the fog ever gives. */
-  smoke?: boolean;
   /** The rim falls when this turn ends (`collapse.ts`), or null on a safe turn. */
   rim?: string | null;
   /** ...and this player is standing on the part that goes. */
@@ -56,9 +53,7 @@ export function ActivePlayerBanner({
           {/* The team's turn, not the player's - the name on the banner has to be
               the thing that moves, or a child will move their own piece. */}
           <h2>{team ? `${team.name}\u2019s turn` : `${player.name}\u2019s turn`}</h2>
-          <p className="banner-blurb">
-            {smoke ? "Smoke on the wind. The dragon is close." : role.blurb}
-          </p>
+          <p className="banner-blurb">{role.blurb}</p>
         </div>
       </div>
       <dl className="banner-stats">

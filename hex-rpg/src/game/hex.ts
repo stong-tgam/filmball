@@ -274,3 +274,25 @@ export function hexPoints(size: number): string {
     .map((c) => `${c.x.toFixed(3)},${c.y.toFixed(3)}`)
     .join(" ");
 }
+
+/**
+ * Compass bearing in degrees from one hex to another, 0 = north, clockwise.
+ *
+ * Moved here from the retired `sense.ts` (v0.32): the fog is gone and there is no more
+ * blip to place on it, but the log still says which way somebody walked
+ * ("walked one tile north-east") rather than which tile they walked to - the log rule
+ * never depended on the board being hidden, only on the log never printing a tile
+ * label - so the bearing math stays, and it belongs in the file that does geometry.
+ */
+export function bearingBetween(from: Hex, to: Hex): number {
+  const a = hexToPixel(from, 1);
+  const b = hexToPixel(to, 1);
+  const degrees = (Math.atan2(b.x - a.x, a.y - b.y) * 180) / Math.PI;
+  return (degrees + 360) % 360;
+}
+
+/** The eight-point name for a bearing, for the log and for reading aloud. */
+export function compassName(bearing: number): string {
+  const points = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"];
+  return points[Math.round(bearing / 45) % 8];
+}

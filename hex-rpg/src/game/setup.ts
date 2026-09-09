@@ -27,11 +27,11 @@ import { createTeams } from "./teams";
 import { placeEnemies, spawnThieves } from "./enemies";
 import { placeHazards } from "./hazards";
 import { bridgeUp } from "./bridges";
-import { remember } from "./vision";
 import { beginTurn } from "./turn";
 import { createItemPile } from "./items";
 import { freshDeck } from "./cards";
 import { createEventDeck } from "./events";
+import { buildSecret } from "./secret";
 import { MAX_ELEMENTS, type Element, type GameState, type Role, type Tile } from "./types";
 
 /** Hexes on the board. A hexagon of radius R holds 3R(R+1)+1 of them. */
@@ -380,13 +380,18 @@ export function createInitialState(seed: number, roster?: Role[]): GameState {
   // produces. Board and party stay independently reproducible.
   const rng = makeRng(seed ^ 0x9e3779b9);
 
-  // Everybody starts knowing the ground they can see from where they woke up.
-  const players = createPlayers(rng, roster).map(remember);
+  const players = createPlayers(rng, roster);
   const tiles = generateBoard(seed);
   // Monsters first, then hazards around them: two things on one tile is a fight
   // nobody chose, and the thieves are both at once.
   const monsters = placeEnemies(rng, players);
   const hazards = placeHazards(rng, players, tiles, monsters);
+  const enemies = [...monsters, ...spawnThieves(rng, hazards)];
+  // The map's secret, worked out once from the finished board and monster placement -
+  // continuing off the same generator, the way the hazards did, rather than a third
+  // independent one: nothing about the secret needs to be reproducible separately from
+  // the party and the monsters it is built from.
+  const secret = buildSecret(rng, tiles, enemies);
   // Three poker decks, none sharing a shuffle: events, searches, and the one monsters
   // deal their mini-games from.
   const poker = freshDeck(rng.state());
@@ -405,10 +410,12 @@ export function createInitialState(seed: number, roster?: Role[]): GameState {
     tiles,
     players,
     teams: createTeams(players),
-    enemies: [...monsters, ...spawnThieves(rng, hazards)],
+    enemies,
     hazards,
     combat: null,
     ending: null,
+    escapedTeam: null,
+    secret,
     itemPile: createItemPile(rng),
     eventDeck: events.deck,
     pokerDeck: poker.deck,

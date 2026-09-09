@@ -24,8 +24,10 @@ const KEY = "hex-rpg-save";
  * Bumped on every change to the shape of `GameState`.
  *
  * 1 — first saves (v0.21): the state as of group fights, the palette and the roster.
+ * 7 — v0.32: `Player.seen` and `Enemy.found` are gone with the fog; `GameState` gained
+ *     `secret` and `escapedTeam`.
  */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 type Saved = {
   version: number;

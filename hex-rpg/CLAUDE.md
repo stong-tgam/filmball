@@ -86,17 +86,18 @@ src/palette.ts  every colour that names a character or an event, in one place
 src/artslots.ts the name of every picture, in one place - same argument
 src/game/     pure logic, no React - hex, rng, setup, teams, turn, combat,
               challenges, skills, actions, hazards, events, items, enemies,
-              collapse, vision, sense, save, store
-src/ui/       TitleScreen.tsx (who is playing), Compass.tsx (what a player
-              sees), Tile.tsx (one hex), Board.tsx (the map you remember),
-              CombatModal.tsx (the mini-game, the clock and the loot),
+              collapse, secret, save, store
+src/ui/       TitleScreen.tsx (who is playing), Board.tsx (the whole map,
+              always - see "The map is not hidden any more"), Tile.tsx (one
+              hex), CombatModal.tsx (the mini-game, the clock and the loot),
               Hourglass.tsx (the turn clock), FindCard.tsx (what a search
               turned up), HookModal/GiveModal (the fisherman's rope, and
               handing things over), ArtRoom.tsx (swap any picture for one of
               your own), art/ (the drawings, and the upload store)
 tools/        sim.ts (bot playtests), inline.mjs (single-file build)
 tests/        vitest, node environment, no rendering
-reference/    the rulebook, the build spec, and the token art prompt
+reference/    the rulebook, the build spec, the token art prompt, and
+              prototypes/ (standalone mock-ups, not in the build)
 ```
 
 **Every build ships to the artifact.** The owner playtests in a side panel next to the
@@ -115,7 +116,14 @@ npm run build:play # one self-contained .html, plus the artifact fragment
 npx vite-node tools/sim.ts 800 5 # bot playtest: pacing, not balance - read the header
 ```
 
-## Current state: v0.31
+## Current state: v0.32
+
+**v0.32 retires the fog and adds a second way to win.** The whole board - every tile,
+every monster - is on screen from turn one, and a party can now win either by beating
+the dragon or by working out the map's secret and digging it. Read "The map is not
+hidden any more" and "The map's secret" below before touching `src/game/secret.ts`,
+`src/ui/Board.tsx`, or anything vision- or sense-shaped: those two modules are gone,
+and the reasoning for why is there, not here.
 
 **v0.31 is the version where this stopped being a dice game.** Read the next four
 paragraphs before changing anything in `src/game/`; most of what was here before them
@@ -169,7 +177,7 @@ Key rules, so nothing gets "improved" back to a guess:
   |---|---|---|
   | knight | **Hold the line** — the fight is not over: that card comes back as a new one, and the knight pays a health | Take the hit — wears a lost fight alone |
   | rogue | Peek — the hint, without spending the team's | Light fingers — one extra thing off a body |
-  | scout | Keep looking — `LINGER_SECONDS` more, on the clock that is running | Sharp eyes — a ring further, and a second look in a wood |
+  | scout | Keep looking — `LINGER_SECONDS` more, on the clock that is running | Covers more ground, and a second look in a wood |
   | doctor | Patch up — a health for a friend, **and their skill with it** | Field kit — food they hand over is worth one more |
   | fisherman | Cast again — throws this card back | The rod — fishes, crosses water, never loses it |
 
@@ -187,11 +195,13 @@ Key rules, so nothing gets "improved" back to a guess:
   - **One use per fight, not per game.** A power that fires once an evening gets hoarded
     and then forgotten, and five children hoarding five buttons is five buttons nobody
     presses.
-- **Roles**: knight +1 health, scout +1 sight, doctor patches people up, **fisherman
+- **Roles**: knight +1 health, scout +1 move, doctor patches people up, **fisherman
   fishes and hooks**. Everyone starts on 3 health and $2. Four are rulebook §3; the
-  fisherman is this build's own. The rogue's old +1 attack and the scout's +1 movement
-  went with the dice and the per-player turn — their character now lives in their
-  skill, which is the better place for it.
+  fisherman is this build's own. The scout's sight bonus went with the fog itself
+  (v0.32 - see "The map is not hidden any more"); their move bonus stayed, and reads
+  better on its own now than it ever did paired with a sight ring nobody else had.
+  The rogue's old +1 attack went with the dice and the per-player turn — their
+  character now lives in their skill, which is the better place for it.
 - **The fisherman's bargain** (v0.30): they cross open water at will and can never lose
   the rod, and in exchange **they hand nothing to the party**
   (`RoleProfile.tradesWithTheParty`). One-way, not exile — they can still be given to. A
@@ -240,10 +250,9 @@ Key rules, so nothing gets "improved" back to a guess:
 - **`src/palette.ts` owns every colour that names a thing.** A child learns this game
   by colour before they learn it by name — "the pink one" is how a seven-year-old
   refers to the knight for the first hour — so a thing's colour has to be identical on
-  its token, its chit, the party list and the compass blip. **Never hard-code a token
-  or blip colour anywhere else.** `Sensed.colour` is carried on the blip from the same
-  file, so the dot and the token cannot drift apart. `styles.css` still owns the
-  scenery (terrain fills, panel chrome, the accent) because none of that names a
+  its token, its chit and the party list. **Never hard-code a token colour anywhere
+  else.** `styles.css` still owns the scenery (terrain fills, panel chrome, the accent)
+  because none of that names a
   character.
 - **A thief is one thing wearing two hats**: a hazard record and a monster record on
   the same tile. `HazardLayer` skips them (`EnemyLayer` draws them) and `sense` skips
@@ -309,10 +318,12 @@ Key rules, so nothing gets "improved" back to a guess:
   - This is the **only** permanent loss left in the design, so it stays fenced: a full
     turn's warning on the banner, the doomed ring drawn cracked, and one step is always
     enough to get clear. Falling in is a mistake, never bad luck.
-  - **It tells you where the middle is**, which the hidden board otherwise withholds.
-    Deliberate: a game that ends in a fight has to let the party find the fight, and a
-    crumbling edge is the one honest way to say "the middle is that way" without
-    printing a map. It also ended "we never found the dragon" as a way to lose.
+  - **It used to be the only way to tell where the middle was**, before v0.32 made the
+    whole board visible - a crumbling edge was the one honest way to say "the middle is
+    that way" without printing a map, and it is what ended "we never found the dragon"
+    as a way to lose. The map now says that outright, but the collapse stayed: forcing
+    everybody inward in time for the ending was always the job, finding the middle was
+    only ever the side effect.
   - **`LAST_RING` is 1, not 0.** The last tile standing would be the dragon's own, and
     a tile with the dragon on it is not somewhere a player can stand — walking onto it
     starts a fight, and only one fight runs at a time. Seven tiles is the arena.
@@ -626,118 +637,127 @@ What is left is listed under "Still open" in the README.
 Hazard and event phases slot in ahead of the move phase when they exist; the phase
 names are already in `Phase`.
 
-## The ground around you (v0.11)
+## The map is not hidden any more (v0.32)
 
-The 3D experiment is gone. The view is 2D again, and there is **no board and no
-position on screen at all** - not the player's, not anybody's. What a player gets is
-`src/ui/Compass.tsx`: **the real tile they are standing on and the real tiles they could
-step onto**, drawn with the ordinary `Tile` renderer, plus a blip for everything within
-two moves placed on the bearing it actually lies on.
+**There is no fog, and there never will be again in this design.** From v0.8 through
+v0.31 a player saw only the tile they stood on and two rings around it; monsters were
+hidden until walked into; a compass gave bearings, never a map. `src/game/vision.ts`,
+`src/game/sense.ts`, `src/ui/Compass.tsx` and `src/ui/FogTile.tsx` carried all of it,
+and all four are **deleted** in v0.32, along with `Player.seen` and `Enemy.found`.
+`src/ui/Board.tsx` is now the only view of the game: every tile, every monster, the
+whole board, on screen from turn one.
 
-The distinction to hold on to: the compass shows **what is adjacent, never where any of
-it is**. The remembered map is the other half, and it is behind the header's **"Your
-map"** button (`Board.tsx`) - which used to be a grown-up's debug peek and is now the
-player's own record, fogged by `hasSeen` rather than by `canSee`.
-You have to be able to see that the next hex is a river before deciding to walk into it
-— that is a choice, not a map. What stays hidden is position: no labels on the hexes
-(`showLabel={false}`), no grid, no coordinates. Two players can both be looking at a
-field with a river to the north-east and be nowhere near each other.
+### Why this went, when the whole design used to say the opposite
 
-How much ground is drawn comes from `sightOf`, so the Scout's extra ring appears here as
-two rings of real tiles — which is also what makes their two-tile move reachable. Hexes
-past the rim of the board are drawn as dashed "edge" holes: `neighbours()` filters
-off-board, so the view adds them itself with `allNeighbours`. A child needs to see that
-there is nothing that way, not an absence of drawing.
+The table asked for two things at once: **show the monsters on the map, so we can
+choose our own fights**, and **a second way to win — work out the map's secret and dig
+it, instead of only killing the dragon**. The first is a straight statement of intent
+against the old rule ("Monsters are hidden until somebody walks into one" was load-
+bearing for twenty-three versions). The second is what actually forced the fog out:
+`reference/prototypes/escape-spot.html` (see its own README) established that a puzzle
+solved by elimination needs the whole board eliminable, and you cannot cross a tile off
+a list you were never shown. Half-measures were considered and rejected - showing
+monsters but not terrain, or the secret's candidate tiles but not the rest of the board
+- and each one either broke the elimination puzzle or left the "choose your fight"
+request half-honoured. Once both had to be fully visible, keeping the rest of the board
+foggy bought nothing.
 
-`src/game/sense.ts` is the whole rule. `SENSE_RANGE` is two tiles; past that you
-feel nothing. What is sensed follows the hidden-board rules exactly: hazards always,
-the dragon always because it smokes, an ordinary monster only once somebody has walked
-into it. **Never sense an unfound monster** - that would undo the ambush the hiding is
-for.
+**What the old design got right, and where it went instead.** The fog's whole case was
+that not knowing is what makes exploring, talking and remembering worth doing - a
+seven-year-old telling their sister where the river is IS the game. That case did not
+stop being true; it moved. The map no longer withholds *ground*, but it still
+withholds the one thing worth talking about now: **the target of the secret**. Working
+out which of thirty-odd visible candidate tiles is the actual spot, from clues that
+arrive gradually, is the same kind of conversation the fog used to manufacture by
+hiding terrain - it just does it by hiding an answer instead of a map.
 
-Bearings are continuous degrees, not one of the six flat sides. At two tiles out a
-thing can sit between two directions and snapping it would send the party the wrong way.
+### What changed, concretely
 
-**The log never prints a tile label.** There is no map on screen, so a grid reference
-read out of the log hands the party the thing the design hides - "the tornado is at C2"
-was exactly that leak. Movement says which way and how far ("walked one tile west"),
-never which tile. `tests/sense.test.ts` plays a whole game and fails on any log line
-matching a tile label; if you add a message, say the direction, not the square.
+- **Movement is unchanged**: still `legalMoves`/`movePlayer`, still spent one tile at a
+  time (`Player.stepsTaken`). The board being visible removes the reason that rule
+  existed for ("a two-tile move chosen up front would be a leap into the dark"), but it
+  is kept anyway - an ambush (a hazard wandering into your path, a mid boss you did not
+  plan for) can still interrupt a turn, and choosing whether to push on after each step
+  is still a real decision even when you can see where you are pushing on to.
+- **Monsters render on the board whenever they are not `defeated` or `dormant`**
+  (`EnemyLayer`, called with the full `enemies` list, no filter). Walking onto one still
+  only *offers* the fight (`canTakeOn`/`takeOn` unchanged) - visibility changed, not the
+  ask-first rule from v0.31.
+- **The dragon smoking** (`SMOKE_RADIUS`, `smellsSmoke`) is gone with `vision.ts`. It
+  was a hint that the fog needed and the visible board does not: the dragon's tile
+  (dormant or not) is just as visible as anywhere else.
+- **`startingSpots` still opens teams on separate corners.** The reason changed - it
+  used to be "so two teams open on a board neither can see"; now it is "so somebody
+  still has to be standing on a tile to search it, fight what is on it, or dig it",
+  which is a real reason on a visible board too.
+- **The scout lost `sightBonus`, kept `moveBonus`.** Seeing an extra ring was the
+  bonus that mattered most while the board was hidden; it is worth nothing on one that
+  is not. Their movement bonus was independent of it in the code even before this and
+  needed no replacement.
+- **`ROWS`/tile labels are shown on the board now** (`Tile`'s `showLabel` default,
+  previously overridden to `false` by the deleted `Compass.tsx`). Nothing hides a
+  child's own position any more, so there is no reason to hide anyone else's either -
+  "meet me at C2" is now something the table can actually say.
 
-`Board.tsx` is that remembered map, behind the header's **"Your map"** button. It draws
-a tile the viewer has seen - live ones in full colour, remembered ones faded and with
-their search marks stripped - and nothing at all where they have never been. Monsters
-still follow `enemyVisible`, so the map never shows one that is not in sight right now.
+## The map's secret (v0.32)
 
-## The board is hidden, and now you remember it (v0.8, rewritten in v0.30)
+The second way to win, alongside the dragon: work out one tile the map is hiding and
+dig it. All of the logic lives in `src/game/secret.ts`, and it is the real-game build
+of `reference/prototypes/escape-spot.html` - read that file's own README first for the
+reasoning that survived the trip from mock to game; this section only covers what
+changed getting there.
 
-**There is no bird's-eye view.** A player sees the tile they stand on and two rings
-around it; the rest of the board is blank paper. What changed in v0.30 is that **ground
-they have already seen stays on their map**, faded.
-
-### The rule that was retired, and why
-
-Until v0.30 this section said, in bold: *never add a remembered-tiles cache — it deletes
-the note-taking and the talking the whole design is for, and it is the one change most
-likely to look like an improvement and be the opposite.* **That was a good rule and it
-is deliberately gone. Do not put it back without reading this.**
-
-It was written for a 37-tile board with five kinds of terrain, where a child could hold
-the shape of the map in their head or on one sheet of paper. It stopped being true when
-the board grew to 91 tiles and started carrying things worth remembering — a shop, a
-chest, and eventually a mountain. At that size nobody takes notes; they simply forget,
-and then the exploring is *wasted* rather than banked.
-
-**The board came back to 37 in v0.31 and the memory stayed.** Not an oversight: what
-the old rule protected — telling your sister where the shop is — is protected by memory
-being **per player** (`Player.seen`), not by there being no memory. And a party that now
-plays as one or two teams has fewer pairs of eyes on the map than five separate
-walkers did, so forgetting costs more, not less.
-
-**What the old rule was protecting is still protected, by a different mechanism:**
-memory is **per player, not per party** (`Player.seen`). You still have to tell your
-sister where the shop is, because she has not been there. The conversation survives; the
-bookkeeping does not.
-
-And memory holds **ground only, never contents**. Monsters walk, hazards walk, other
-players walk, and ground you left unsearched may have been searched by somebody else
-since. A remembered tile shows terrain and nothing else, drawn faded, so it can never
-say something that has stopped being true. The rule to keep is not "no memory" — it is
-**a memory may never lie**.
-
-Read `src/game/vision.ts` before touching any of it. The rules that still hold:
-- **You always know your own tile's label.** Otherwise "where are you?" cannot be
-  answered and the party can pool nothing.
-- **The sidebar must never say more than the board shows.** `App.tsx` gates the Tile
-  panel on `canSee`, or tapping round the fog reads the whole map without walking it.
-- **Hazards are always visible to everyone**; monsters never are. A tornado you cannot
-  see coming is not a funny setback, and the three players who are not moving need
-  something to watch.
-- **Monsters are hidden until somebody walks into one** (`Enemy.found`). Walking on
-  finds it and offers the fight rather than starting one, so there is no ambush to back
-  out of any more — the decision is up front. Once found, a monster stays on the board:
-  the party paid a step for that.
-- **The dragon smokes** (`SMOKE_RADIUS`) and sits at the centre. Two bounds, and it
-  needs both: **at least a ring past sight**, so the smell arrives before the sight of
-  the tile does; and **never the whole board** (`RADIUS - 1`), because at radius 3 a
-  reach of 3 touches all four corners and every player would be told "the dragon is
-  close" from the moment it lands. A hint that is always on is wallpaper.
-  - On the small board those two bounds make it **equal** to sight, and that is still a
-    real clue: **eyesight never reveals an unfound monster at all** (`enemyVisible`).
-    Seeing the middle tile tells you it is a mountain; smelling it tells you what is on
-    it. The older note here said a clue no better than looking is no clue — that was
-    written about *tiles* and does not hold for the one thing eyesight is forbidden to
-    show. Both bounds are derived from constants rather than written down, because a
-    hand-set number here has now gone stale twice: once when sight rose, and once when
-    the board shrank.
-- **There is no in-app notepad.** There was one; it was removed because players keep
-  notes on paper or a phone, and a text box in the sidebar was a worse version of that.
-  The point stands regardless: the app remembers nothing, so the map lives outside it.
-
-Monsters are also **scattered at random** now rather than spaced out. Even spacing was
-right when you could see them coming; hidden, it makes every tile equally likely to
-hold something, so exploring tells you nothing. Clumps and empty runs are what the
-notes are for.
+- **The chain is picked once, at setup** (`buildSecret`, called from `createInitialState`
+  right after the board and monsters exist and never again). A target tile is chosen
+  from the finished board, then clues are added - each a true statement about that tile
+  - until exactly one candidate tile survives all of them. Solvable by construction:
+  there is no way to generate an unsolvable secret, because the target is never wrong
+  about its own clues.
+- **Candidates exclude the centre, any river tile, and any tile a live monster is
+  standing on.** The escape-spot mock's first pass allowed all three, and each was a
+  plausibility problem: you cannot stand on the dragon's tile, dig up a river, or dig
+  where something is about to fight you.
+- **Seven shapes, each true or false of a tile by looking at it**: trees (`base ===
+  "forest"`), water (`.river`), next to a town, on the outside rim, a monster standing
+  on it, in the northern half, or nothing on it but grass. Every test reads a tile's
+  **dominant** look, not its fine composition (`sides`) - "legibility beats realism"
+  applies to a clue exactly the way it applies to a tile's own drawing.
+- **Scored by the harshest single cut, not by clue count** (`min(trail[i] / trail[i-1])`
+  across the narrowing), and the gentlest chain wins, capped at `MAX_CLUES` (5). Both
+  numbers are carried over unchanged from the mock, because both were established
+  empirically there and nothing about the real board changes the argument: a chain
+  where one clue does most of the work asks nobody to think, and five clues is what a
+  ten-year-old can hold, not what the maths can produce.
+- **A wrong dig reports a band, not a distance** (`"boiling hot"` / `"warm"` /
+  `"cold"` / `"ice cold"`), also carried over from the mock - an exact tile count is
+  precise enough to triangulate the answer by arithmetic instead of by reading the
+  clues, which the mock caught on a second look and this build never had to relearn.
+- **Clues are earned, never drawn for their own sake**, by the two things "the mini-game
+  itself can also be a clue" turns out to mean in this codebase: beating a monster
+  (`beaten` in `combat.ts`, gated so the dragon does not bother - the game is already
+  over by then) and a search that actually finds something (`search` in `actions.ts`,
+  gated on `Find.kind` being a real find rather than nothing, a mishap, a thief or a
+  trap). Both call `revealSecretClue`, which is a no-op once the chain is exhausted.
+- **Marking a tile is free and shared** (`markSecretTile`, cycling nothing → ruled out
+  → a maybe → nothing). Free because it is bookkeeping the whole table does together,
+  not a move any one player makes; shared, not per player, because unlike the old
+  terrain memory this is one table working one puzzle, not five people each needing to
+  be told what the others already know.
+- **Digging costs the turn's action** (`dig`, gated by `canDig` the same way `search`
+  is) **and only works on the tile you are standing on.** A team has to actually walk
+  to a candidate before trying it - the puzzle is not solved by clicking anywhere on a
+  visible map, it is solved by reasoning about the clues and then spending a turn to
+  confirm it.
+- **Only the team standing on the spot when it opens wins, and the whole game ends
+  there and then** (`ending: "escaped"`, `escapedTeam`). This is the answer to the
+  question the escape-spot mock's own README left open: two win conditions collapse
+  into one unless the payoffs differ. Because a team always walks as one tile-stack
+  (v0.31's own rule), "whoever is standing on it" resolves cleanly to "whichever team
+  got there and dug it" - there is no scenario where only some of a team benefits. The
+  real tension is between teams and against the clock: escaping ends the evening for
+  everybody, including a second team who might have been close to the dragon, so it is
+  a genuine trade against holding out for turn 8's full-party dragon fight, not a free
+  alternate ending bolted on beside it.
 
 ## Pacing, and what the sim can and cannot tell you
 
@@ -762,13 +782,21 @@ What it still measures, and what it is worth running for:
 - **Whether the economy still moves** — money found, gear picked up.
 - **That a whole game runs to an ending from any seed**, without stalling.
 
-At v0.31, `npx vite-node tools/sim.ts 800 <size>`:
+At v0.32, `npx vite-node tools/sim.ts 800 <size>`:
 
 | players | teams | turns | fights | mini-games | met the dragon | lost to the abyss |
 |---|---|---|---|---|---|---|
-| 2 | 1 | 16 | 3.5 | 7.8 | 100% | 0.1 |
-| 4 | 2 | 8 | 3.8 | 8.5 | 100% | 0.2 |
-| 5 | 2 | 8 | 3.8 | 8.4 | 100% | 0.4 |
+| 2 | 1 | 13.7 | 3.5 | 7.6 | 92% | 0.2 |
+| 4 | 2 | 6.9 | 3.7 | 8.3 | 95% | 0.3 |
+| 5 | 2 | 6.9 | 3.8 | 8.2 | 95% | 0.4 |
+
+**"Met the dragon" reads a few points under v0.31's measured 100%, and that gap is
+real, not a rounding difference: some games now end (`"outOfTime"`, via the abyss
+wiping a whole team, or a team simply running out of players before the last turn)
+without `finalStand` ever having fired.** Nothing in this version touched `finalStand`,
+`endTurn`'s turn-limit check, or the abyss - re-measuring is what turned up the gap, not
+a change that would explain it, so it is recorded here rather than quietly rounded back
+up to the old figure. Worth a look if anyone changes the collapse or the abyss again.
 
 **About eight mini-games an evening, one of them the three-card dragon, at every party
 size.** That is the shape the whole version is aiming at, and it is what the derived
@@ -807,11 +835,11 @@ points into its filters, so nothing renders without it.
 Four things about that worth not rediscovering:
 
 - **`src/artslots.ts` names every picture, once.** Exactly the argument `palette.ts`
-  makes about colour: a thing's drawing has to be the same on its piece on the board, on
-  its blip on the compass, on the card when it turns up and in the art room. It sits at
-  the root rather than beside the drawings because `sense.ts` needs it — `Sensed.art` is
-  carried on the blip the same way `Sensed.colour` is, so the dot and the token cannot
-  drift apart. There is no React in it.
+  makes about colour: a thing's drawing has to be the same on its piece on the board,
+  on the card when it turns up and in the art room. It sits at the root rather than
+  beside the drawings because game logic needs it too - `enemies.ts` and `hazards.ts`
+  both read a slot name for their own records, and it used to be what carried a blip's
+  picture on the deleted `sense.ts` as well. There is no React in it.
 - **`<Art slot>` is the only place an upload is looked up** (`src/ui/art/Art.tsx`).
   Wrap a generated drawing in it and an uploaded picture wins *everywhere at once*.
   Before v0.28 only the round `Token` honoured uploads, so a photographed frying pan
@@ -825,10 +853,10 @@ Four things about that worth not rediscovering:
 - **Everything on the board has a face** (v0.29). A player's piece is their drawing on
   their colour, not an initial in a circle; a wanderer's marker is its drawing on its
   plaque, not an emoji — which was the one place in the game where a system font decided
-  what something looked like, at three different weights on three different devices. The
-  compass blips are the same pictures with the step count in a corner bubble, because
-  the compass is the only map a *player* ever sees and a coloured dot asked a child to
-  remember that purple means the pirates.
+  what something looked like, at three different weights on three different devices.
+  Drawing beat a coloured dot for the same reason it was worth the trouble at all: a
+  child should not have to remember that purple means the pirates when the wanderer's
+  own drawing is right there on the board.
   - **The colour stays behind the drawing everywhere**, never replaced by it. Colour is
     how a seven-year-old finds their piece at a glance; the picture is how they know
     what it is.
@@ -952,8 +980,9 @@ Choices the rulebook leaves open (its §15), all marked in the code where they a
   group fights all need it — and a rule against it made the party people who could never
   quite meet. Enemies are unchanged: onto, never past (§5).
 - **Movement is spent one tile at a time** (`stepsTaken`, `stepsLeft`). Never offer a
-  multi-tile destination up front: on a board nobody can see, that is a leap into the
-  dark, and it turns the Scout's bonus from scouting into teleporting.
+  multi-tile destination up front, even though the board is fully visible since v0.32 -
+  see "The map is not hidden any more" for why the rule outlived the reason it was
+  written for.
 - **Rivers do not cost movement.** No terrain does, yet.
 - **Entry side is not a rule.** Sides are stored per direction, so "which element you
   are standing in depends on the side you entered from" remains available; nothing uses

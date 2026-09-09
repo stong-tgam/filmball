@@ -1,9 +1,14 @@
 /**
- * The SVG map: 61 tiles, one <g> each, laid out pointy-top.
+ * The SVG map: 37 tiles, one <g> each, laid out pointy-top.
  *
  * The whole board is one SVG with a computed viewBox, so it scales to the window
  * without any pixel maths in CSS - important on a tablet, which is where this gets
- * played.
+ * played. **This is the only view of the game since v0.32** - there is no fog and no
+ * separate "your ground" screen any more; the whole board, every monster on it, is on
+ * screen from turn one. See `CLAUDE.md`'s "The map is not hidden any more" for why:
+ * the table asked to see the monsters and choose their own fights, and a puzzle you
+ * eliminate your way through needs the whole board eliminable, not just the ground
+ * somebody happens to have walked.
  */
 
 import { useMemo } from "react";
@@ -11,12 +16,10 @@ import Tile from "./Tile";
 import TokenLayer from "./TokenLayer";
 import EnemyLayer from "./EnemyLayer";
 import HazardLayer from "./HazardLayer";
-import FogTile from "./FogTile";
 import { DIRS, add, hexPoints, hexToPixel, inBoard, key } from "../game/hex";
 import { hasFindings, searchKind } from "../game/actions";
 import { isDestroyed } from "../game/hazards";
 import { doomed, hasFallen } from "../game/collapse";
-import { canSee, enemyVisible, hasSeen, playerVisible } from "../game/vision";
 import type { Enemy, Hazard, Player, Tile as TileData } from "../game/types";
 
 const SIZE = 40;
@@ -36,14 +39,11 @@ type Props = {
   turnLimit: number;
   /** The team whose go it is: every one of their tokens pulses. */
   activeIds: string[];
-  /**
-   * Whose eyes the board is drawn through. There is no bird's-eye view: everything
-   * outside this player's sight is blank paper, and it goes blank again the moment
-   * they walk away. See `game/vision.ts` for why nothing is remembered.
-   */
-  viewer: Player;
   /** The active player's colour: legal moves are drawn in it. */
   activeColour: string;
+  /** Tap marks the table has made against the map's secret - "x" ruled out, "?" a
+   *  maybe. Shared across the party, not per player: they are one table. */
+  secretMarks: Record<string, "x" | "?">;
   onSelect: (label: string | null) => void;
 };
 
@@ -78,8 +78,8 @@ export default function Board({
   turn,
   turnLimit,
   activeIds,
-  viewer,
   activeColour,
+  secretMarks,
   onSelect,
 }: Props) {
   const entries = useMemo(() => Object.entries(tiles), [tiles]);
@@ -110,7 +110,7 @@ export default function Board({
       viewBox={viewBox}
       xmlns="http://www.w3.org/2000/svg"
       role="group"
-      aria-label="Game board, 61 hex tiles"
+      aria-label="Game board, 37 hex tiles"
       onClick={(e) => {
         if (e.target === e.currentTarget) onSelect(null);
       }}
@@ -136,8 +136,7 @@ export default function Board({
 
       {entries.map(([label, tile]) =>
         // Gone into the abyss: drawn as nothing at all, which is what it is now.
-        // Gone into the abyss: drawn as nothing at all, which is what it is now.
-        hasFallen(tile.hex, turn, turnLimit) ? null : hasSeen(viewer, tile.hex) ? (
+        hasFallen(tile.hex, turn, turnLimit) ? null : (
           <Tile
             key={label}
             label={label}
@@ -148,40 +147,38 @@ export default function Board({
             legal={legalMoves.has(label)}
             wrecked={isDestroyed(tile, turn)}
             doomed={doomed(tile.hex, turn, turnLimit)}
-            // Ground you remember rather than ground you can see. Terrain only: a
-            // monster walks, a hazard walks, and somebody else may have searched it
-            // since - so a memory that showed any of that would be the app lying
-            // rather than the app forgetting.
-            remembered={!canSee(viewer, tile.hex)}
-            findings={canSee(viewer, tile.hex) && hasFindings(tile) ? searchKind(tile) : null}
-            onSelect={onSelect}
-          />
-        ) : (
-          <FogTile
-            key={label}
-            label={label}
-            tile={tile}
-            size={SIZE}
-            selected={selected === label}
-            legal={legalMoves.has(label)}
+            findings={hasFindings(tile) ? searchKind(tile) : null}
             onSelect={onSelect}
           />
         ),
       )}
 
-      {/* Monsters hide; hazards never do. A tornado you cannot see coming is not a
-          funny setback, and the players who are not moving need something to watch. */}
+      {/* The secret's marks: the table's own notes, crossing off what cannot be it. */}
+      <g className="secret-marks">
+        {Object.entries(secretMarks).map(([label, mark]) => {
+          const hex = tiles[label]?.hex;
+          if (!hex || hasFallen(hex, turn, turnLimit)) return null;
+          const { x, y } = hexToPixel(hex, SIZE);
+          return mark === "x" ? (
+            <g key={label} transform={`translate(${x} ${y})`} className="secret-mark secret-mark-x">
+              <line x1={-16} y1={-16} x2={16} y2={16} />
+              <line x1={16} y1={-16} x2={-16} y2={16} />
+            </g>
+          ) : (
+            <text key={label} x={x} y={y + 9} textAnchor="middle" className="secret-mark secret-mark-maybe">
+              ?
+            </text>
+          );
+        })}
+      </g>
+
       <EnemyLayer
-        enemies={enemies.filter((e) => enemyVisible(e, viewer))}
+        enemies={enemies}
         size={SIZE}
         purses={Object.fromEntries(hazards.map((h) => [h.kind, h.carrying]))}
       />
       <HazardLayer hazards={hazards} size={SIZE} />
-      <TokenLayer
-        players={players.filter((p) => playerVisible(p, viewer))}
-        activeIds={activeIds}
-        size={SIZE}
-      />
+      <TokenLayer players={players} activeIds={activeIds} size={SIZE} />
     </svg>
   );
 }

@@ -30,6 +30,7 @@ import { challengeFor, poolSize, type Challenge } from "./challenges";
 import { draw as drawCard } from "./cards";
 import { key, neighbours } from "./hex";
 import { makeRng } from "./rng";
+import { revealSecretClue } from "./secret";
 import { canTake, equip, makeFine, randomFood } from "./items";
 import { ROLES, maxHealthOf } from "./players";
 import {
@@ -227,13 +228,7 @@ export function startCombat(
     picksLeft: 0,
     outcome: "ongoing",
   };
-  // Found is permanent: the party paid a turn for that information.
-  next = {
-    ...next,
-    challengeDeck: deck,
-    rngState: seed,
-    enemies: next.enemies.map((e) => (e.id === enemy.id ? { ...e, found: true } : e)),
-  };
+  next = { ...next, challengeDeck: deck, rngState: seed };
   next = note(
     { ...next, phase: "combat", combat },
     `${starter.name}${team.length > 1 ? ` and ${team.length - 1} more` : ""} met ${nameWithArticle(
@@ -751,9 +746,12 @@ function beaten(state: GameState, enemy: Enemy): GameState {
 
   // Rulebook §14: the dragon is the game.
   if (enemy.kind === "finalboss") {
-    next = note({ ...next, ending: "victory" }, "The dragon is dead. The party has won.");
+    return note({ ...next, ending: "victory" }, "The dragon is dead. The party has won.");
   }
-  return next;
+  // Beating anything else is one of the two ways the party earns a clue about the
+  // map's secret (`secret.ts`) - the other is a search that actually finds something.
+  // The dragon is excluded above for the obvious reason: the game is already over.
+  return revealSecretClue(next, `beat ${nameWithArticle(enemy.kind)}`);
 }
 
 /** Rulebook §9, water: beaten on a river tile, it slips away to another one. Once. */

@@ -48,6 +48,7 @@ import {
   sell,
 } from "./actions";
 import { canDonate, canFightThief, canPayOff, donate, fightThief, payOff, thiefFacing } from "./hazards";
+import { canDig, dig, markSecretTile } from "./secret";
 import { clearSave, readSave, saveGame } from "./save";
 import type { Enemy, GameState, Item, Player, Role, Team, Tile } from "./types";
 
@@ -82,6 +83,10 @@ type Store = {
   hook: (targetId: string, how: "pull" | "cross") => void;
   give: (toId: string, itemId: string) => void;
   donate: () => void;
+  /** Try the tile you are standing on against the map's secret. */
+  dig: () => void;
+  /** Cross a tile off, or on to a maybe, or clear it. Free - not the turn's action. */
+  markSecretTile: (label: string) => void;
   /** Shops are a panel, not a phase: opening one spends the turn's action. */
   shopOpen: boolean;
   openShop: () => void;
@@ -130,6 +135,13 @@ export const useGame = create<Store>((set, get) => ({
   hook: (targetId, how) => set({ game: hook(get().game, targetId, how), selected: null }),
   give: (toId, itemId) => set({ game: give(get().game, toId, itemId) }),
   donate: () => set({ game: donate(get().game) }),
+  dig: () => {
+    const game = get().game;
+    const player = activePlayer(game);
+    const team = activeTeam(game);
+    set({ game: dig(game, player, team ? team.name : player.name), selected: null });
+  },
+  markSecretTile: (label) => set({ game: markSecretTile(get().game, label) }),
   shopOpen: false,
   openShop: () => set({ game: openShop(get().game), shopOpen: true }),
   closeShop: () => set({ shopOpen: false }),
@@ -193,6 +205,8 @@ export const useThiefHere = (): { kind: "robber" | "pirates"; carrying: number }
   });
 export const useCanHeal = (): boolean =>
   useGame((s) => canHeal(s.game, activePlayer(s.game)));
+export const useCanDig = (): boolean =>
+  useGame((s) => canDig(s.game, activePlayer(s.game)));
 export const useHealTargets = (): Player[] =>
   useGame((s) => healTargets(s.game, activePlayer(s.game)));
 

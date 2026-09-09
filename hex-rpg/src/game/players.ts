@@ -30,12 +30,13 @@ export const BASE_MONEY = 2;
 /**
  * Rulebook §5 says one tile. This is **two**, as of v0.30.
  *
- * One tile was right while the board was blank paper and a step was a guess: you could
- * see exactly as far as you could walk, so a move was "try that hex". With the map
- * remembered (`Player.seen`) and sight at two rings, a turn is a *route* - you can see
- * the whole of where you might go, and choosing between nineteen tiles rather than six
- * is a decision instead of a poke. Movement is still spent **one tile at a time**, so
- * an ambush still interrupts you halfway and you still choose whether to push on.
+ * One tile was right while the board was blank paper and a step was a guess. **v0.32
+ * retired the fog entirely** - the whole board is on screen from turn one, monsters
+ * included - so a turn is now openly a *route*: you can see everywhere you might go
+ * before you commit to any of it, and choosing between nineteen tiles is a decision
+ * instead of a poke. Movement is still spent **one tile at a time**, because an ambush
+ * (a hazard wandering onto your path, a mid boss arriving) can still interrupt you
+ * halfway, and you still choose whether to push on.
  */
 export const BASE_MOVE = 2;
 
@@ -64,12 +65,6 @@ export type RoleProfile = {
   attackBonus: number;
   /** Added to the one tile a turn everybody gets. */
   moveBonus: number;
-  /**
-   * Added to the one ring of tiles everybody can see. Only the Scout has this, and
-   * it is the bonus that matters most now the board is hidden: seeing two rings
-   * rather than one roughly triples what a turn tells you.
-   */
-  sightBonus: number;
   /** Doctors, and only doctors, can heal and revive. */
   canHeal: boolean;
   /** Fishermen, and only fishermen, can fish a river and cast the hook. */
@@ -126,7 +121,6 @@ export const ROLES: Record<Role, RoleProfile> = {
     healthBonus: 1,
     attackBonus: 0,
     moveBonus: 0,
-    sightBonus: 0,
     canHeal: false,
     canFish: false,
     swims: false,
@@ -142,7 +136,6 @@ export const ROLES: Record<Role, RoleProfile> = {
     healthBonus: 0,
     attackBonus: 1,
     moveBonus: 0,
-    sightBonus: 0,
     canHeal: false,
     canFish: false,
     swims: false,
@@ -154,11 +147,10 @@ export const ROLES: Record<Role, RoleProfile> = {
   },
   scout: {
     name: "Scout",
-    blurb: "Buys the team more seconds, sees a ring further, knows a wood.",
+    blurb: "Buys the team more seconds, covers more ground, knows a wood.",
     healthBonus: 0,
     attackBonus: 0,
     moveBonus: 1,
-    sightBonus: 1,
     canHeal: false,
     canFish: false,
     swims: false,
@@ -174,7 +166,6 @@ export const ROLES: Record<Role, RoleProfile> = {
     healthBonus: 0,
     attackBonus: 0,
     moveBonus: 0,
-    sightBonus: 0,
     canHeal: true,
     canFish: false,
     swims: false,
@@ -190,7 +181,6 @@ export const ROLES: Record<Role, RoleProfile> = {
     healthBonus: 0,
     attackBonus: 0,
     moveBonus: 0,
-    sightBonus: 0,
     canHeal: false,
     canFish: true,
     swims: true,
@@ -245,7 +235,6 @@ const spawn = (role: Role, hex: Hex): Player => {
     boots: null,
     spareArmor: null,
     supply: [],
-    seen: [],
     gone: false,
     stepsTaken: 0,
     actedThisTurn: false,
@@ -271,9 +260,9 @@ const spawn = (role: Role, hex: Hex): Player => {
  *
  * Pairs are the compromise. Each pair takes a corner, one on it and one beside it, so
  * every player has somebody in reach from turn one - while the party still opens on
- * two or three separate corners, which is what keeps the hidden map worth talking
- * about. Starting everybody on one tile would have made the co-operation trivial and
- * deleted the exploring, which is the actual game.
+ * two or three separate corners, which is what keeps the board worth splitting up to
+ * cover. Starting everybody on one tile would have made the co-operation trivial and
+ * left half the map nobody ever had a reason to walk to.
  *
  * An odd party makes a **trio** at the last corner rather than opening a third one for
  * a single player: the leftover is exactly the child who would otherwise spend the
@@ -285,8 +274,9 @@ export function startingSpots(rng: Rng, count: number): Hex[] {
   // first thing the table sees about how this game is played.
   //
   // The corners themselves are shuffled and never adjacent, so two teams open on
-  // opposite sides of a board neither of them can see, which is what keeps the
-  // exploring worth talking about.
+  // opposite sides of the board - which still matters with the fog gone (v0.32): the
+  // whole map is visible from turn one, but somebody still has to physically stand on
+  // a tile to search it, fight what is on it, or dig it looking for the escape spot.
   const corners = rng.shuffle(boardCorners());
   const sizes = teamSizes(count);
   return sizes.flatMap((size, i) =>

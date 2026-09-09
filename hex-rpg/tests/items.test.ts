@@ -257,7 +257,9 @@ describe("searching", () => {
     const streets = search({ ...standing("city"), searchDeck: [{ suit: "hearts", rank: "J" }] });
     expect(woods.log.some((l) => l.text.includes("roots"))).toBe(true);
     expect(streets.log.some((l) => l.text.includes("market stall"))).toBe(true);
-    expect(woods.log.at(-1)?.text).toContain("$1");
+    // Not necessarily the very last line: a find worth a clue about the map's secret
+    // (`secret.ts`) appends one more line after the search's own.
+    expect(woods.log.some((l) => l.text.includes("$1"))).toBe(true);
   });
 
   it("marks ground worth searching, and stops marking it once it is spent", () => {

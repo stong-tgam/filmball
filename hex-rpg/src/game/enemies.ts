@@ -192,8 +192,6 @@ const spawn = (kind: EnemyKind, hex: Hex, n: number): Enemy => ({
   featuresRevealed: false,
   escapedOnce: false,
   loot: [],
-  // Thieves are hazards too, and hazards are never hidden.
-  found: kind === "robber" || kind === "pirates",
   defeated: false,
 });
 

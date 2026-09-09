@@ -30,7 +30,6 @@ import { HOLD_THE_LINE_COST, LINGER_SECONDS, SKILLS, hasSkill, whoTakesTheHit } 
 import { createTeams, teamSizes } from "../src/game/teams";
 import { createInitialState } from "../src/game/setup";
 import { activePlayer, bringsEvent, endTurn, eventThreshold, legalMoves, movePlayer } from "../src/game/turn";
-import { sense } from "../src/game/sense";
 import { HAZARDS } from "../src/game/hazards";
 import { ENEMIES } from "../src/game/enemies";
 import { PALETTE } from "../src/palette";
@@ -587,40 +586,6 @@ describe("the world gets louder", () => {
 });
 
 describe("one crew of pirates, not two", () => {
-  it("reports a thief once, not once as a monster and once as a hazard", () => {
-    const base = createInitialState(4471);
-    const pirates = base.hazards.find((h) => h.kind === "pirates")!;
-    // Stand somebody a tile away so the crew is inside sensing range.
-    const near: GameState = {
-      ...base,
-      players: base.players.map((p, i) =>
-        i === 0 ? { ...p, hex: { q: pirates.hex.q + 1, r: pirates.hex.r } } : p,
-      ),
-    };
-    const blips = sense(near, near.players[0]).filter((s) => s.name === "Pirates");
-    // They are one thing wearing two hats - a hazard record and a monster record on
-    // one tile - and the read-out used to list both, which had the table hunting for
-    // a second crew that was never there.
-    expect(blips).toHaveLength(1);
-    expect(blips[0].kind).toBe("hazard");
-  });
-
-  it("gives every blip the colour its token has on the board", () => {
-    const base = createInitialState(4471);
-    const pirates = base.hazards.find((h) => h.kind === "pirates")!;
-    const near: GameState = {
-      ...base,
-      players: base.players.map((p, i) =>
-        i === 0 ? { ...p, hex: { q: pirates.hex.q + 1, r: pirates.hex.r } } : p,
-      ),
-    };
-    for (const blip of sense(near, near.players[0])) {
-      expect(blip.colour).toMatch(/^#[0-9a-f]{6}$/i);
-    }
-    expect(sense(near, near.players[0]).find((s) => s.name === "Pirates")!.colour)
-      .toBe(PALETTE.pirates);
-  });
-
   it("keeps every character and wanderer on its own colour", () => {
     // A child learns the game by colour before they learn it by name. Two things
     // sharing one is two things they cannot tell apart across the table.

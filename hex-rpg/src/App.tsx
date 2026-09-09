@@ -1,6 +1,5 @@
 import { useState } from "react";
 import Board from "./ui/Board";
-import Compass from "./ui/Compass";
 import CrayonDefs from "./ui/art/CrayonDefs";
 import ActionBar from "./ui/ActionBar";
 import Log from "./ui/Log";
@@ -36,6 +35,7 @@ import {
   useCanHoldTheLine,
   useCanHook,
   useCanSearch,
+  useCanDig,
   useGiveTargets,
   useHookTargets,
   useCanTrade,
@@ -49,9 +49,8 @@ import { ENEMIES } from "./game/enemies";
 import { key } from "./game/hex";
 import { elementsOf } from "./game/setup";
 import { ROLES, hasMoved } from "./game/players";
-import { canSee, smellsSmoke } from "./game/vision";
+import { clueSentence } from "./game/secret";
 import { doomed, rimWarning } from "./game/collapse";
-import { sense } from "./game/sense";
 import { searchKind } from "./game/actions";
 import "./styles.css";
 
@@ -98,10 +97,9 @@ export default function App() {
   const takeLoot = useGame((s) => s.takeLoot);
   const search = useGame((s) => s.search);
   const eat = useGame((s) => s.eat);
-  // The overhead board is a grown-up's debug peek, off by default. The game is the
-  // first-person view; being able to flip between them is only here so the map idea
-  // can be judged against the thing it replaced.
-  const [overhead, setOverhead] = useState(false);
+  const canDig = useCanDig();
+  const dig = useGame((s) => s.dig);
+  const markSecretTile = useGame((s) => s.markSecretTile);
   const shopOpen = useGame((s) => s.shopOpen);
   const openShop = useGame((s) => s.openShop);
   const closeShop = useGame((s) => s.closeShop);
@@ -144,10 +142,9 @@ export default function App() {
 
   const [seedInput, setSeedInput] = useState("");
   const tile = selected ? game.tiles[selected] : null;
-  // The sidebar must never say more than the board shows, or tapping around the fog
-  // becomes a way to read the whole map without walking it.
-  const seesSelected = tile ? canSee(player, tile.hex) : false;
   const over = game.phase === "gameOver" || game.ending !== null;
+  const secretMark = selected ? game.secret.marks[selected] : undefined;
+  const revealedClues = game.secret.chain.slice(0, game.secret.revealed);
 
   const composition = tile
     ? elementsOf(tile)
@@ -197,7 +194,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Hex RPG</h1>
-          <span className="version">v0.31 — the game the family plays</span>
+          <span className="version">v0.32 — the game the family plays</span>
         </div>
         <button
           type="button"
@@ -206,15 +203,6 @@ export default function App() {
           onClick={() => setDrawing(true)}
         >
           Our drawings
-        </button>
-        <button
-          type="button"
-          className="peek"
-          aria-pressed={overhead}
-          title="The map you have walked: ground you have seen, remembered but faded"
-          onClick={() => setOverhead((on) => !on)}
-        >
-          {overhead ? "Back to the ground" : "Your map"}
         </button>
         <p className="turn-counter">
           Turn <strong>{game.turn}</strong>
@@ -272,39 +260,26 @@ export default function App() {
           player={player}
           team={activeTeam}
           moves={legalMoves.size}
-          smoke={smellsSmoke(game, player)}
           rim={rimWarning(game, player)}
           standingOnIt={doomed(player.hex, game.turn, game.turnLimit)}
         />
       )}
 
       <main className="stage">
-        {overhead ? (
-          <Board
-            tiles={game.tiles}
-            selected={selected}
-            legalMoves={legalMoves}
-            players={game.players}
-            enemies={game.enemies}
-            hazards={game.hazards}
-            turn={game.turn}
-            turnLimit={game.turnLimit}
-            activeIds={activeTeam?.memberIds ?? [player.id]}
-            viewer={player}
-            activeColour={ROLES[player.role].colour}
-            onSelect={tapTile}
-          />
-        ) : (
-          <Compass
-            viewer={player}
-            tiles={game.tiles}
-            turn={game.turn}
-            turnLimit={game.turnLimit}
-            sensed={sense(game, player)}
-            legalMoves={legalMoves}
-            onMove={moveTo}
-          />
-        )}
+        <Board
+          tiles={game.tiles}
+          selected={selected}
+          legalMoves={legalMoves}
+          players={game.players}
+          enemies={game.enemies}
+          hazards={game.hazards}
+          turn={game.turn}
+          turnLimit={game.turnLimit}
+          activeIds={activeTeam?.memberIds ?? [player.id]}
+          activeColour={ROLES[player.role].colour}
+          secretMarks={game.secret.marks}
+          onSelect={tapTile}
+        />
         {/* Under the map, not off in the corner of the sidebar.
             A child looks at the ground, decides, and reaches for the button - and on a
             tablet passed round a table that reach has to be short and in the same place
@@ -333,6 +308,8 @@ export default function App() {
             enemyHere ? { name: ENEMIES[enemyHere.kind].name, cards: ENEMIES[enemyHere.kind].cards } : null
           }
           onTakeOn={takeOn}
+          canDig={canDig}
+          onDig={dig}
           canFightThief={canFightThief}
             thief={thiefHere}
             onSearch={search}
@@ -356,14 +333,9 @@ export default function App() {
           <PartyList players={game.players} teams={game.teams} activeId={player.id} onEat={eat} />
         </section>
 
-        {overhead && (
         <section className="panel">
           <h2>Tile</h2>
-          {tile && !seesSelected ? (
-            <p className="muted">
-              You cannot see that far. Walk over and look, or ask whoever is closer.
-            </p>
-          ) : tile ? (
+          {tile ? (
             <>
               <p className="tile-name">
                 <span className="mono">{selected}</span> — {tile.base}
@@ -378,12 +350,45 @@ export default function App() {
                 ))}
                 {tile.rail && <li className="tag tag-rail">Railway</li>}
               </ul>
+              {selected && (
+                <button
+                  type="button"
+                  className="ghost secret-mark-button"
+                  onClick={() => markSecretTile(selected)}
+                  title="Cross this tile off against the map's secret, or on to a maybe. Free - it does not cost the turn."
+                >
+                  {secretMark === "x"
+                    ? "Marked: ruled out — tap for a maybe"
+                    : secretMark === "?"
+                      ? "Marked: a maybe — tap to clear"
+                      : "Mark for the secret spot"}
+                </button>
+              )}
             </>
           ) : (
-            <p className="muted">Tap a quiet tile to look at it.</p>
+            <p className="muted">Tap a tile to look at it.</p>
           )}
         </section>
-        )}
+
+        <section className="panel">
+          <h2>The secret</h2>
+          <p className="muted">
+            Somewhere on the map is a way out, before the dragon ever wakes. Beating a
+            monster or a search that finds something both turn up a clue about it.
+          </p>
+          {revealedClues.length === 0 ? (
+            <p className="muted">No clues yet.</p>
+          ) : (
+            <ul className="secret-clues">
+              {revealedClues.map((clue, i) => (
+                <li key={i}>
+                  {clueSentence(clue)}
+                  <span className="secret-clue-from"> — {clue.from}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <section className="panel panel-log">
           <h2>Log</h2>
@@ -447,7 +452,12 @@ export default function App() {
       )}
 
       {game.ending && (
-        <GameOver ending={game.ending} turn={game.turn} onNewGame={() => newGame()} />
+        <GameOver
+          ending={game.ending}
+          turn={game.turn}
+          detail={game.escapedTeam}
+          onNewGame={() => newGame()}
+        />
       )}
 
       {shopOpen && !game.combat && (

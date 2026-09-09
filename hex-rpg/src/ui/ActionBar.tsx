@@ -42,6 +42,9 @@ type Props = {
   /** What is standing here, for the button's own words. */
   enemyHere: { name: string; cards: number } | null;
   onTakeOn: () => void;
+  /** Try this tile against the map's secret. Costs the turn's action either way. */
+  canDig: boolean;
+  onDig: () => void;
   /** Take a swing at the thief you are standing with, rather than buying your way past. */
   canFightThief: boolean;
   /** Which thief it is and how much of the party's money they have, for the prompt. */
@@ -76,6 +79,8 @@ export default function ActionBar({
   canTakeOn,
   enemyHere,
   onTakeOn,
+  canDig,
+  onDig,
   canFightThief,
   thief,
   onSearch,
@@ -153,7 +158,7 @@ export default function ActionBar({
   return (
     <div className="actionbar">
       <p className="actionbar-ask">{prompt}</p>
-      {(canTakeOn || canSearch || canFish || canHook || canGive || canTrade || canDonate || canHeal || canPayOff || canFightThief) && (
+      {(canTakeOn || canSearch || canFish || canHook || canGive || canTrade || canDonate || canHeal || canPayOff || canFightThief || canDig) && (
         <div className="actionbar-buttons">
           {canTakeOn && enemyHere && (
             <button
@@ -215,6 +220,11 @@ export default function ActionBar({
           {canTrade && (
             <button type="button" className="ghost" onClick={onTrade}>
               Go shopping
+            </button>
+          )}
+          {canDig && (
+            <button type="button" className="ghost dig" onClick={onDig} title="Is this the secret spot? Digging costs the turn either way.">
+              Dig here
             </button>
           )}
         </div>

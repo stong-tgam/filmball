@@ -269,6 +269,30 @@ button:active { transform: translateY(1px); }
 .tag-city { background: #302d28; border-color: #635c50; color: #ddd2c0; }
 .tag-rail { background: #322c25; border-color: #5f5648; color: #d8c8ae; }
 
+/* The escape spot (v0.32): a chain of clues, and the table's own marks on the board. */
+.secret-mark-button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  font-size: 13px;
+  text-align: left;
+}
+.secret-clues { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; }
+.secret-clues li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.secret-clue-from { display: block; color: var(--ink-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+
+/* Drawn straight onto the board's own SVG, so a mark lines up with the tile it is on
+   wherever the map is panned or scaled - a sidebar list of labels would not. */
+.secret-mark { pointer-events: none; }
+.secret-mark-x line { stroke: #3a3630; stroke-width: 5; stroke-linecap: round; opacity: 0.85; }
+.secret-mark-maybe {
+  fill: #3a3630;
+  font-family: "Patrick Hand", "Bradley Hand", "Segoe Print", cursive;
+  font-size: 30px;
+  text-anchor: middle;
+  opacity: 0.9;
+}
+
 /* ---------- narrow screens: sidebar drops below the board ----------
    Tablet portrait (820px) belongs on this side of the line: side by side, the
    board ends up smaller than the panel next to it. */
@@ -1885,19 +1909,6 @@ button.fight-thief {
   height: 100%;
   display: block;
 }
-
-
-/* ---------- ground you remember ---------- */
-
-/* Faded, and never interactive: this is how the tile *was* when you walked past. The
-   terrain is still true; everything that moves is not, which is why the map draws no
-   monsters, no search marks and no wanderers on remembered ground. */
-.tile.is-remembered {
-  opacity: 0.42;
-  filter: saturate(0.55);
-}
-
-.tile.is-remembered .tile-outline { stroke-dasharray: 3 5; }
 
 
 /* ---------- the hourglass ---------- */

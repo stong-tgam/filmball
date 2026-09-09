@@ -92,7 +92,9 @@ describe("river chests", () => {
   it("says 'chest' in the log so the table knows which table was rolled on", () => {
     const state = standingOn((t) => t.chest);
     const after = search(state);
-    expect(after.log.at(-2)?.text ?? after.log.at(-1)?.text).toMatch(/chest/i);
+    // Not necessarily the very last line: a find worth a clue about the map's secret
+    // (`secret.ts`) appends one more line after the search's own.
+    expect(after.log.some((l) => /chest/i.test(l.text))).toBe(true);
   });
 
   it("has coins in the bottom of it as well as gear", () => {

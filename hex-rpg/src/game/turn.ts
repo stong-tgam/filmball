@@ -13,12 +13,10 @@ import { activeMembers, membersOf, teamOf } from "./teams";
 import { ENEMIES, dragonWakesOn, enemyAt, wanderIn } from "./enemies";
 import { applyEvent, createEventDeck } from "./events";
 import { hazardMoves, isDestroyed, meet, moveHazards } from "./hazards";
-import { fromLabel, key, reachable } from "./hex";
+import { bearingBetween, compassName, fromLabel, key, reachable } from "./hex";
 import { collapseRim, hasFallen } from "./collapse";
-import { rememberAll } from "./vision";
 import { makeRng } from "./rng";
 import { hasMoved, stepsLeft } from "./players";
-import { bearingBetween, compassName } from "./sense";
 import { cardName } from "./cards";
 import type { Card, Enemy, EventCard, GameState, LogEntry, Player } from "./types";
 
@@ -108,31 +106,13 @@ export function movePlayer(state: GameState, destination: string): GameState {
     if (key(hazard.hex) === destination) arrived = meet(arrived, hazard.kind, player.id);
   }
 
-  // Walking onto something starts the fight there and then, and the fight is this
-  // turn's action - you do not get to brawl and then go shopping.
-  //
-  // **Except a thief.** The robber and the pirates are the two things on the board you
-  // are allowed to buy your way past (§5.5), and a fight that starts the instant you
-  // step on the tile takes that choice away before anybody has been asked. `meet` has
-  // already said "fight, or pay up" above; the buttons for both are on the action bar
-  // (`canFightThief`, `canPayOff`).
-  // Write down what the step revealed, before anything else happens on this tile.
-  // Doing it here rather than only at the end of the turn is what stops ground seen
-  // from the first step flickering away when they take the second.
-  const noted = rememberAll(arrived);
-
-  // Walking onto something **finds** it. It does not start the fight: `canTakeOn` and
-  // `takeOn` put that on a button, because a team is about to be handed a clock and
-  // three minutes of everybody's evening, and being asked first is the difference
-  // between a moment and an ambush. It is also what makes "they do not have to kill
-  // all the mobs" a real option rather than a thing the rules say and the board
-  // prevents.
-  const enemy = enemyAt(noted.enemies, destination);
-  if (!enemy) return noted;
-  return {
-    ...noted,
-    enemies: noted.enemies.map((e) => (e.id === enemy.id ? { ...e, found: true } : e)),
-  };
+  // Walking onto something does not start a fight, thief or otherwise. `canTakeOn`
+  // and `takeOn` put that on a button, because a team is about to be handed a clock
+  // and three minutes of everybody's evening, and being asked first is the difference
+  // between a moment and an ambush - and, for the robber and the pirates specifically,
+  // what makes buying your way past them (§5.5) a real choice rather than one a fight
+  // starting on contact would have already taken away.
+  return arrived;
 }
 
 /**
@@ -231,15 +211,13 @@ export function finalStand(state: GameState): GameState {
 
   const gathered: GameState = {
     ...state,
-    enemies: state.enemies.map((e) =>
-      e.id === dragon.id ? { ...e, dormant: false, found: true } : e,
-    ),
+    enemies: state.enemies.map((e) => (e.id === dragon.id ? { ...e, dormant: false } : e)),
     players: state.players.map((p) =>
       p.gone ? p : { ...p, hex: dragon.hex, actedThisTurn: true, stepsTaken: BASE_MOVE },
     ),
   };
   const called = note(
-    rememberAll(gathered),
+    gathered,
     `The ground gives out under everybody at once, and they land together in front of the ${ENEMIES.finalboss.name}. Whatever anybody is carrying, this is it. Three cards.`,
   );
   return startCombat(called, dragon, key(dragon.hex), playing.map((p) => p.id));
@@ -396,15 +374,13 @@ export function endTurn(state: GameState): GameState {
   const ready = next.players.map((p) =>
     upNext.has(p.id) ? { ...p, stepsTaken: 0, actedThisTurn: false } : p,
   );
-  // Everybody's memory brought up to date once a turn, which catches the ways a player
-  // changes tiles that are not a move: the hook, the tornado, backing out of a fight.
-  const started = rememberAll({
+  const started: GameState = {
     ...next,
     players: ready,
     activePlayerIndex: index,
     turn,
-    phase: "playerMove" as const,
-  });
+    phase: "playerMove",
+  };
   // A new turn for the whole party, not just the next player, is what draws a card.
   return turn === next.turn ? started : beginTurn(note(started, `— Turn ${turn} —`));
 }

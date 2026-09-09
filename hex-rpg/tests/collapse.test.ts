@@ -18,9 +18,8 @@ import {
 } from "../src/game/collapse";
 import { createInitialState, startGame } from "../src/game/setup";
 import { endTurn, legalMoves, movePlayer } from "../src/game/turn";
-import { ENEMIES, dragonWakesOn, mobArrivalChance } from "../src/game/enemies";
+import { ENEMIES, dragonWakesOn, enemyAt, mobArrivalChance } from "../src/game/enemies";
 import { RADIUS, allHexes, distance, key } from "../src/game/hex";
-import { sense } from "../src/game/sense";
 import { TURN_ORDER } from "../src/game/players";
 import type { GameState, Player } from "../src/game/types";
 
@@ -202,10 +201,10 @@ describe("the dragon sleeping in", () => {
     const dragon = base.enemies.find((e) => e.kind === "finalboss")!;
     expect(dragon.dormant).toBe(true);
 
-    // Standing right next to it and feeling nothing.
+    // Standing right next to it, and it is not there to find.
     const beside = { q: dragon.hex.q + 1, r: dragon.hex.r };
     const near = on(1, beside);
-    expect(sense(near, near.players[0]).some((t) => t.kind === "dragon")).toBe(false);
+    expect(enemyAt(near.enemies, key(dragon.hex))).toBeUndefined();
 
     // And walking onto the tile is a walk, not a fight.
     const walked = movePlayer({ ...near, activePlayerIndex: 0 }, key(dragon.hex));

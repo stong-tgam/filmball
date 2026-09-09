@@ -8,7 +8,7 @@
  */
 
 import { cardName, draw as drawCard, isFace, isJoker, isRed } from "./cards";
-import { distance, key } from "./hex";
+import { bearingBetween, compassName, distance, key } from "./hex";
 import {
   BONE,
   FISH_TEMPLATE,
@@ -33,9 +33,9 @@ import {
 } from "./items";
 import { meet } from "./hazards";
 import { ROLES, withMaxHealth } from "./players";
-import { bearingBetween, compassName } from "./sense";
 import { makeRng } from "./rng";
 import { activePlayer } from "./turn";
+import { revealSecretClue } from "./secret";
 import type { Card, Find, GameState, Item, LogEntry, Player, Terrain, Tile } from "./types";
 
 /** "a Sword", but "an Axe". The log gets read aloud. */
@@ -413,7 +413,16 @@ export function search(state: GameState): GameState {
   }
 
   const after = resolveSearch(next, acted, card, from);
-  return { ...after, find: whatTurnedUp(next, after, acted, card, from) };
+  const found = whatTurnedUp(next, after, acted, card, from);
+  // The other of the two ways the party earns a clue about the map's secret
+  // (`secret.ts`) - a search that actually turns something up, not a blank, a mishap
+  // or a thief taking something off you. "The mini-game itself can also be a clue"
+  // covers a beaten monster (`combat.ts`); this is its search-side twin.
+  const clued =
+    found.kind === "gear" || found.kind === "fish" || found.kind === "coins" || found.kind === "full"
+      ? revealSecretClue(after, from === "chest" ? "found a chest" : "searched some ground")
+      : after;
+  return { ...clued, find: found };
 }
 
 /**

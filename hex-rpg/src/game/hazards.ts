@@ -19,12 +19,11 @@
 import { standing } from "./collapse";
 import { startCombat } from "./combat";
 import { activeMembers } from "./teams";
-import { distance, hexesInRange, key, neighbours, type Hex } from "./hex";
+import { bearingBetween, compassName, distance, hexesInRange, key, neighbours, type Hex } from "./hex";
 import { slotKey } from "./items";
 import { PALETTE } from "../palette";
 import { withMaxHealth } from "./players";
 import { makeRng, type Rng } from "./rng";
-import { bearingBetween, compassName } from "./sense";
 import type { GameState, Hazard, HazardKind, LogEntry, Player, Stirring, Tile } from "./types";
 
 export type HazardProfile = {

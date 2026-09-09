@@ -58,3 +58,13 @@ one unless the payoffs differ.** If both simply end the game, the party takes wh
 is cheaper and the dragon becomes scenery. The suggestion on the table is that the
 escape spot only takes **whoever is standing on it** — so leaving is a real decision
 with a cost, and the dragon stays the way everybody gets out together.
+
+---
+
+**Built for real in v0.32** (`src/game/secret.ts`, `CLAUDE.md`'s "The map's secret").
+All three findings above carried straight over unchanged, both second-look fixes
+carried over unchanged, and the fog was in fact retired — `vision.ts`, `sense.ts`,
+`Compass.tsx`, `FogTile.tsx`, the remembered-map screen and the "no bird's-eye view"
+section of `CLAUDE.md` are all gone. The open question got an answer too: because a
+team always walks as one tile-stack, "whoever is standing on it" turned out to need no
+extra rule at all — it already resolves to "whichever team got there and dug it".

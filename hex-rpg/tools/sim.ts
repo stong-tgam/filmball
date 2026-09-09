@@ -19,6 +19,11 @@
  * - **Whether the economy still moves** - money found, gear picked up.
  * - **That a whole game runs to an ending** without stalling, from any seed.
  *
+ * **The bot never digs** (v0.32's escape spot, `secret.ts`). Working out the map's
+ * secret is exactly the kind of thing this file already cannot measure - a bot cannot
+ * read a clue any better than it can draw a dragon - so `"escaped"` will never appear
+ * in the tally below and that is not a bug in the sim.
+ *
  *     npx vite-node tools/sim.ts [games] [party size]
  */
 
@@ -77,7 +82,7 @@ function playTheCards(state: GameState, roll: () => number): GameState {
 function eatIfHurt(state: GameState): GameState {
   let next = state;
   for (const player of next.players) {
-    if (player.dead) continue;
+    if (player.gone) continue;
     let guard = 0;
     while (guard++ < 4) {
       const who = next.players.find((p) => p.id === player.id)!;
@@ -247,7 +252,17 @@ function play(
   stats.rounds += state.turn;
   stats.goes += state.log.filter((l) => l.text.includes("— Turn")).length;
   return {
-    dragonFound: dragon.found ? 1 : 0,
+    // The board is fully visible now (v0.32), so there is no "found" flag any more -
+    // every party has always been able to see the dragon's tile. What is worth
+    // knowing is whether they actually met it: beaten, or `finalStand` forced the
+    // meeting (its own log line is the most direct signal there is, more reliable
+    // than inferring it from the turn count). `"escaped"` is the new third ending
+    // and skipping the dragon entirely is the whole point of it, so a party that
+    // took it correctly reports 0 here.
+    dragonFound:
+      dragon.defeated || state.log.some((l) => l.text.includes("Whatever anybody is carrying"))
+        ? 1
+        : 0,
     ending: state.ending ?? "outOfTime",
     // What the party is holding when the lights go up. The bot never shops, so this
     // is gross earnings rather than savings - which is the number a change to the
@@ -271,10 +286,9 @@ if (process.env.DIAG) {
     ending: state.ending,
     fights,
     dragonHex: dragon.hex,
-    dragonDamage: dragon.damageTaken,
-    dragonHealth: dragon.maxHealth,
+    dragonDefeated: dragon.defeated,
     closest: Math.min(...state.players.map((p) => distance(p.hex, dragon.hex))),
-    alive: state.players.filter((p) => !p.dead).length,
+    alive: state.players.filter((p) => !p.gone).length,
     log: state.log.slice(-6).map((l) => l.text),
   });
   process.exit(0);
