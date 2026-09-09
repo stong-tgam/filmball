@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { TURN_ORDER } from "../src/game/players";
+import { THIEVES, monsterCount } from "../src/game/enemies";
 import {
   CITY_COUNT,
   CITY_MIN_DISTANCE,
@@ -10,7 +12,7 @@ import {
   createInitialState,
   generateBoard,
 } from "../src/game/setup";
-import { DIRS, add, allHexes, distance, hexLine, inBoard, key, label, neighbours, type Hex } from "../src/game/hex";
+import { DIRS, add, allHexes, distance, hexLine, inBoard, key, label, neighbours, type Hex, RADIUS } from "../src/game/hex";
 import { MAX_ELEMENTS } from "../src/game/types";
 import { makeRng } from "../src/game/rng";
 
@@ -92,7 +94,7 @@ describe("generateBoard", () => {
       expect(river.length, `seed ${seed}`).toBeGreaterThanOrEqual(5);
       expect(connected(tiles, (t) => t.river), `seed ${seed}`).toBe(true);
       // It runs from one rim to another, not in a puddle in the middle.
-      const onRim = river.filter((t) => distance(t.hex, { q: 0, r: 0 }) === 4);
+      const onRim = river.filter((t) => distance(t.hex, { q: 0, r: 0 }) === RADIUS);
       expect(onRim.length, `seed ${seed}`).toBeGreaterThanOrEqual(2);
     }
   });
@@ -120,9 +122,11 @@ describe("generateBoard", () => {
   it("lays a straight railway from rim to rim", () => {
     for (const { seed, tiles } of boards) {
       const rail = Object.values(tiles).filter((t) => t.rail);
-      // A straight edge-to-edge line on a radius-4 board is 5 to 9 tiles.
-      expect(rail.length, `seed ${seed}`).toBeGreaterThanOrEqual(5);
-      expect(rail.length, `seed ${seed}`).toBeLessThanOrEqual(9);
+      // A straight edge-to-edge line runs from RADIUS+1 tiles (a short chord) to
+      // 2*RADIUS+1 (right across the middle). Written against the constant: this said
+      // "5 to 9" until the board grew and it started failing for being right.
+      expect(rail.length, `seed ${seed}`).toBeGreaterThanOrEqual(RADIUS + 1);
+      expect(rail.length, `seed ${seed}`).toBeLessThanOrEqual(RADIUS * 2 + 1);
       expect(connected(tiles, (t) => t.rail), `seed ${seed}`).toBe(true);
       // Straight means every interior tile has exactly two rail neighbours.
       for (const t of rail) {
@@ -249,13 +253,21 @@ describe("createInitialState", () => {
     expect(state.phase).toBe("playerMove");
     expect(state.activePlayerIndex).toBe(0);
     expect(Object.keys(state.tiles)).toHaveLength(TILE_COUNT);
-    expect(state.players).toHaveLength(4);
-    expect(state.enemies).toHaveLength(9);
+    expect(state.players).toHaveLength(TURN_ORDER.length);
+    // Rulebook §2/§15: fifteen mobs, four mid bosses and the dragon, plus the robber
+    // and the pirates, who are monsters as well as hazards.
+    // The dragon, the scaled mobs and mid bosses, and the two thieves who are
+    // monsters as well as hazards. Derived: the counts scale with party and board.
+    const monsters =
+      1 + monsterCount("mob", state.players.length) + monsterCount("midboss", state.players.length);
+    expect(state.enemies).toHaveLength(monsters + THIEVES.length);
     expect(state.combat).toBeNull();
-    expect(state.itemPile).toHaveLength(13);
-    // Hazards and events belong to v0.5 onwards.
-    expect(state.hazards).toEqual([]);
-    expect(state.eventDeck).toEqual([]);
+    expect(state.itemPile).toHaveLength(15);
+    expect(state.pokerDeck).toHaveLength(52);
+    expect(state.searchDeck).toHaveLength(54);
+    expect(state.eventDeck.length).toBeGreaterThan(0);
+    expect(state.draw).toBeNull();
+    expect(state.hazards).toHaveLength(4);
     expect(state.log).toHaveLength(2);
   });
 
