@@ -137,7 +137,7 @@
   <p class="blurb">
     Clues come in from mini&#8209;games, searches and beaten monsters. <b>Tap a hex to cross it off</b>
     &mdash; again for a maybe, again to clear. When you think you know, arm <b>Dig here</b> and tap the
-    spot. A wrong dig tells you how far off you were and costs a turn.
+    spot. A wrong dig tells you how it felt &mdash; warm or cold &mdash; and costs a turn.
   </p>
 
   <div class="stage">
@@ -173,7 +173,8 @@
   <footer class="foot">
     <p><b>What this is testing.</b> Whether crossing hexes off by tapping feels good on a tablet,
       whether four or five clues is the right amount of thinking for a ten&#8209;year&#8209;old, and whether
-      a wrong dig telling you the distance keeps it fair rather than frustrating.</p>
+      warm&#8209;or&#8209;cold on a wrong dig keeps it fair rather than frustrating &mdash; without
+      being exact enough to solve by triangulation instead of the clues.</p>
     <p><b>What is faked.</b> Clues are all handed to you at the start; in the real game they arrive one
       at a time as you win mini&#8209;games, search tiles and beat monsters. Nothing here is wired to the
       game &mdash; the map, the monsters and the puzzle are generated fresh each time you press New map.</p>
@@ -305,7 +306,13 @@
   // by construction, which is the only way to be sure it is solvable at all.
   function buildPuzzle(tiles, seed) {
     var rng = mulberry32(seed ^ 0x9e37);
-    var all = Object.keys(tiles).filter(function (k) { return dist(tiles[k].hex, MID) > 0; });
+    // The spot has to be somewhere a party could plausibly dig: not the dragon's own
+    // tile, not mid-river, and not wherever a monster is currently standing (which
+    // would leave "do we fight first?" unanswered).
+    var all = Object.keys(tiles).filter(function (k) {
+      var t = tiles[k];
+      return dist(t.hex, MID) > 0 && !t.has.water && !t.monster;
+    });
     var best = null;
 
     for (var attempt = 0; attempt < 400; attempt++) {
@@ -587,8 +594,12 @@
           say("Nothing there, and that was the last turn. The dragon keeps the valley.", "miss");
           state.over = true;
         } else {
-          say("Nothing there — but you were " + d + (d === 1 ? " tile" : " tiles") + " away.",
-              d <= 1 ? "hot" : "miss");
+          // A number here is a ruler: three wrong digs and a kid who is good at
+          // arithmetic has triangulated the hex without ever reading a clue. Word
+          // it in bands instead, so it still rewards a good guess without turning
+          // the whole puzzle into hot-and-cold-by-the-numbers.
+          var warmth = d <= 1 ? "boiling hot" : d <= 2 ? "warm" : d <= 4 ? "cold" : "ice cold";
+          say("Nothing there — but that felt " + warmth + ".", d <= 1 ? "hot" : "miss");
         }
       }
       drawMap();

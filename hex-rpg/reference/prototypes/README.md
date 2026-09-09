@@ -41,6 +41,18 @@ Three things it established, which is the reason it is kept:
   more cards than a ten-year-old can hold in their head. `MAX_CLUES` is the number the
   table can play, and the generator is fenced by it rather than aiming at it.
 
+Two more things it caught on a second look, both fixed in the mock itself:
+
+- **The wrong-dig feedback was giving away the answer a different way.** It originally
+  reported the exact hex distance to the target. On a 37-tile board that is enough for
+  a kid doing pure hot-and-cold triangulation — no clue ever read — to converge in about
+  three guesses, comfortably inside the turn budget. It now reports a **band**
+  ("boiling hot" / "warm" / "cold" / "ice cold") instead of a number, so a wrong dig
+  still rewards a good guess without turning the puzzle into arithmetic.
+- **The target could land somewhere that made no narrative sense** — mid-river, or on a
+  tile a monster was currently standing on (which raises an unanswered question: fight
+  first?). `buildPuzzle`'s candidate pool now excludes water and monster tiles.
+
 Not answered here, and the real design problem left: **two win conditions collapse into
 one unless the payoffs differ.** If both simply end the game, the party takes whichever
 is cheaper and the dragon becomes scenery. The suggestion on the table is that the
