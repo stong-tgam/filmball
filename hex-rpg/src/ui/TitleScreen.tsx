@@ -57,8 +57,8 @@ export default function TitleScreen({
         <p className="title-blurb">
           {/* Counted and read off the board rather than written out: the last two
               numbers here went stale the moment the board shrank in v0.22. */}
-          {allHexes().length} tiles nobody can see, one device passed round the table,
-          and a dragon in the middle of it. Every fight is a game you play together.
+          {allHexes().length} tiles, one device passed round the table, a secret buried
+          somewhere, and a dragon in the middle of it. Every fight is a game you play together.
         </p>
 
         {saved !== null && (
