@@ -71,7 +71,10 @@ not what it *looks like*, and draws nothing useful on its own:
 `ANCHOR_SLOTS` is the 5 roles plus the dragon (`monster:finalboss`) - 6 images,
 generated first with plain text-to-image (`generateImage`), with nothing to match yet.
 **Stop after these and look at them before running `bulk`.** Every other slot then
-generates with `generateWithStyle`, referencing 1-4 of the anchors as style images, so
+generates with `generateWithStyle` (PixelLab's bitforge), using the knight anchor as its
+one style image - bitforge copies colours as well as linework, so the knight's palette
+carries across the set. The calls are the same ones `fight/tools/pixellab_gen.py` already
+makes successfully (v2 API, pixflux then bitforge, same outline and shading settings), so
 the full set reads as one consistent style instead of 55 independent rolls of the dice.
 A bad anchor is one bad image to redo; a bad style matched 49 times over is not, and
 each call costs real money - the checkpoint exists to spend it once, deliberately,

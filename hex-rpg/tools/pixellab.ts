@@ -1,42 +1,66 @@
 /**
- * A thin client for PixelLab's pixel-art generation API.
+ * A thin client for PixelLab's pixel-art generation API (v2).
  *
- * **Unverified against a live response.** This session's network egress proxy blocks
- * `pixellab.ai` outright (403, "host not allowed for this session"), so none of the
- * endpoint paths, field names, or response shapes below have been checked against a
- * real call - they come from documentation search during planning. The first real
- * invocation (`tools/generate-art.ts`'s anchor set) is the actual test: if a field name
- * is wrong, the API's own error message is the fastest way to find out, and that is
- * expected to take one or two patches here before it is right. Keep the wire format
- * isolated in this one file so that patch stays small.
+ * The wire format is copied from `fight/tools/pixellab_gen.py`, which has generated
+ * real sprites with these exact calls - not guessed from documentation:
  *
- * Generation is asynchronous: a `start*` call returns a job id, which `pollJob` polls
- * until it reports done, then the image is downloaded from the URL in the result.
+ * - `POST /create-image-pixflux`  plain text-to-pixel-art (the anchors)
+ * - `POST /create-image-bitforge` the same, plus one `style_image` to match (the rest)
+ * - Both are synchronous: the response carries `image.base64` directly, no job polling.
+ * - Auth is `Authorization: Bearer <key>`. `GET /balance` reports what is left.
  *
- * Auth is one key - **`PIXELLAB_API_KEY_3`, specifically**, per instruction. The other
- * two keys in the uploaded `.env` are not used here.
+ * The key is **`PIXELLAB_API_KEY_3`, specifically**, per instruction. It is read from
+ * the environment, or from `hex-rpg/.env` (git-ignored) if the environment lacks it.
  */
 
-const BASE_URL = "https://api.pixellab.ai/v1";
+import { existsSync, readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const BASE_URL = "https://api.pixellab.ai/v2";
+const KEY_NAME = "PIXELLAB_API_KEY_3";
+const ENV_FILE = join(dirname(fileURLToPath(import.meta.url)), "../.env");
+
+/** The settings `fight` uses for every sprite, so both projects come out alike. */
+const SETTINGS = {
+  no_background: true,
+  outline: "single color black outline",
+  shading: "basic shading",
+  detail: "medium detail",
+  text_guidance_scale: 8,
+  view: "side",
+  direction: "south",
+};
+
+/** How strongly bitforge copies the style image. `fight` settled on 40. */
+const STYLE_STRENGTH = 40;
 
 function apiKey(): string {
-  const key = process.env.PIXELLAB_API_KEY_3;
-  if (!key) throw new Error("PIXELLAB_API_KEY_3 is not set. Source the .env file first.");
+  let key = process.env[KEY_NAME];
+  if (!key && existsSync(ENV_FILE)) {
+    for (const line of readFileSync(ENV_FILE, "utf8").split(/\r?\n/)) {
+      const at = line.indexOf("=");
+      if (at > 0 && line.slice(0, at).trim() === KEY_NAME) {
+        key = line.slice(at + 1).trim().replace(/^["']|["']$/g, "");
+      }
+    }
+  }
+  if (!key) throw new Error(`${KEY_NAME} is not set. Put it in hex-rpg/.env or the environment.`);
   return key;
 }
 
-async function request<T>(path: string, body: unknown): Promise<T> {
+async function call<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
+    method,
     headers: {
       Authorization: `Bearer ${apiKey()}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`PixelLab ${path} -> ${res.status} ${res.statusText}: ${text.slice(0, 500)}`);
+    throw new Error(`PixelLab ${method} ${path} -> HTTP ${res.status}: ${text.slice(0, 400)}`);
   }
   try {
     return JSON.parse(text) as T;
@@ -45,88 +69,52 @@ async function request<T>(path: string, body: unknown): Promise<T> {
   }
 }
 
-type JobHandle = { job_id: string };
-type JobStatus = {
-  status: "pending" | "processing" | "done" | "completed" | "error" | "failed";
-  image_url?: string;
-  image?: { url?: string; base64?: string };
-  error?: string;
-};
+type Balance = { subscription?: { generations?: number }; credits?: { usd?: number } };
+type ImageResponse = { image?: { base64?: string }; usage?: { type?: string } };
+
+/** Free generations left and paid credit, for a line of output before a run. */
+export async function balance(): Promise<{ free: number; usd: number }> {
+  const bal = await call<Balance>("GET", "/balance");
+  return { free: bal.subscription?.generations ?? 0, usd: bal.credits?.usd ?? 0 };
+}
+
+function decode(path: string, resp: ImageResponse): Buffer {
+  const b64 = resp.image?.base64;
+  if (!b64) throw new Error(`PixelLab ${path} returned no image: ${JSON.stringify(resp).slice(0, 200)}`);
+  return Buffer.from(b64, "base64");
+}
 
 /** Plain text-to-pixel-art. Used for the anchor set, before any style exists to match. */
-export async function startGenerateImage(opts: {
-  description: string;
-  imageSize?: { width: number; height: number };
-}): Promise<JobHandle> {
-  return request<JobHandle>("/start_generate_image", {
-    description: opts.description,
-    image_size: opts.imageSize ?? { width: 64, height: 64 },
-  });
-}
-
-/**
- * Generate matched to 1-4 reference images, so the bulk set reads as one style instead
- * of independent rolls. `styleImages` are base64-encoded PNGs (the anchors).
- */
-export async function startGenerateWithStyle(opts: {
-  description: string;
-  styleImages: string[];
-  imageSize?: { width: number; height: number };
-}): Promise<JobHandle> {
-  if (opts.styleImages.length < 1 || opts.styleImages.length > 4) {
-    throw new Error(`startGenerateWithStyle wants 1-4 style images, got ${opts.styleImages.length}`);
-  }
-  return request<JobHandle>("/start_generate_with_style", {
-    description: opts.description,
-    style_images: opts.styleImages,
-    image_size: opts.imageSize ?? { width: 64, height: 64 },
-  });
-}
-
-const DONE = new Set(["done", "completed"]);
-const FAILED = new Set(["error", "failed"]);
-
-/** Poll a job until it finishes, and return the generated image as a Buffer (PNG). */
-export async function pollJob(jobId: string, { intervalMs = 2000, timeoutMs = 120_000 } = {}): Promise<Buffer> {
-  const started = Date.now();
-  for (;;) {
-    const status = await request<JobStatus>(`/get_background_job`, { job_id: jobId });
-    if (FAILED.has(status.status)) {
-      throw new Error(`PixelLab job ${jobId} failed: ${status.error ?? "no error message given"}`);
-    }
-    if (DONE.has(status.status)) {
-      const url = status.image_url ?? status.image?.url;
-      const b64 = status.image?.base64;
-      if (b64) return Buffer.from(b64, "base64");
-      if (url) {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Downloading PixelLab result ${url} -> ${res.status}`);
-        return Buffer.from(await res.arrayBuffer());
-      }
-      throw new Error(`PixelLab job ${jobId} reported done with no image_url or image.base64`);
-    }
-    if (Date.now() - started > timeoutMs) {
-      throw new Error(`PixelLab job ${jobId} did not finish within ${timeoutMs}ms`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-}
-
-/** Generate one image and wait for it, start to finish. */
 export async function generateImage(opts: {
   description: string;
   imageSize?: { width: number; height: number };
 }): Promise<Buffer> {
-  const { job_id } = await startGenerateImage(opts);
-  return pollJob(job_id);
+  const path = "/create-image-pixflux";
+  const resp = await call<ImageResponse>("POST", path, {
+    ...SETTINGS,
+    description: opts.description,
+    image_size: opts.imageSize ?? { width: 64, height: 64 },
+  });
+  return decode(path, resp);
 }
 
-/** Generate one style-matched image and wait for it, start to finish. */
+/**
+ * Generate matched to a reference image, so the bulk set reads as one style instead of
+ * independent rolls. Bitforge takes a single style image; `styleImage` is a base64 PNG.
+ * It copies colours as well as linework, which is why the anchor picked matters.
+ */
 export async function generateWithStyle(opts: {
   description: string;
-  styleImages: string[];
+  styleImage: string;
   imageSize?: { width: number; height: number };
 }): Promise<Buffer> {
-  const { job_id } = await startGenerateWithStyle(opts);
-  return pollJob(job_id);
+  const path = "/create-image-bitforge";
+  const resp = await call<ImageResponse>("POST", path, {
+    ...SETTINGS,
+    description: opts.description,
+    image_size: opts.imageSize ?? { width: 64, height: 64 },
+    style_image: { type: "base64", base64: opts.styleImage, format: "png" },
+    style_strength: STYLE_STRENGTH,
+  });
+  return decode(path, resp);
 }

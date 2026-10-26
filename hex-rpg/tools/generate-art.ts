@@ -17,7 +17,8 @@
  *
  *   npx vite-node tools/generate-art.ts bulk
  *
- * Generates every other slot, style-matched against the anchors.
+ * Generates every other slot, style-matched against the knight anchor (PixelLab's
+ * bitforge takes one style image, and copies its colours too - see tools/pixellab.ts).
  *
  *   npx vite-node tools/generate-art.ts <slot>
  *
@@ -36,7 +37,7 @@ import { fileURLToPath } from "node:url";
 import { everySlot, type ArtEntry } from "../src/ui/art/catalogue";
 import { roleSlot } from "../src/artslots";
 import { slotToFilename } from "../src/ui/art/pixelart";
-import { generateImage, generateWithStyle } from "./pixellab";
+import { balance, generateImage, generateWithStyle } from "./pixellab";
 import { TURN_ORDER } from "../src/game/players";
 import { monsterSlot } from "../src/artslots";
 
@@ -95,6 +96,7 @@ function outPath(slot: string): string {
 
 async function anchorsMode(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true });
+  await printBalance();
   const all = everySlot();
   const anchors = all.filter((e) => ANCHOR_SLOTS.includes(e.slot));
   console.log(`Generating ${anchors.length} anchor images (plain text-to-image)...`);
@@ -112,18 +114,23 @@ async function anchorsMode(): Promise<void> {
   console.log(`\nAnchors done. Look at ${OUT_DIR} before running "bulk".`);
 }
 
-function loadAnchorImages(): string[] {
-  return ANCHOR_SLOTS.map((slot) => outPath(slot))
-    .filter((path) => existsSync(path))
-    .map((path) => readFileSync(path).toString("base64"));
+/** The one anchor every other slot copies its style from: the first role, the knight. */
+function loadStyleImage(): string | undefined {
+  const path = outPath(ANCHOR_SLOTS[0]);
+  return existsSync(path) ? readFileSync(path).toString("base64") : undefined;
 }
 
-async function generateOne(entry: ArtEntry, styleImages: string[]): Promise<void> {
+async function printBalance(): Promise<void> {
+  const { free, usd } = await balance();
+  console.log(`PixelLab balance: ${free} free generations, $${usd} credit.`);
+}
+
+async function generateOne(entry: ArtEntry, styleImage: string | undefined): Promise<void> {
   const prompt = promptFor(entry);
   console.log(`  → ${entry.slot}: ${prompt}`);
   const png =
-    styleImages.length > 0
-      ? await generateWithStyle({ description: prompt, styleImages, imageSize: IMAGE_SIZE })
+    styleImage
+      ? await generateWithStyle({ description: prompt, styleImage, imageSize: IMAGE_SIZE })
       : await generateImage({ description: prompt, imageSize: IMAGE_SIZE });
   writeFileSync(outPath(entry.slot), png);
   console.log(`    saved ${outPath(entry.slot)} (${png.length} bytes)`);
@@ -131,12 +138,13 @@ async function generateOne(entry: ArtEntry, styleImages: string[]): Promise<void
 
 async function bulkMode(): Promise<void> {
   mkdirSync(OUT_DIR, { recursive: true });
-  const styleImages = loadAnchorImages();
-  if (styleImages.length === 0) {
+  await printBalance();
+  const styleImage = loadStyleImage();
+  if (!styleImage) {
     console.warn("No anchor images found - run `generate-art.ts anchors` first for a consistent style. Continuing without style matching.");
   }
   const remaining = everySlot().filter((e) => !ANCHOR_SLOTS.includes(e.slot));
-  console.log(`Generating ${remaining.length} remaining slots${styleImages.length ? ", style-matched to the anchors" : ""}...`);
+  console.log(`Generating ${remaining.length} remaining slots${styleImage ? ", style-matched to the knight anchor" : ""}...`);
   let done = 0;
   let skipped = 0;
   for (const entry of remaining) {
@@ -144,7 +152,7 @@ async function bulkMode(): Promise<void> {
       skipped++;
       continue;
     }
-    await generateOne(entry, styleImages);
+    await generateOne(entry, styleImage);
     done++;
   }
   console.log(`\nDone: ${done} generated, ${skipped} already had a file.`);
@@ -158,8 +166,8 @@ async function oneSlotMode(slot: string): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const styleImages = ANCHOR_SLOTS.includes(slot) ? [] : loadAnchorImages();
-  await generateOne(entry, styleImages);
+  const styleImage = ANCHOR_SLOTS.includes(slot) ? undefined : loadStyleImage();
+  await generateOne(entry, styleImage);
 }
 
 const mode = process.argv[2];
