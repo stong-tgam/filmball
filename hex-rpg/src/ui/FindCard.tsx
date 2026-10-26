@@ -26,6 +26,8 @@ import ItemArt from "./art/items";
 import { MARKER } from "./art/crayon";
 import { gearLabel } from "../game/items";
 import { gearBlurb } from "../game/gear";
+import { playSfx } from "./sound/player";
+import type { SfxKey } from "../sfxslots";
 import type { Find } from "../game/types";
 import Art from "./art/Art";
 
@@ -42,6 +44,18 @@ const HEADLINE: Record<Find["kind"] | "gearOnTheLine", { title: string; close: s
   mishap: { title: "That went badly.", close: "Ow" },
   thief: { title: "Somebody was waiting.", close: "Rotten luck" },
   trap: { title: "The lid came down.", close: "Ow" },
+};
+
+/** Which sound plays when the card turns over, by what it turned up. */
+const FIND_SFX: Record<Find["kind"], SfxKey> = {
+  gear: "foundGear",
+  fish: "foundGear",
+  coins: "foundGear",
+  full: "foundGear",
+  nothing: "foundNothing",
+  mishap: "mishap",
+  thief: "thief",
+  trap: "mishap",
 };
 
 /**
@@ -88,7 +102,15 @@ const DOING: Record<Find["from"], string> = {
 /** How long the card stays face down before it turns over. */
 export const SUSPENSE_MS = 2000;
 
-export default function FindCard({ find, onClose }: { find: Find; onClose: () => void }) {
+export default function FindCard({
+  find,
+  muted,
+  onClose,
+}: {
+  find: Find;
+  muted: boolean;
+  onClose: () => void;
+}) {
   const { kind, gained, lost, coins, hurt } = find;
   const said = HEADLINE[kind === "gear" && find.from === "line" ? "gearOnTheLine" : kind];
   const lines = EMPTY_HANDED[find.from];
@@ -102,6 +124,14 @@ export default function FindCard({ find, onClose }: { find: Find; onClose: () =>
     const timer = setTimeout(() => setTurned(true), SUSPENSE_MS);
     return () => clearTimeout(timer);
   }, [find]);
+
+  useEffect(() => {
+    // The sound belongs to the reveal, not the button press - it plays when the card
+    // actually turns over, same moment the picture does. A chest gets its own creak
+    // and chime regardless of what came out of it; everything else goes by `kind`.
+    if (!turned) return;
+    playSfx(find.from === "chest" && kind !== "nothing" ? "chestOpen" : FIND_SFX[kind], muted);
+  }, [turned, kind, find.from, muted]);
 
   if (!turned) {
     return (

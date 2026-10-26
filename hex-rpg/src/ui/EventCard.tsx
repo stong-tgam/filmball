@@ -7,7 +7,9 @@
  * screen with what it did.
  */
 
+import { useEffect } from "react";
 import { SUIT_PIP, isFace, isJoker, isRed } from "../game/cards";
+import { playSfx } from "./sound/player";
 import type { Card, Draw } from "../game/types";
 
 export function PlayingCard({ card }: { card: Card }) {
@@ -23,7 +25,29 @@ export function PlayingCard({ card }: { card: Card }) {
   );
 }
 
-export default function EventCardModal({ draw, turn, onClose }: { draw: Draw; turn: number; onClose: () => void }) {
+/** The dragon's own wake-up note (`wakeTheDragon` in `turn.ts`) - read back off the
+ *  log the same way everything else here is, rather than a second flag carried on
+ *  `Draw` just for this. */
+const DRAGON_WOKE = "has come home to the middle of the map";
+
+export default function EventCardModal({
+  draw,
+  turn,
+  muted,
+  onClose,
+}: {
+  draw: Draw;
+  turn: number;
+  muted: boolean;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    // The card turning over is one of the moments worth a sound on its own; the
+    // dragon waking rides along on top of it when this is the turn it happens.
+    playSfx("cardFlip", muted);
+    if (draw.happenings.some((line) => line.includes(DRAGON_WOKE))) playSfx("dragonWakes", muted);
+  }, [draw, muted]);
+
   return (
     <div
       className={`modal-backdrop${draw.event ? " backdrop-flash" : ""}`}

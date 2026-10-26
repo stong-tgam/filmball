@@ -34,6 +34,7 @@ import { CHIP, INK } from "./art/crayon";
 import MonsterArt from "./art/monsters";
 import ItemArt from "./art/items";
 import { canTake, gearLabel, equipped } from "../game/items";
+import { playSfx } from "./sound/player";
 import type { Combat, Enemy, Item, Player, Tile, Trial } from "../game/types";
 import Art from "./art/Art";
 import { monsterSlot } from "./art/monsters";
@@ -70,6 +71,7 @@ type Props = {
   onEat: (playerId: string, itemId: string) => void;
   onClose: () => void;
   ground: Tile | undefined;
+  muted: boolean;
 };
 
 /**
@@ -156,6 +158,7 @@ export default function CombatModal({
   onEat,
   onClose,
   ground,
+  muted,
 }: Props) {
   const beast = ENEMIES[enemy.kind];
   const over = combat.outcome !== "ongoing";
@@ -177,6 +180,18 @@ export default function CombatModal({
     setStaged(combat.at);
     setStage("deal");
   }
+
+  const currentResult = combat.trials[combat.at]?.result ?? null;
+  useEffect(() => {
+    if (currentResult === "won") playSfx("trialWon", muted);
+    else if (currentResult === "lost") playSfx("trialLost", muted);
+  }, [combat.at, currentResult, muted]);
+
+  useEffect(() => {
+    if (combat.outcome === "enemyDefeated") playSfx("fightWon", muted);
+    else if (combat.outcome === "partyBeaten") playSfx("fightLost", muted);
+  }, [combat.outcome, muted]);
+
 
   const seconds = playing?.trial.seconds ?? 0;
   const left = useCountdown(combat.at, seconds, stage === "run" && !over, onLost);

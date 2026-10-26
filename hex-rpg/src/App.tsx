@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Board from "./ui/Board";
 import CrayonDefs from "./ui/art/CrayonDefs";
 import ActionBar from "./ui/ActionBar";
@@ -15,7 +15,7 @@ import HookModal from "./ui/HookModal";
 import GiveModal from "./ui/GiveModal";
 import TitleScreen from "./ui/TitleScreen";
 import { readSave } from "./game/save";
-import type { Role } from "./game/types";
+import type { Ending, Role } from "./game/types";
 import {
   useActivePlayer,
   useCanDonate,
@@ -52,6 +52,8 @@ import { ROLES, hasMoved } from "./game/players";
 import { clueSentence, tilesMatchingClue } from "./game/secret";
 import { doomed, rimWarning } from "./game/collapse";
 import { searchKind } from "./game/actions";
+import { playSfx } from "./ui/sound/player";
+import type { SfxKey } from "./sfxslots";
 import "./styles.css";
 
 const TERRAIN_BLURB: Record<string, string> = {
@@ -65,6 +67,13 @@ const ELEMENT_NAME: Record<string, string> = {
   forest: "Forest",
   city: "City",
   water: "Water",
+};
+
+/** Which sound plays for which way the evening ended. */
+const ENDING_SFX: Record<Ending, SfxKey> = {
+  victory: "victory",
+  outOfTime: "outOfTime",
+  escaped: "escaped",
 };
 
 export default function App() {
@@ -82,6 +91,9 @@ export default function App() {
   const [drawing, setDrawing] = useState(false);
   /** The turn timer, on by default. Some evenings the point is the talking. */
   const [timed, setTimed] = useState(true);
+  /** Sound effects, on by default. Device preference, like `timed` - never read off
+   *  `GameState`, same hard rule that keeps clocks out of it. */
+  const [muted, setMuted] = useState(false);
   /** Which clue the table is holding in mind, if any - tapping one shows exactly
    *  which tiles it is true of, on the board itself. Pure UI state, like `selected`:
    *  a clue is not more or less revealed for being looked at. */
@@ -151,6 +163,12 @@ export default function App() {
   const revealedClues = game.secret.chain.slice(0, game.secret.revealed);
   const heldClueData = heldClue !== null ? revealedClues[heldClue] : undefined;
   const matchingClue = heldClueData ? tilesMatchingClue(game, heldClueData) : null;
+
+  useEffect(() => {
+    if (game.ending) playSfx(ENDING_SFX[game.ending], muted);
+    // Only the moment the game actually ends is worth a sound - not every render
+    // while it stays ended, which a new game then correctly resets to null anyway.
+  }, [game.ending, muted]);
 
   const composition = tile
     ? elementsOf(tile)
@@ -235,6 +253,15 @@ export default function App() {
           ) : (
             "Hourglass off"
           )}
+        </button>
+        <button
+          type="button"
+          className="glass-toggle"
+          aria-pressed={!muted}
+          title={muted ? "Turn sound on" : "Turn sound off"}
+          onClick={() => setMuted((off) => !off)}
+        >
+          {muted ? "Sound off" : "🔊 Sound on"}
         </button>
         <div className="seedbar">
           <label htmlFor="seed">Seed</label>
@@ -433,17 +460,18 @@ export default function App() {
           onEat={eat}
           onClose={closeCombat}
           ground={game.tiles[key(fight.enemy.hex)]}
+          muted={muted}
         />
       )}
 
       {game.draw && !game.combat && !game.ending && (
-        <EventCardModal draw={game.draw} turn={game.turn} onClose={clearDraw} />
+        <EventCardModal draw={game.draw} turn={game.turn} muted={muted} onClose={clearDraw} />
       )}
 
       {/* Behind the turn's card, so a search on the last turn is never what the next
           player sees first. Nothing else can be open: a search is the turn's action. */}
       {game.find && !game.draw && !game.combat && !game.ending && (
-        <FindCard find={game.find} onClose={clearFind} />
+        <FindCard find={game.find} muted={muted} onClose={clearFind} />
       )}
 
       {giving && canGive && !game.combat && !game.ending && (

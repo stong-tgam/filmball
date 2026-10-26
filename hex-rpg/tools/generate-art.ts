@@ -35,6 +35,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { everySlot, type ArtEntry } from "../src/ui/art/catalogue";
 import { roleSlot } from "../src/artslots";
+import { slotToFilename } from "../src/ui/art/pixelart";
 import { generateImage, generateWithStyle } from "./pixellab";
 import { TURN_ORDER } from "../src/game/players";
 import { monsterSlot } from "../src/artslots";
@@ -83,19 +84,13 @@ const VISUAL_BRIEF: Record<string, string> = {
 /** The 6 anchor slots: style gets locked from these before anything else generates. */
 const ANCHOR_SLOTS = [...TURN_ORDER.map(roleSlot), monsterSlot("finalboss")];
 
-function filenameFor(slot: string): string {
-  // "item:Frying Pan" -> "item-Frying_Pan.png". Lossy but stable and readable; the
-  // slot id itself (not the filename) is still what the app looks up by.
-  return slot.replace(/:/g, "-").replace(/[^a-zA-Z0-9_-]/g, "_") + ".png";
-}
-
 function promptFor(entry: ArtEntry): string {
   const brief = VISUAL_BRIEF[entry.slot] ?? `${entry.name}, a ${entry.name.length > 20 ? "" : "small "}object or icon`;
   return `${brief}. ${STYLE_SUFFIX}.`;
 }
 
 function outPath(slot: string): string {
-  return join(OUT_DIR, filenameFor(slot));
+  return join(OUT_DIR, slotToFilename(slot));
 }
 
 async function anchorsMode(): Promise<void> {
