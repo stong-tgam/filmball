@@ -830,9 +830,52 @@ the collapse, or the economy.
 
 ## Artwork
 
+**v0.33 (in progress): the hand-coded crayon SVG is being replaced by generated pixel
+art, and the game gets sound for the first time.** Read `docs/pixel-art-direction.md`
+first if you are touching anything art-related right now - `docs/art-direction.md`
+below is the superseded crayon direction, kept as a historical record rather than
+deleted, the same way other retired designs in this file are.
+
+**The migration is deliberately gradual and the repo must stay shippable at every
+commit along the way.** `tools/generate-art.ts` is resumable and gets run slot by slot
+against a paid API, so at any given moment some of the 55 slots (`catalogue.ts`'s
+`everySlot()`) have a generated picture and most do not. `Art.tsx` therefore falls back
+**three** ways, not two: an uploaded drawing, then a generated pixel-art picture for the
+slot (`art/pixelart.ts`, built on Vite's `import.meta.glob` so a new file the generator
+drops in is picked up automatically, no manifest to maintain), then the old crayon SVG
+(still passed as `children` at every call site). **Do not drop `children` from `Art.tsx`
+or delete `monsters.tsx`/`items.tsx`/`roles.tsx`/`hazards.tsx`/`features.tsx`/
+`crayon.ts`/`CrayonDefs.tsx`/`terrain.tsx` until every slot actually has a generated
+picture** - checked by running `tools/generate-art.ts` with no arguments, which prints
+how many of the 55 slots exist. Doing it early blanks the whole game instead of showing
+the art that is still there.
+
+The pipeline: `tools/pixellab.ts` / `tools/elevenlabs.ts` are the API clients (bearer
+token / `xi-api-key` respectively - **PixelLab specifically uses `PIXELLAB_API_KEY_3`
+only**, not the other two keys in the project's `.env`, by instruction).
+`tools/generate-art.ts anchors` generates 6 style-locking images (5 roles + the dragon)
+first and stops for a look before `tools/generate-art.ts bulk` style-matches everything
+else against them - a bad style decided once is cheap to fix, decided 55 times over is
+not. `tools/generate-sfx.ts` is the audio equivalent, reading `src/sfxslots.ts`'s ~14
+named moments (the ones this file already called "the exciting moments": the card
+turning over, a mini-game or a whole fight won or lost, the dragon waking, a chest, a
+find, a mishap, a thief, how the evening ends) into `src/assets/sfx/*.mp3`.
+
+Sound plays through `src/ui/sound/player.ts` (`playSfx(key, muted)` - a no-op if the
+clip has not been generated yet, exactly the same graceful-while-incomplete reasoning
+as the art fallback), muted by a device-preference toggle in `App.tsx` next to the
+existing hourglass one, never read off `GameState` - same hard rule that keeps clocks
+out of it. Trigger points are small `useEffect`s reacting to a state transition, the
+same trick the mini-game clock already uses to avoid firing twice: `EventCard.tsx` on
+a new draw, `FindCard.tsx` when a search card turns over, `CombatModal.tsx` on a trial
+or a whole fight resolving, `App.tsx` on `game.ending`.
+
+### The crayon look (superseded, still live until the migration finishes)
+
 The game is drawn to look like the children made it — marker on card. The whole of it
 is in `docs/art-direction.md`: palette, the three typefaces, how a token is built, and
-the SVG wobble filter. Read it before drawing anything.
+the SVG wobble filter. Read it before drawing anything **in the old system** - which,
+again, is still what every slot shows until its generated picture exists.
 
 Three things not to rediscover the hard way:
 
@@ -901,11 +944,21 @@ Four things about that worth not rediscovering:
   `confirm()`, which a sandboxed frame refuses: the room asks with a second tap instead
   of a modal.
 
-What is still not done: the app shell is dark slate and the artwork is cream paper, so
-the drawings sit on their own little chits rather than the whole thing being one paper
-theme. And the hex tiles still use the original `Tile.tsx` SVG rather than the crayon
-`art/terrain.tsx`; both look fine, they are just two different hands. Moving the shell
-onto paper is the remaining art job.
+What was still not done when this was the live art direction: the app shell was dark
+slate while the artwork was cream paper, and the hex tiles used `Tile.tsx`'s SVG rather
+than the crayon `art/terrain.tsx`. **Neither is worth finishing now** - a paper shell
+was the right finish for marker-on-chipboard art and is very likely the wrong one for
+pixel art, so that decision waits until the new set exists and its actual palette is
+known, and hex tiles were explicitly left out of the v0.33 pass (see the pixel art
+direction doc) because a tile is a live composite of up to three terrain types, not a
+fixed one-picture-per-slot thing the rest of this system is.
+
+What v0.33 still needs, in order: network access to `pixellab.ai` and `elevenlabs.io`
+from wherever `tools/generate-art.ts`/`tools/generate-sfx.ts` actually runs (blocked
+from this session's own environment the whole time this was written - re-check with
+`curl` before assuming it is open); the 6 anchor images, looked at and approved; the
+remaining ~49 images and ~14 sounds, bulk-generated; then the `Art.tsx` cleanup
+described above.
 
 ## The find card
 

@@ -1,5 +1,14 @@
 # Art direction — the crayon box
 
+> **Superseded, v0.33.** The game is moving from this hand-coded SVG crayon look to
+> generated pixel art - see `docs/pixel-art-direction.md` and `CLAUDE.md`'s "Artwork"
+> section. Kept here as a historical record, not deleted: the reasoning in it (the
+> photographed palette, the wobble recipe, the "keep two or three items uncoloured"
+> rule) is worth more than the SVG code implementing it, the same way other retired
+> designs in this project are kept rather than erased. Everything below describes a
+> system that is still live until every art slot has a generated replacement - do not
+> assume it is gone.
+
 Derived from photographs of the hand-made set: marker on chipboard discs (food and
 character chits) and coloured pencil on cream paper (hex tiles, character stickers).
 
