@@ -1,0 +1,116 @@
+{
+  "id": "king",
+  "name": "King",
+  "emoji": "🤴",
+  "blurb": "Rams enemies, heals from his crown (stronger every time) and summons 4 pawns.",
+  "color": [
+    196,
+    30,
+    40
+  ],
+  "hp": 100,
+  "radius": 76,
+  "speed": 600,
+  "decor": "crown",
+  "stats": {
+    "body_damage": 8,
+    "crown_heal": 2,
+    "seek": 120
+  },
+  "abilities": [
+    {
+      "on": "timer",
+      "every": 2.0,
+      "do": [
+        {
+          "type": "heal",
+          "amount": "$crown_heal"
+        },
+        {
+          "type": "add_stat",
+          "stat": "crown_heal",
+          "amount": 1,
+          "max": 10
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Summons 4 pawns",
+    "shout": "PAWNS, ATTACK!",
+    "max": 100,
+    "per_second": 12,
+    "on_full": [
+      {
+        "type": "summon",
+        "unit": "pawn",
+        "count": 4
+      }
+    ]
+  },
+  "hud": [
+    "Summons 4 pawns",
+    "DMG: {body_damage:.1f}",
+    "Crown heal: +{crown_heal:.0f}"
+  ],
+  "summons": {
+    "pawn": {
+      "name": "Pawn",
+      "color": [
+        196,
+        30,
+        40
+      ],
+      "hp": 12,
+      "radius": 32,
+      "speed": 660,
+      "stats": {
+        "body_damage": 2,
+        "seek": 100
+      }
+    }
+  },
+  "sfx": {
+    "body_hit": "heavy royal body slam thud, 8-bit",
+    "summon": "royal trumpet blip plus magic poof",
+    "ultimate": "short royal fanfare call to arms"
+  },
+  "voice": {
+    "voice_name": "Daniel",
+    "voice_id": "onwK4e9ZLuTAKqWW03F9",
+    "lines": {
+      "ultimate": "Pawns, attack!",
+      "victory": "Long live the King!"
+    }
+  },
+  "arena": {
+    "stage": "Royal Throne Room",
+    "pattern": "carpet",
+    "bg_top": [
+      120,
+      30,
+      40
+    ],
+    "bg_bottom": [
+      50,
+      12,
+      20
+    ],
+    "arena_fill": [
+      186,
+      74,
+      74
+    ]
+  },
+  "art": {
+    "floor": "a royal red carpet with gold trim running over polished cream marble floor tiles",
+    "body": "a stern little king: a perfectly round deep red ball body, a golden jeweled crown with red gems on top, a white ermine fur collar with black spots around the bottom, bushy white eyebrows, small determined eyes, rosy cheeks",
+    "summons": {
+      "pawn": "a tiny royal pawn soldier: a perfectly round red ball body, a small steel kettle helmet, brave little eyes"
+    },
+    "ultimate_icon": "a golden royal trumpet with a small red banner",
+    "ult_circle": "a royal golden circle with a crown emblem in the center and jewel studs around the ring",
+    "ult_aura": "a radiant golden royal aura with sparkling gems and a floating crown glow",
+    "hit_fx": "a burst of golden coins and yellow sparkles"
+  }
+}

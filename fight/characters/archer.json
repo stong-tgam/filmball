@@ -1,0 +1,133 @@
+{
+  "id": "archer",
+  "name": "Archer",
+  "emoji": "🏹",
+  "blurb": "Kites away and fires arrows that get stronger every hit. Ultimate: Arrow Rain.",
+  "color": [
+    60,
+    150,
+    70
+  ],
+  "hp": 75,
+  "radius": 62,
+  "speed": 620,
+  "decor": "hood",
+  "stats": {
+    "arrow_dmg": 5,
+    "seek": -25
+  },
+  "blades": [
+    {
+      "style": "bow",
+      "length": 34,
+      "width": 110,
+      "aim": true,
+      "solid": false,
+      "gap": 4,
+      "damage": 0
+    }
+  ],
+  "abilities": [
+    {
+      "on": "timer",
+      "every": 0.8,
+      "do": [
+        {
+          "type": "shoot",
+          "style": "arrow",
+          "damage": "$arrow_dmg",
+          "speed": 1150,
+          "radius": 9,
+          "color": [
+            230,
+            230,
+            230
+          ]
+        }
+      ]
+    },
+    {
+      "on": "projectile_hit",
+      "do": [
+        {
+          "type": "add_stat",
+          "stat": "arrow_dmg",
+          "amount": 0.6
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Arrow Rain",
+    "shout": "ARROW RAIN!",
+    "max": 100,
+    "per_hit": 14,
+    "on_full": [
+      {
+        "type": "shoot",
+        "style": "arrow",
+        "aim": "ring",
+        "count": 12,
+        "damage": "$arrow_dmg",
+        "speed": 1000,
+        "radius": 9,
+        "color": [
+          255,
+          220,
+          90
+        ]
+      }
+    ]
+  },
+  "hud": [
+    "Arrow Rain",
+    "Arrow DMG: {arrow_dmg:.1f}",
+    "Fires every 0.8s"
+  ],
+  "sfx": {
+    "shoot": "quick bow string twang",
+    "projectile_hit": "arrow thunk into wood",
+    "ultimate": "whoosh of many arrows flying"
+  },
+  "voice": {
+    "voice_name": "Lily",
+    "voice_id": "pFZP5JQG7iQjIQuC4Bku",
+    "lines": {
+      "ultimate": "Arrow rain!",
+      "victory": "Right on target."
+    }
+  },
+  "arena": {
+    "stage": "Whispering Woods",
+    "pattern": "grass",
+    "bg_top": [
+      40,
+      110,
+      70
+    ],
+    "bg_bottom": [
+      18,
+      52,
+      34
+    ],
+    "arena_fill": [
+      96,
+      148,
+      78
+    ]
+  },
+  "art": {
+    "floor": "short green grass with a few tiny orange autumn leaves, a uniform repeating texture with no trees and no objects",
+    "body": "a sharp-eyed archer: a perfectly round forest green ball body under a dark green pointed hood that shadows the face, two bright eyes peeking out, a brown leather quiver strap across the front",
+    "weapons": [
+      "a wooden recurve bow standing vertically, the curved limbs bulging to the right, a thin white bowstring on the left side"
+    ],
+    "projectiles": {
+      "arrow": "a wooden arrow with a steel arrowhead pointing right and white feather fletching on the left"
+    },
+    "ultimate_icon": "three bold wooden arrows falling diagonally downward side by side",
+    "ult_circle": "a green and gold target reticle circle with leaf patterns and arrow markers pointing inward",
+    "ult_aura": "a swirling green wind tornado aura with flying autumn leaves",
+    "hit_fx": "an arrow impact splinter burst of wood chips and green sparks"
+  }
+}

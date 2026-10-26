@@ -1,0 +1,168 @@
+{
+  "id": "captain",
+  "name": "Captain",
+  "draft": true,
+  "emoji": "🏒",
+  "blurb": "Hockey captain: slap shots that knock you back, body checks that send you flying. Ultimate: One-Timer.",
+  "color": [
+    245,
+    200,
+    30
+  ],
+  "hp": 80,
+  "radius": 66,
+  "speed": 700,
+  "decor": "helmet",
+  "stats": {
+    "seek": 110,
+    "body_damage": 4,
+    "shot_dmg": 5,
+    "big_shot": 16
+  },
+  "blades": [
+    {
+      "style": "stick",
+      "length": 120,
+      "width": 16,
+      "spin": 240,
+      "damage": 4,
+      "color": [
+        240,
+        240,
+        232
+      ]
+    }
+  ],
+  "abilities": [
+    {
+      "on": "timer",
+      "every": 1.8,
+      "do": [
+        {
+          "type": "shoot",
+          "style": "puck",
+          "damage": "$shot_dmg",
+          "speed": 1050,
+          "radius": 14,
+          "color": [
+            20,
+            20,
+            24
+          ],
+          "launch": {
+            "mult": 1.5,
+            "duration": 0.25
+          }
+        }
+      ]
+    },
+    {
+      "on": "projectile_hit",
+      "do": [
+        {
+          "type": "add_stat",
+          "stat": "shot_dmg",
+          "amount": 0.8,
+          "max": 12
+        }
+      ]
+    },
+    {
+      "on": "body_hit",
+      "name": "Body Check",
+      "cooldown": 2.0,
+      "do": [
+        {
+          "type": "launch",
+          "target": "other",
+          "mult": 2.6,
+          "duration": 0.6
+        },
+        {
+          "type": "damage",
+          "target": "other",
+          "amount": 3,
+          "source": "spell"
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "One-Timer",
+    "shout": "ONE-TIMER!",
+    "max": 100,
+    "per_second": 10,
+    "per_hit": 6,
+    "on_full": [
+      {
+        "type": "shoot",
+        "style": "puck",
+        "damage": "$big_shot",
+        "speed": 1200,
+        "radius": 40,
+        "pierce": true,
+        "color": [
+          20,
+          20,
+          24
+        ],
+        "launch": {
+          "mult": 3.2,
+          "duration": 0.9
+        }
+      }
+    ]
+  },
+  "hud": [
+    "One-Timer",
+    "Shot: {shot_dmg:.0f}",
+    "Body check: launch!"
+  ],
+  "sfx": {
+    "shoot": "sharp crack of a hockey stick slapping a puck",
+    "body_hit": "heavy body check thud into the boards",
+    "ultimate": "huge slap shot crack with a crowd roar"
+  },
+  "voice": {
+    "voice_name": "Chris",
+    "voice_id": "iP95p4xoKVk53GoZ742B",
+    "lines": {
+      "ultimate": "One-timer!",
+      "ability": "Heads up!",
+      "victory": "That's how we play hockey!"
+    }
+  },
+  "arena": {
+    "stage": "Hockey Rink",
+    "pattern": "marble",
+    "bg_top": [
+      40,
+      90,
+      160
+    ],
+    "bg_bottom": [
+      15,
+      35,
+      80
+    ],
+    "arena_fill": [
+      215,
+      230,
+      240
+    ]
+  },
+  "art": {
+    "floor": "smooth pale blue-white ice rink surface with faint skate scratches, a uniform repeating texture with no lines and no objects",
+    "body": "a determined hockey captain: a perfectly round bright yellow ball body wearing a white hockey helmet with a clear visor, a big black letter C stitched on the front, intense eyes",
+    "weapons": [
+      "a hockey stick lying horizontally pointing right: long white shaft with black tape grip on the left, a black curved blade at the right end"
+    ],
+    "projectiles": {
+      "puck": "a black rubber hockey puck, round and flat with a grey rim, seen from slightly above"
+    },
+    "ultimate_icon": "a hockey stick slapping a black puck with bold motion lines",
+    "ult_circle": "a hockey faceoff circle on ice: a red ring with red hash marks and a blue center dot",
+    "ult_aura": "a burst of white ice spray and frost shards flying upward like skates stopping hard",
+    "hit_fx": "a spray of white ice shavings and snow chunks"
+  }
+}

@@ -1,0 +1,157 @@
+{
+  "id": "viking",
+  "name": "Viking",
+  "emoji": "🪓",
+  "blurb": "Huge axe hits, goes BERSERK when low, ground-slams, and leaves 2 wolves when he dies.",
+  "color": [
+    190,
+    110,
+    40
+  ],
+  "hp": 110,
+  "radius": 80,
+  "speed": 560,
+  "decor": [
+    "horns",
+    "beard"
+  ],
+  "stats": {
+    "dmg": 14,
+    "armor": 0.2,
+    "seek": 120
+  },
+  "blades": [
+    {
+      "style": "axe",
+      "length": 125,
+      "width": 28,
+      "spin": 220,
+      "damage": "$dmg",
+      "color": [
+        160,
+        165,
+        175
+      ]
+    }
+  ],
+  "abilities": [
+    {
+      "on": "hp_below",
+      "frac": 0.4,
+      "name": "Berserk",
+      "do": [
+        {
+          "type": "add_stat",
+          "stat": "speed",
+          "amount": 160
+        },
+        {
+          "type": "add_stat",
+          "stat": "dmg",
+          "amount": 4
+        }
+      ]
+    },
+    {
+      "on": "death",
+      "do": [
+        {
+          "type": "summon",
+          "unit": "wolf",
+          "count": 2
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Ground Slam",
+    "shout": "GROUND SLAM!",
+    "max": 100,
+    "per_second": 12,
+    "on_full": [
+      {
+        "type": "shockwave",
+        "radius": 280,
+        "damage": 8,
+        "knockback": true,
+        "color": [
+          255,
+          200,
+          120
+        ]
+      }
+    ]
+  },
+  "hud": [
+    "Ground Slam",
+    "DMG: {dmg:.0f}",
+    "Speed: {speed:.0f}"
+  ],
+  "summons": {
+    "wolf": {
+      "name": "Wolf",
+      "color": [
+        120,
+        120,
+        130
+      ],
+      "hp": 10,
+      "radius": 34,
+      "speed": 680,
+      "decor": "eyes",
+      "stats": {
+        "body_damage": 3,
+        "seek": 110
+      }
+    }
+  },
+  "sfx": {
+    "blade_hit": "heavy axe chop impact",
+    "ultimate": "massive ground slam boom with rumble",
+    "ability": "viking war roar",
+    "summon": "wolves howling briefly"
+  },
+  "voice": {
+    "voice_name": "Roger",
+    "voice_id": "CwhRBWXzGAHq8TQ4Fs17",
+    "lines": {
+      "ultimate": "Ground slam!",
+      "ability": "Berserk!",
+      "victory": "Valhalla awaits!"
+    },
+    "pitch": -2
+  },
+  "arena": {
+    "stage": "Frozen Longship",
+    "pattern": "planks",
+    "bg_top": [
+      70,
+      100,
+      140
+    ],
+    "bg_bottom": [
+      25,
+      35,
+      55
+    ],
+    "arena_fill": [
+      150,
+      112,
+      80
+    ]
+  },
+  "art": {
+    "floor": "wooden longship deck planks dusted with snow and frost",
+    "body": "a fierce viking: a perfectly round burnt-orange ball body, an iron helmet with two big ivory horns, a huge braided orange beard covering the lower half, angry eyebrows",
+    "weapons": [
+      "a heavy bearded battle axe with a wide curved steel head and a long wooden handle wrapped in leather"
+    ],
+    "summons": {
+      "wolf": "a snarling grey wolf: a perfectly round grey ball body with two pointed ears, white fangs, yellow eyes"
+    },
+    "ultimate_icon": "one big clenched fist punching down with yellow impact lines",
+    "ult_circle": "a cracked stone rune circle with glowing orange norse runes carved into the ground",
+    "ult_aura": "a crackling storm aura with blue lightning bolts and swirling snow",
+    "hit_fx": "an orange rock-shattering impact with flying stone chunks"
+  }
+}

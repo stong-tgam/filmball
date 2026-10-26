@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+out/
+.env
+art/pixellab_log.jsonl
+secrets/

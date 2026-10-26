@@ -1,0 +1,142 @@
+{
+  "id": "wizard",
+  "name": "Wizard",
+  "emoji": "🧙",
+  "blurb": "Bouncing fireballs that grow hotter, and a Frost Nova that freezes everyone nearby.",
+  "color": [
+    90,
+    110,
+    210
+  ],
+  "hp": 80,
+  "radius": 66,
+  "speed": 580,
+  "decor": "wizard_hat",
+  "stats": {
+    "fire_dmg": 7,
+    "seek": -15
+  },
+  "blades": [
+    {
+      "style": "staff",
+      "length": 95,
+      "width": 22,
+      "aim": true,
+      "solid": false,
+      "damage": 0,
+      "color": [
+        255,
+        120,
+        40
+      ]
+    }
+  ],
+  "abilities": [
+    {
+      "on": "timer",
+      "every": 1.2,
+      "do": [
+        {
+          "type": "shoot",
+          "style": "fireball",
+          "damage": "$fire_dmg",
+          "speed": 720,
+          "radius": 17,
+          "bounces": 1,
+          "color": [
+            255,
+            120,
+            30
+          ]
+        }
+      ]
+    },
+    {
+      "on": "projectile_hit",
+      "do": [
+        {
+          "type": "add_stat",
+          "stat": "fire_dmg",
+          "amount": 1
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Frost Nova",
+    "shout": "FROST NOVA!",
+    "max": 100,
+    "per_second": 11,
+    "on_full": [
+      {
+        "type": "shockwave",
+        "radius": 340,
+        "damage": 8,
+        "knockback": true,
+        "color": [
+          170,
+          230,
+          255
+        ]
+      },
+      {
+        "type": "buff",
+        "target": "all_enemies",
+        "stat": "speed",
+        "mul": 0.5,
+        "duration": 2.5
+      }
+    ]
+  },
+  "hud": [
+    "Frost Nova",
+    "Fireball: {fire_dmg:.1f}",
+    "Bounces once"
+  ],
+  "sfx": {
+    "shoot": "fireball whoosh cast",
+    "projectile_hit": "fiery explosion pop",
+    "ultimate": "icy crystalline blast with frosty shimmer"
+  },
+  "voice": {
+    "voice_name": "Bill",
+    "voice_id": "pqHfZKP75CvOlQylNhV4",
+    "lines": {
+      "ultimate": "Frost nova!",
+      "victory": "Magic always wins."
+    }
+  },
+  "arena": {
+    "stage": "Arcane Tower",
+    "pattern": "runes",
+    "bg_top": [
+      50,
+      50,
+      120
+    ],
+    "bg_bottom": [
+      18,
+      18,
+      50
+    ],
+    "arena_fill": [
+      82,
+      92,
+      160
+    ]
+  },
+  "art": {
+    "floor": "dark blue stone floor tiles carved with faintly glowing magic runes",
+    "body": "a wise wizard: a perfectly round royal blue ball body, a tall crooked purple wizard hat with a yellow star, a long flowing white beard, glowing white eyes under bushy brows",
+    "weapons": [
+      "a gnarled wooden wizard staff with a glowing orange crystal orb at the right end"
+    ],
+    "projectiles": {
+      "fireball": "a blazing fireball with a bright yellow core and an orange flame trail streaming to the left"
+    },
+    "ultimate_icon": "a pale blue ice crystal snowflake bursting outward",
+    "ult_circle": "an icy blue arcane circle with snowflake runes and frost crystals",
+    "ult_aura": "a swirling frost and arcane aura with floating ice crystals and blue magic sparks",
+    "hit_fx": "a shattering ice crystal burst with blue magic sparkles"
+  }
+}

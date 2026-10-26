@@ -1,0 +1,129 @@
+{
+  "id": "samurai",
+  "name": "Samurai",
+  "emoji": "⚔️",
+  "blurb": "Katana spins faster with every hit and steals life. Blade Dance doubles it all.",
+  "color": [
+    60,
+    70,
+    95
+  ],
+  "hp": 85,
+  "radius": 66,
+  "speed": 640,
+  "decor": [
+    "headband",
+    "eyes"
+  ],
+  "stats": {
+    "dmg": 6,
+    "lifesteal": 0.15,
+    "seek": 120
+  },
+  "blades": [
+    {
+      "style": "sword",
+      "length": 145,
+      "width": 20,
+      "spin": 300,
+      "damage": "$dmg",
+      "color": [
+        235,
+        240,
+        248
+      ],
+      "guard_color": [
+        30,
+        30,
+        30
+      ]
+    }
+  ],
+  "abilities": [
+    {
+      "on": "blade_hit",
+      "do": [
+        {
+          "type": "add_stat",
+          "stat": "spin_mult",
+          "amount": 0.08,
+          "max": 2.2
+        },
+        {
+          "type": "add_stat",
+          "stat": "dmg",
+          "amount": 0.8
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Blade Dance",
+    "shout": "BLADE DANCE!",
+    "max": 100,
+    "per_hit": 20,
+    "active_duration": 3,
+    "on_full": [
+      {
+        "type": "buff",
+        "stat": "spin_mult",
+        "mul": 2.0,
+        "duration": 3
+      },
+      {
+        "type": "buff",
+        "stat": "lifesteal",
+        "add": 0.4,
+        "duration": 3,
+        "label": "DANCE"
+      }
+    ]
+  },
+  "hud": [
+    "Blade Dance",
+    "DMG: {dmg:.1f}",
+    "Lifesteal: {lifesteal_pct:.0f}%{lifesteal_buffs}"
+  ],
+  "sfx": {
+    "blade_hit": "quick sharp katana slice",
+    "ultimate": "rapid blade whirl whoosh"
+  },
+  "voice": {
+    "voice_name": "Eric",
+    "voice_id": "cjVigY5qzO86Huf0OWal",
+    "lines": {
+      "ultimate": "Blade dance!",
+      "victory": "The blade never lies."
+    }
+  },
+  "arena": {
+    "stage": "Moonlit Dojo",
+    "pattern": "tatami",
+    "bg_top": [
+      150,
+      60,
+      50
+    ],
+    "bg_bottom": [
+      50,
+      20,
+      18
+    ],
+    "arena_fill": [
+      196,
+      180,
+      128
+    ]
+  },
+  "art": {
+    "floor": "japanese dojo floor of straw tatami mats with dark wooden borders",
+    "body": "a focused samurai: a perfectly round dark navy blue ball body, a red cloth headband tied with two flowing tails on the right, a small black topknot on top, sharp narrow white eyes",
+    "weapons": [
+      "a slim slightly curved katana with a gleaming white steel blade, a black round tsuba guard and a black-and-white diamond-wrapped handle"
+    ],
+    "ultimate_icon": "a swirling circle of white katana slashes",
+    "ult_circle": "a red and black samurai clan crest circle with cherry blossom petals around it",
+    "ult_aura": "a fierce crimson battle spirit aura with swirling cherry blossom petals",
+    "hit_fx": "a crisp red katana slash crescent with cherry blossom petals"
+  }
+}

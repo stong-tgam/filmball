@@ -1,0 +1,178 @@
+{
+  "id": "ninja",
+  "name": "Ninja",
+  "emoji": "🥷",
+  "blurb": "Tiny and very fast. Poison dagger, bouncing shurikens, and Shadow Clones.",
+  "color": [
+    45,
+    45,
+    58
+  ],
+  "hp": 70,
+  "radius": 56,
+  "speed": 740,
+  "decor": "mask",
+  "stats": {
+    "dmg": 4,
+    "poison": 4,
+    "seek": 120
+  },
+  "blades": [
+    {
+      "style": "dagger",
+      "length": 80,
+      "width": 18,
+      "spin": 380,
+      "damage": "$dmg",
+      "color": [
+        180,
+        185,
+        195
+      ],
+      "guard_color": [
+        40,
+        40,
+        40
+      ]
+    }
+  ],
+  "abilities": [
+    {
+      "on": "blade_hit",
+      "do": [
+        {
+          "type": "poison",
+          "target": "other",
+          "dps": "$poison",
+          "duration": 2
+        },
+        {
+          "type": "add_stat",
+          "stat": "poison",
+          "amount": 0.5
+        }
+      ]
+    },
+    {
+      "on": "timer",
+      "every": 1.6,
+      "do": [
+        {
+          "type": "shoot",
+          "style": "shuriken",
+          "count": 2,
+          "spread": 24,
+          "damage": 3,
+          "speed": 950,
+          "radius": 11,
+          "bounces": 2
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Shadow Clones",
+    "shout": "SHADOW CLONES!",
+    "max": 100,
+    "per_hit": 15,
+    "on_full": [
+      {
+        "type": "summon",
+        "unit": "clone",
+        "count": 2
+      }
+    ]
+  },
+  "hud": [
+    "Shadow Clones",
+    "Poison: {poison:.1f}/s",
+    "Shurikens bounce 2x"
+  ],
+  "summons": {
+    "clone": {
+      "name": "Clone",
+      "color": [
+        70,
+        70,
+        90
+      ],
+      "hp": 9,
+      "radius": 40,
+      "speed": 760,
+      "decor": "mask",
+      "stats": {
+        "seek": 110
+      },
+      "blades": [
+        {
+          "style": "dagger",
+          "length": 60,
+          "width": 14,
+          "spin": 400,
+          "damage": 2,
+          "color": [
+            180,
+            185,
+            195
+          ],
+          "guard_color": [
+            40,
+            40,
+            40
+          ]
+        }
+      ]
+    }
+  },
+  "sfx": {
+    "blade_hit": "swift silent blade swish",
+    "shoot": "shuriken whirring throw",
+    "projectile_hit": "metal star thunk",
+    "summon": "puff of smoke",
+    "ultimate": "ninja smoke bomb poof"
+  },
+  "voice": {
+    "voice_name": "River",
+    "voice_id": "SAz9YHcvj6GT2YYXdXww",
+    "lines": {
+      "ultimate": "Shadow clones!",
+      "victory": "Too slow."
+    }
+  },
+  "arena": {
+    "stage": "Midnight Rooftops",
+    "pattern": "roof",
+    "bg_top": [
+      40,
+      44,
+      70
+    ],
+    "bg_bottom": [
+      12,
+      14,
+      26
+    ],
+    "arena_fill": [
+      78,
+      84,
+      104
+    ]
+  },
+  "art": {
+    "floor": "rows of dark grey japanese clay roof tiles at night",
+    "body": "a stealthy ninja: a perfectly round charcoal black ball body wrapped in a black mask, only a narrow eye slit showing two white eyes, two black mask tails flowing to the right",
+    "weapons": [
+      "a short black kunai dagger with a ring at the end of the handle"
+    ],
+    "projectiles": {
+      "shuriken": "a four-pointed steel throwing star shuriken seen from above"
+    },
+    "summons": {
+      "clone": "a shadow clone of a ninja: a round smoky purple-grey ball body, a black mask with a white eye slit, wisps of shadow smoke"
+    },
+    "ultimate_icon": "one big black four-pointed throwing star in front of a grey smoke puff",
+    "ult_circle": "a dark purple shuriken-shaped ninja clan seal with kanji-like marks",
+    "ult_aura": "a swirling dark purple and grey smoke cloud aura with ninja shadow wisps",
+    "hit_fx": "a toxic green poison splat with dark purple droplets"
+  }
+}

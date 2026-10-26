@@ -1,0 +1,2603 @@
+{
+  "settings": {
+    "no_background": true,
+    "outline": "single color black outline",
+    "shading": "basic shading",
+    "detail": "medium detail",
+    "text_guidance_scale": 8,
+    "color_image": "art/palette.png"
+  },
+  "palette": {
+    "ink": "#0E0B16",
+    "night": "#1F1A2E",
+    "panel": "#2E2A47",
+    "panel_hi": "#4A4470",
+    "lavender": "#7C77A8",
+    "mist": "#C9C6E0",
+    "cream": "#FFF6E0",
+    "red": "#C41E28",
+    "red_hi": "#FF5A4E",
+    "crimson": "#7A1226",
+    "orange": "#E07A2E",
+    "gold": "#FFB547",
+    "yellow": "#FFE066",
+    "green": "#3C9A4A",
+    "lime": "#8FD16A",
+    "forest": "#1F5E3A",
+    "blue": "#3C64C8",
+    "sky": "#6FA8FF",
+    "ice": "#A8E6FF",
+    "navy": "#2C3550",
+    "purple": "#5E4A8C",
+    "violet": "#9B7BD1",
+    "steel": "#D6D6D6",
+    "iron": "#8A8F9E",
+    "wood": "#8B5A2B",
+    "ivory": "#E8DCAA",
+    "charcoal": "#2D2D3A",
+    "soul": "#62F0A0"
+  },
+  "anchors": {
+    "body": "characters/art/knight/body.png",
+    "weapon": "characters/art/knight/weapon_0.png",
+    "projectile": "characters/art/archer/projectile_arrow.png",
+    "summon": "characters/art/king/summon_pawn.png",
+    "icon": "characters/art/knight/ultimate_icon.png"
+  },
+  "jobs": [
+    {
+      "id": "knight.body",
+      "kind": "body",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/knight/body.png",
+      "params": {
+        "no_background": true,
+        "outline": "single color black outline",
+        "shading": "basic shading",
+        "detail": "medium detail",
+        "text_guidance_scale": 8,
+        "color_image": "art/palette.png",
+        "description": "A head-only round ball character with no arms, no legs and no torso: a brave knight: the perfectly round ball body is a polished light-grey steel great helm, a dark horizontal visor slit with two glowing eyes inside, small rivets, a tall red feather plume on top. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "view": "side",
+        "direction": "south"
+      }
+    },
+    {
+      "id": "knight.weapon_0",
+      "kind": "weapon",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/knight/weapon_0.png",
+      "params": {
+        "no_background": true,
+        "outline": "single color black outline",
+        "shading": "basic shading",
+        "detail": "medium detail",
+        "text_guidance_scale": 8,
+        "color_image": "art/palette.png",
+        "description": "a steel longsword with a straight double-edged blade, gold crossguard, brown leather grip and a round gold pommel. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "view": "side",
+        "direction": "east"
+      }
+    },
+    {
+      "id": "archer.body",
+      "kind": "body",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/archer/body.png",
+      "style_from": "characters/art/knight/body.png",
+      "params": {
+        "description": "A head-only round ball character with no arms, no legs and no torso: a sharp-eyed archer: a perfectly round forest green ball body under a dark green pointed hood that shadows the face, two bright eyes peeking out, a brown leather quiver strap across the front. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/body.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball character with no arms, no legs and no torso: a sharp-eyed archer: a perfectly round forest green ball body under a dark green pointed hood that shadows the face, two bright eyes peeking out, a brown leather quiver strap across the front. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "archer.weapon_0",
+      "kind": "weapon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/archer/weapon_0.png",
+      "style_from": "characters/art/knight/weapon_0.png",
+      "params": {
+        "description": "a wooden recurve bow standing vertically, the curved limbs bulging to the right, a thin white bowstring on the left side. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/weapon_0.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a wooden recurve bow standing vertically, the curved limbs bulging to the right, a thin white bowstring on the left side. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "king.body",
+      "kind": "body",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/king/body.png",
+      "style_from": "characters/art/knight/body.png",
+      "params": {
+        "description": "A head-only round ball character with no arms, no legs and no torso: a stern little king: a perfectly round deep red ball body, a golden jeweled crown with red gems on top, a white ermine fur collar with black spots around the bottom, bushy white eyebrows, small determined eyes, rosy cheeks. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/body.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball character with no arms, no legs and no torso: a stern little king: a perfectly round deep red ball body, a golden jeweled crown with red gems on top, a white ermine fur collar with black spots around the bottom, bushy white eyebrows, small determined eyes, rosy cheeks. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "necromancer.body",
+      "kind": "body",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/necromancer/body.png",
+      "style_from": "characters/art/knight/body.png",
+      "params": {
+        "description": "A head-only round ball character with no arms, no legs and no torso: a creepy necromancer: a perfectly round dusty purple ball body under a ragged dark purple hood, a bone-white skull face with glowing green eye sockets and a row of skull teeth. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/body.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball character with no arms, no legs and no torso: a creepy necromancer: a perfectly round dusty purple ball body under a ragged dark purple hood, a bone-white skull face with glowing green eye sockets and a row of skull teeth. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "necromancer.weapon_0",
+      "kind": "weapon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/necromancer/weapon_0.png",
+      "style_from": "characters/art/knight/weapon_0.png",
+      "params": {
+        "description": "a long dark wooden scythe with a pale glowing green curved blade at the right end, curving downward. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/weapon_0.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a long dark wooden scythe with a pale glowing green curved blade at the right end, curving downward. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "ninja.body",
+      "kind": "body",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/ninja/body.png",
+      "style_from": "characters/art/knight/body.png",
+      "params": {
+        "description": "A head-only round ball character with no arms, no legs and no torso: a stealthy ninja: a perfectly round charcoal black ball body wrapped in a black mask, only a narrow eye slit showing two white eyes, two black mask tails flowing to the right. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/body.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball character with no arms, no legs and no torso: a stealthy ninja: a perfectly round charcoal black ball body wrapped in a black mask, only a narrow eye slit showing two white eyes, two black mask tails flowing to the right. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "ninja.weapon_0",
+      "kind": "weapon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/ninja/weapon_0.png",
+      "style_from": "characters/art/knight/weapon_0.png",
+      "params": {
+        "description": "a short black kunai dagger with a ring at the end of the handle. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/weapon_0.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a short black kunai dagger with a ring at the end of the handle. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "paladin.body",
+      "kind": "body",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/paladin/body.png",
+      "style_from": "characters/art/knight/body.png",
+      "params": {
+        "description": "A head-only round ball character with no arms, no legs and no torso: a holy paladin: a perfectly round ivory ball body, a golden halo floating above, a white and gold tabard with a gold cross emblem on the front, calm kind eyes. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/body.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball character with no arms, no legs and no torso: a holy paladin: a perfectly round ivory ball body, a golden halo floating above, a white and gold tabard with a gold cross emblem on the front, calm kind eyes. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "paladin.weapon_0",
+      "kind": "weapon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/paladin/weapon_0.png",
+      "style_from": "characters/art/knight/weapon_0.png",
+      "params": {
+        "description": "a golden flanged mace with a short wooden handle. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/weapon_0.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a golden flanged mace with a short wooden handle. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "paladin.weapon_1",
+      "kind": "weapon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/paladin/weapon_1.png",
+      "style_from": "characters/art/knight/weapon_0.png",
+      "params": {
+        "description": "a blue kite shield with a gold rim and a gold cross, front view, standing upright. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/weapon_0.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a blue kite shield with a gold rim and a gold cross, front view, standing upright. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "samurai.body",
+      "kind": "body",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/samurai/body.png",
+      "style_from": "characters/art/knight/body.png",
+      "params": {
+        "description": "A head-only round ball character with no arms, no legs and no torso: a focused samurai: a perfectly round dark navy blue ball body, a red cloth headband tied with two flowing tails on the right, a small black topknot on top, sharp narrow white eyes. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/body.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball character with no arms, no legs and no torso: a focused samurai: a perfectly round dark navy blue ball body, a red cloth headband tied with two flowing tails on the right, a small black topknot on top, sharp narrow white eyes. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "samurai.weapon_0",
+      "kind": "weapon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/samurai/weapon_0.png",
+      "style_from": "characters/art/knight/weapon_0.png",
+      "params": {
+        "description": "a slim slightly curved katana with a gleaming white steel blade, a black round tsuba guard and a black-and-white diamond-wrapped handle. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/weapon_0.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a slim slightly curved katana with a gleaming white steel blade, a black round tsuba guard and a black-and-white diamond-wrapped handle. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "vampire.body",
+      "kind": "body",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/vampire/body.png",
+      "style_from": "characters/art/knight/body.png",
+      "params": {
+        "description": "A head-only round ball character with no arms, no legs and no torso: a sinister vampire: a perfectly round deep crimson ball body, a tall black high-collared cape with red lining framing it, slicked black hair with a widow's peak, glowing red eyes and two small white fangs. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/body.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball character with no arms, no legs and no torso: a sinister vampire: a perfectly round deep crimson ball body, a tall black high-collared cape with red lining framing it, slicked black hair with a widow's peak, glowing red eyes and two small white fangs. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "vampire.weapon_0",
+      "kind": "weapon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/vampire/weapon_0.png",
+      "style_from": "characters/art/knight/weapon_0.png",
+      "params": {
+        "description": "an ornate silver dagger with a slim blade and a crimson jeweled hilt. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/weapon_0.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "an ornate silver dagger with a slim blade and a crimson jeweled hilt. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "viking.body",
+      "kind": "body",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/viking/body.png",
+      "style_from": "characters/art/knight/body.png",
+      "params": {
+        "description": "A head-only round ball character with no arms, no legs and no torso: a fierce viking: a perfectly round burnt-orange ball body, an iron helmet with two big ivory horns, a huge braided orange beard covering the lower half, angry eyebrows. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/body.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball character with no arms, no legs and no torso: a fierce viking: a perfectly round burnt-orange ball body, an iron helmet with two big ivory horns, a huge braided orange beard covering the lower half, angry eyebrows. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "viking.weapon_0",
+      "kind": "weapon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/viking/weapon_0.png",
+      "style_from": "characters/art/knight/weapon_0.png",
+      "params": {
+        "description": "a heavy bearded battle axe with a wide curved steel head and a long wooden handle wrapped in leather. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/weapon_0.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a heavy bearded battle axe with a wide curved steel head and a long wooden handle wrapped in leather. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "wizard.body",
+      "kind": "body",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/wizard/body.png",
+      "style_from": "characters/art/knight/body.png",
+      "params": {
+        "description": "A head-only round ball character with no arms, no legs and no torso: a wise wizard: a perfectly round royal blue ball body, a tall crooked purple wizard hat with a yellow star, a long flowing white beard, glowing white eyes under bushy brows. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/body.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball character with no arms, no legs and no torso: a wise wizard: a perfectly round royal blue ball body, a tall crooked purple wizard hat with a yellow star, a long flowing white beard, glowing white eyes under bushy brows. Front view, facing the viewer. A cute but tough fighting-game character token: one big round ball shape fills about 80% of the canvas, and any hat, hood or headwear may stick out above it. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "wizard.weapon_0",
+      "kind": "weapon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/wizard/weapon_0.png",
+      "style_from": "characters/art/knight/weapon_0.png",
+      "params": {
+        "description": "a gnarled wooden wizard staff with a glowing orange crystal orb at the right end. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/weapon_0.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a gnarled wooden wizard staff with a glowing orange crystal orb at the right end. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "archer.projectile_arrow",
+      "kind": "projectile",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/archer/projectile_arrow.png",
+      "params": {
+        "no_background": true,
+        "outline": "single color black outline",
+        "shading": "basic shading",
+        "detail": "medium detail",
+        "text_guidance_scale": 8,
+        "color_image": "art/palette.png",
+        "description": "a wooden arrow with a steel arrowhead pointing right and white feather fletching on the left. Flying to the right. A small game projectile sprite. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "image_size": {
+          "width": 32,
+          "height": 32
+        },
+        "view": "side",
+        "direction": "east"
+      }
+    },
+    {
+      "id": "king.summon_pawn",
+      "kind": "summon",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/king/summon_pawn.png",
+      "params": {
+        "no_background": true,
+        "outline": "single color black outline",
+        "shading": "basic shading",
+        "detail": "medium detail",
+        "text_guidance_scale": 8,
+        "color_image": "art/palette.png",
+        "description": "A head-only round ball minion with no arms and no legs: a tiny royal pawn soldier: a perfectly round red ball body, a small steel kettle helmet, brave little eyes. Front view, facing the viewer. One round ball shape fills about 85% of the canvas. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "image_size": {
+          "width": 32,
+          "height": 32
+        },
+        "view": "side",
+        "direction": "south"
+      }
+    },
+    {
+      "id": "necromancer.summon_skeleton",
+      "kind": "summon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/necromancer/summon_skeleton.png",
+      "style_from": "characters/art/king/summon_pawn.png",
+      "params": {
+        "description": "A head-only round ball minion with no arms and no legs: a small skeleton warrior: a round bone-white skull ball body with dark eye sockets and a toothy grin. Front view, facing the viewer. One round ball shape fills about 85% of the canvas. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/king/summon_pawn.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball minion with no arms and no legs: a small skeleton warrior: a round bone-white skull ball body with dark eye sockets and a toothy grin. Front view, facing the viewer. One round ball shape fills about 85% of the canvas. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "necromancer.summon_skeleton_weapon",
+      "kind": "weapon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/necromancer/summon_skeleton_weapon.png",
+      "style_from": "characters/art/knight/weapon_0.png",
+      "params": {
+        "description": "a small rusty iron short sword with a bone handle. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/weapon_0.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a small rusty iron short sword with a bone handle. A single weapon lying horizontally and pointing to the right: handle at the left edge, tip at the right edge, no hand, no character. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 64,
+            "height": 64
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "ninja.summon_clone",
+      "kind": "summon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/ninja/summon_clone.png",
+      "style_from": "characters/art/king/summon_pawn.png",
+      "params": {
+        "description": "A head-only round ball minion with no arms and no legs: a shadow clone of a ninja: a round smoky purple-grey ball body, a black mask with a white eye slit, wisps of shadow smoke. Front view, facing the viewer. One round ball shape fills about 85% of the canvas. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/king/summon_pawn.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball minion with no arms and no legs: a shadow clone of a ninja: a round smoky purple-grey ball body, a black mask with a white eye slit, wisps of shadow smoke. Front view, facing the viewer. One round ball shape fills about 85% of the canvas. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "ninja.projectile_shuriken",
+      "kind": "projectile",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/ninja/projectile_shuriken.png",
+      "style_from": "characters/art/archer/projectile_arrow.png",
+      "params": {
+        "description": "a four-pointed steel throwing star shuriken seen from above. Flying to the right. A small game projectile sprite. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/archer/projectile_arrow.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a four-pointed steel throwing star shuriken seen from above. Flying to the right. A small game projectile sprite. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "vampire.summon_bat",
+      "kind": "summon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/vampire/summon_bat.png",
+      "style_from": "characters/art/king/summon_pawn.png",
+      "params": {
+        "description": "A head-only round ball minion with no arms and no legs: a tiny vampire bat: a round dark purple body with leathery wings spread wide, red eyes, tiny fangs. Front view, facing the viewer. One round ball shape fills about 85% of the canvas. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/king/summon_pawn.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball minion with no arms and no legs: a tiny vampire bat: a round dark purple body with leathery wings spread wide, red eyes, tiny fangs. Front view, facing the viewer. One round ball shape fills about 85% of the canvas. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "viking.summon_wolf",
+      "kind": "summon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/viking/summon_wolf.png",
+      "style_from": "characters/art/king/summon_pawn.png",
+      "params": {
+        "description": "A head-only round ball minion with no arms and no legs: a snarling grey wolf: a perfectly round grey ball body with two pointed ears, white fangs, yellow eyes. Front view, facing the viewer. One round ball shape fills about 85% of the canvas. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/king/summon_pawn.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "A head-only round ball minion with no arms and no legs: a snarling grey wolf: a perfectly round grey ball body with two pointed ears, white fangs, yellow eyes. Front view, facing the viewer. One round ball shape fills about 85% of the canvas. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "wizard.projectile_fireball",
+      "kind": "projectile",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/wizard/projectile_fireball.png",
+      "style_from": "characters/art/archer/projectile_arrow.png",
+      "params": {
+        "description": "a blazing fireball with a bright yellow core and an orange flame trail streaming to the left. Flying to the right. A small game projectile sprite. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/archer/projectile_arrow.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a blazing fireball with a bright yellow core and an orange flame trail streaming to the left. Flying to the right. A small game projectile sprite. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "east"
+        }
+      }
+    },
+    {
+      "id": "knight.ultimate_icon",
+      "kind": "icon",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/knight/ultimate_icon.png",
+      "params": {
+        "no_background": true,
+        "outline": "single color black outline",
+        "shading": "basic shading",
+        "detail": "medium detail",
+        "text_guidance_scale": 8,
+        "color_image": "art/palette.png",
+        "description": "a giant glowing steel sword pointing up with light rays. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "image_size": {
+          "width": 32,
+          "height": 32
+        },
+        "view": "side",
+        "direction": "south"
+      }
+    },
+    {
+      "id": "archer.ultimate_icon",
+      "kind": "icon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/archer/ultimate_icon.png",
+      "style_from": "characters/art/knight/ultimate_icon.png",
+      "params": {
+        "description": "a rain of arrows falling diagonally from the sky. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/ultimate_icon.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a rain of arrows falling diagonally from the sky. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "king.ultimate_icon",
+      "kind": "icon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/king/ultimate_icon.png",
+      "style_from": "characters/art/knight/ultimate_icon.png",
+      "params": {
+        "description": "a golden royal trumpet with a small red banner. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/ultimate_icon.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a golden royal trumpet with a small red banner. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "necromancer.ultimate_icon",
+      "kind": "icon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/necromancer/ultimate_icon.png",
+      "style_from": "characters/art/knight/ultimate_icon.png",
+      "params": {
+        "description": "a green ghostly soul wisp with a skull face. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/ultimate_icon.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a green ghostly soul wisp with a skull face. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "ninja.ultimate_icon",
+      "kind": "icon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/ninja/ultimate_icon.png",
+      "style_from": "characters/art/knight/ultimate_icon.png",
+      "params": {
+        "description": "a puff of dark smoke with two ninja silhouettes. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/ultimate_icon.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a puff of dark smoke with two ninja silhouettes. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "paladin.ultimate_icon",
+      "kind": "icon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/paladin/ultimate_icon.png",
+      "style_from": "characters/art/knight/ultimate_icon.png",
+      "params": {
+        "description": "a radiant golden holy cross with light beams. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/ultimate_icon.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a radiant golden holy cross with light beams. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "samurai.ultimate_icon",
+      "kind": "icon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/samurai/ultimate_icon.png",
+      "style_from": "characters/art/knight/ultimate_icon.png",
+      "params": {
+        "description": "a swirling circle of white katana slashes. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/ultimate_icon.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a swirling circle of white katana slashes. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "vampire.ultimate_icon",
+      "kind": "icon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/vampire/ultimate_icon.png",
+      "style_from": "characters/art/knight/ultimate_icon.png",
+      "params": {
+        "description": "a black bat silhouette with spread wings in front of a red moon. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/ultimate_icon.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a black bat silhouette with spread wings in front of a red moon. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "viking.ultimate_icon",
+      "kind": "icon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/viking/ultimate_icon.png",
+      "style_from": "characters/art/knight/ultimate_icon.png",
+      "params": {
+        "description": "a fist smashing cracked ground with flying rock debris. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/ultimate_icon.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a fist smashing cracked ground with flying rock debris. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "wizard.ultimate_icon",
+      "kind": "icon",
+      "step": 2,
+      "endpoint": "generate-with-style-v2",
+      "out": "characters/art/wizard/ultimate_icon.png",
+      "style_from": "characters/art/knight/ultimate_icon.png",
+      "params": {
+        "description": "a pale blue ice crystal snowflake bursting outward. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+        "style_description": "chunky 16-bit fighting-game pixel art, bold 1px black outline, basic two-tone shading, bright saturated colors",
+        "style_images": [
+          "characters/art/knight/ultimate_icon.png"
+        ],
+        "no_background": true,
+        "target_palette": {
+          "colors": [
+            "#0E0B16",
+            "#1F1A2E",
+            "#2E2A47",
+            "#4A4470",
+            "#7C77A8",
+            "#C9C6E0",
+            "#FFF6E0",
+            "#C41E28",
+            "#FF5A4E",
+            "#7A1226",
+            "#E07A2E",
+            "#FFB547",
+            "#FFE066",
+            "#3C9A4A",
+            "#8FD16A",
+            "#1F5E3A",
+            "#3C64C8",
+            "#6FA8FF",
+            "#A8E6FF",
+            "#2C3550",
+            "#5E4A8C",
+            "#9B7BD1",
+            "#D6D6D6",
+            "#8A8F9E",
+            "#8B5A2B",
+            "#E8DCAA",
+            "#2D2D3A",
+            "#62F0A0"
+          ]
+        }
+      },
+      "fallback": {
+        "endpoint": "create-image-pixflux",
+        "params": {
+          "no_background": true,
+          "outline": "single color black outline",
+          "shading": "basic shading",
+          "detail": "medium detail",
+          "text_guidance_scale": 8,
+          "color_image": "art/palette.png",
+          "description": "a pale blue ice crystal snowflake bursting outward. A square ability icon: one bold simple symbol, centered, readable at tiny size. 16-bit pixel art game sprite, crisp chunky pixels, bold black outline, bright saturated colors, clean readable silhouette, centered on a transparent background, no text, no frame",
+          "image_size": {
+            "width": 32,
+            "height": 32
+          },
+          "view": "side",
+          "direction": "south"
+        }
+      }
+    },
+    {
+      "id": "knight.floor",
+      "kind": "tile",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/knight/floor.png",
+      "params": {
+        "description": "grey castle courtyard flagstones with mossy cracks between the stones. A seamless tileable floor texture seen from directly above, flat and evenly lit, no characters, no large objects, muted colors so characters stand out. 16-bit pixel art, crisp chunky pixels, no text",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "no_background": false,
+        "outline": "lineless",
+        "shading": "flat shading",
+        "detail": "medium detail",
+        "view": "high top-down",
+        "text_guidance_scale": 8
+      }
+    },
+    {
+      "id": "archer.floor",
+      "kind": "tile",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/archer/floor.png",
+      "params": {
+        "description": "forest floor of soft moss and grass with a few fallen autumn leaves. A seamless tileable floor texture seen from directly above, flat and evenly lit, no characters, no large objects, muted colors so characters stand out. 16-bit pixel art, crisp chunky pixels, no text",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "no_background": false,
+        "outline": "lineless",
+        "shading": "flat shading",
+        "detail": "medium detail",
+        "view": "high top-down",
+        "text_guidance_scale": 8
+      }
+    },
+    {
+      "id": "king.floor",
+      "kind": "tile",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/king/floor.png",
+      "params": {
+        "description": "a royal red carpet with gold trim running over polished cream marble floor tiles. A seamless tileable floor texture seen from directly above, flat and evenly lit, no characters, no large objects, muted colors so characters stand out. 16-bit pixel art, crisp chunky pixels, no text",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "no_background": false,
+        "outline": "lineless",
+        "shading": "flat shading",
+        "detail": "medium detail",
+        "view": "high top-down",
+        "text_guidance_scale": 8
+      }
+    },
+    {
+      "id": "necromancer.floor",
+      "kind": "tile",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/necromancer/floor.png",
+      "params": {
+        "description": "graveyard dirt ground with scattered small bones and patches of dead grass. A seamless tileable floor texture seen from directly above, flat and evenly lit, no characters, no large objects, muted colors so characters stand out. 16-bit pixel art, crisp chunky pixels, no text",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "no_background": false,
+        "outline": "lineless",
+        "shading": "flat shading",
+        "detail": "medium detail",
+        "view": "high top-down",
+        "text_guidance_scale": 8
+      }
+    },
+    {
+      "id": "ninja.floor",
+      "kind": "tile",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/ninja/floor.png",
+      "params": {
+        "description": "rows of dark grey japanese clay roof tiles at night. A seamless tileable floor texture seen from directly above, flat and evenly lit, no characters, no large objects, muted colors so characters stand out. 16-bit pixel art, crisp chunky pixels, no text",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "no_background": false,
+        "outline": "lineless",
+        "shading": "flat shading",
+        "detail": "medium detail",
+        "view": "high top-down",
+        "text_guidance_scale": 8
+      }
+    },
+    {
+      "id": "paladin.floor",
+      "kind": "tile",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/paladin/floor.png",
+      "params": {
+        "description": "holy cathedral floor of white marble tiles with thin gold inlay lines. A seamless tileable floor texture seen from directly above, flat and evenly lit, no characters, no large objects, muted colors so characters stand out. 16-bit pixel art, crisp chunky pixels, no text",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "no_background": false,
+        "outline": "lineless",
+        "shading": "flat shading",
+        "detail": "medium detail",
+        "view": "high top-down",
+        "text_guidance_scale": 8
+      }
+    },
+    {
+      "id": "samurai.floor",
+      "kind": "tile",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/samurai/floor.png",
+      "params": {
+        "description": "japanese dojo floor of straw tatami mats with dark wooden borders. A seamless tileable floor texture seen from directly above, flat and evenly lit, no characters, no large objects, muted colors so characters stand out. 16-bit pixel art, crisp chunky pixels, no text",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "no_background": false,
+        "outline": "lineless",
+        "shading": "flat shading",
+        "detail": "medium detail",
+        "view": "high top-down",
+        "text_guidance_scale": 8
+      }
+    },
+    {
+      "id": "vampire.floor",
+      "kind": "tile",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/vampire/floor.png",
+      "params": {
+        "description": "gothic crypt floor of cracked black and crimson marble checker tiles. A seamless tileable floor texture seen from directly above, flat and evenly lit, no characters, no large objects, muted colors so characters stand out. 16-bit pixel art, crisp chunky pixels, no text",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "no_background": false,
+        "outline": "lineless",
+        "shading": "flat shading",
+        "detail": "medium detail",
+        "view": "high top-down",
+        "text_guidance_scale": 8
+      }
+    },
+    {
+      "id": "viking.floor",
+      "kind": "tile",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/viking/floor.png",
+      "params": {
+        "description": "wooden longship deck planks dusted with snow and frost. A seamless tileable floor texture seen from directly above, flat and evenly lit, no characters, no large objects, muted colors so characters stand out. 16-bit pixel art, crisp chunky pixels, no text",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "no_background": false,
+        "outline": "lineless",
+        "shading": "flat shading",
+        "detail": "medium detail",
+        "view": "high top-down",
+        "text_guidance_scale": 8
+      }
+    },
+    {
+      "id": "wizard.floor",
+      "kind": "tile",
+      "step": 1,
+      "endpoint": "create-image-pixflux",
+      "out": "characters/art/wizard/floor.png",
+      "params": {
+        "description": "dark blue stone floor tiles carved with faintly glowing magic runes. A seamless tileable floor texture seen from directly above, flat and evenly lit, no characters, no large objects, muted colors so characters stand out. 16-bit pixel art, crisp chunky pixels, no text",
+        "image_size": {
+          "width": 64,
+          "height": 64
+        },
+        "no_background": false,
+        "outline": "lineless",
+        "shading": "flat shading",
+        "detail": "medium detail",
+        "view": "high top-down",
+        "text_guidance_scale": 8
+      }
+    }
+  ]
+}

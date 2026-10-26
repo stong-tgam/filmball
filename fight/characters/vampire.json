@@ -1,0 +1,162 @@
+{
+  "id": "vampire",
+  "name": "Vampire",
+  "emoji": "🧛",
+  "blurb": "Twin daggers drain a third of the damage as life. Every kill raises max HP. Summons bats.",
+  "color": [
+    110,
+    20,
+    45
+  ],
+  "hp": 85,
+  "radius": 66,
+  "speed": 640,
+  "decor": "fangs",
+  "stats": {
+    "dmg": 5,
+    "lifesteal": 0.35,
+    "seek": 120
+  },
+  "blades": [
+    {
+      "style": "dagger",
+      "length": 85,
+      "width": 20,
+      "spin": 280,
+      "damage": "$dmg",
+      "color": [
+        200,
+        200,
+        215
+      ],
+      "guard_color": [
+        150,
+        20,
+        40
+      ]
+    },
+    {
+      "style": "dagger",
+      "length": 85,
+      "width": 20,
+      "spin": 280,
+      "damage": "$dmg",
+      "offset_deg": 180,
+      "color": [
+        200,
+        200,
+        215
+      ],
+      "guard_color": [
+        150,
+        20,
+        40
+      ]
+    }
+  ],
+  "abilities": [
+    {
+      "on": "kill",
+      "do": [
+        {
+          "type": "add_max_hp",
+          "amount": 6
+        }
+      ]
+    },
+    {
+      "on": "blade_hit",
+      "do": [
+        {
+          "type": "add_stat",
+          "stat": "dmg",
+          "amount": 0.4
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Bat Swarm",
+    "shout": "BAT SWARM!",
+    "max": 100,
+    "per_hit": 16,
+    "on_full": [
+      {
+        "type": "summon",
+        "unit": "bat",
+        "count": 3
+      }
+    ]
+  },
+  "hud": [
+    "Bat Swarm",
+    "DMG: {dmg:.1f}",
+    "Lifesteal: {lifesteal_pct:.0f}%"
+  ],
+  "summons": {
+    "bat": {
+      "name": "Bat",
+      "color": [
+        60,
+        20,
+        40
+      ],
+      "hp": 6,
+      "radius": 24,
+      "speed": 760,
+      "decor": "fangs",
+      "stats": {
+        "body_damage": 2,
+        "lifesteal": 1.0,
+        "seek": 120
+      }
+    }
+  },
+  "sfx": {
+    "blade_hit": "quick dagger stab with a wet slash",
+    "summon": "flurry of bat wings and squeaks",
+    "ultimate": "eerie vampire hiss",
+    "heal": "dark sucking drain sound"
+  },
+  "voice": {
+    "voice_name": "Callum",
+    "voice_id": "N2lVS1w4EtoT3dr4eOWO",
+    "lines": {
+      "ultimate": "Bat swarm!",
+      "victory": "Your blood is mine."
+    }
+  },
+  "arena": {
+    "stage": "Blood Crypt",
+    "pattern": "checker",
+    "bg_top": [
+      90,
+      20,
+      40
+    ],
+    "bg_bottom": [
+      30,
+      8,
+      16
+    ],
+    "arena_fill": [
+      120,
+      56,
+      66
+    ]
+  },
+  "art": {
+    "floor": "black and dark crimson marble checkerboard tiles with thin cracks, a uniform repeating texture with no walls",
+    "body": "a sinister vampire: a perfectly round deep crimson ball body, a tall black high-collared cape with red lining framing it, slicked black hair with a widow's peak, glowing red eyes and two small white fangs",
+    "weapons": [
+      "an ornate silver dagger with a slim blade and a crimson jeweled hilt"
+    ],
+    "summons": {
+      "bat": "a tiny vampire bat: a round dark purple body with leathery wings spread wide, red eyes, tiny fangs"
+    },
+    "ultimate_icon": "a black bat silhouette with spread wings in front of a red moon",
+    "ult_circle": "a blood-red vampiric pentagram circle with bat wing shapes and gothic runes",
+    "ult_aura": "a swirling dark crimson aura of tiny flying bats and blood mist",
+    "hit_fx": "a dark red blood splash with tiny droplets"
+  }
+}

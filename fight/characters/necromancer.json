@@ -1,0 +1,170 @@
+{
+  "id": "necromancer",
+  "name": "Necromancer",
+  "emoji": "💀",
+  "blurb": "Raises a skeleton every 4s. Each fallen minion powers up Soul Drain, which hits everyone.",
+  "color": [
+    95,
+    70,
+    120
+  ],
+  "hp": 95,
+  "radius": 68,
+  "speed": 560,
+  "decor": [
+    "hood",
+    "skull"
+  ],
+  "stats": {
+    "dmg": 7,
+    "dark_power": 8,
+    "seek": 110
+  },
+  "blades": [
+    {
+      "style": "scythe",
+      "length": 120,
+      "width": 16,
+      "spin": 180,
+      "damage": "$dmg",
+      "color": [
+        190,
+        255,
+        200
+      ]
+    }
+  ],
+  "abilities": [
+    {
+      "on": "timer",
+      "every": 4.0,
+      "do": [
+        {
+          "type": "summon",
+          "unit": "skeleton",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "on": "ally_death",
+      "do": [
+        {
+          "type": "add_stat",
+          "stat": "dark_power",
+          "amount": 1.5
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Soul Drain",
+    "shout": "SOUL DRAIN!",
+    "max": 100,
+    "per_second": 14,
+    "on_full": [
+      {
+        "type": "damage",
+        "target": "all_enemies",
+        "amount": "$dark_power"
+      },
+      {
+        "type": "heal",
+        "amount": "$dark_power"
+      }
+    ]
+  },
+  "hud": [
+    "Soul Drain",
+    "Dark power: {dark_power:.1f}",
+    "Skeleton every 4s"
+  ],
+  "summons": {
+    "skeleton": {
+      "name": "Skeleton",
+      "color": [
+        220,
+        215,
+        200
+      ],
+      "hp": 10,
+      "radius": 32,
+      "speed": 600,
+      "decor": "skull",
+      "stats": {
+        "seek": 100
+      },
+      "blades": [
+        {
+          "style": "sword",
+          "length": 60,
+          "width": 14,
+          "spin": 260,
+          "damage": 2,
+          "color": [
+            210,
+            205,
+            190
+          ],
+          "guard_color": [
+            90,
+            80,
+            70
+          ]
+        }
+      ]
+    }
+  },
+  "sfx": {
+    "blade_hit": "ghostly scythe swoosh",
+    "summon": "bones rattling as a skeleton rises",
+    "spell_hit": "dark soul drain zap",
+    "ultimate": "deep ominous whisper surge"
+  },
+  "music": "dark spooky chiptune battle loop, 135 bpm, no vocals",
+  "voice": {
+    "voice_name": "George",
+    "voice_id": "JBFqnCBsd6RMkjVDRZzb",
+    "lines": {
+      "ultimate": "Soul drain!",
+      "victory": "Death always wins."
+    },
+    "pitch": -4
+  },
+  "arena": {
+    "stage": "Haunted Graveyard",
+    "pattern": "dirt",
+    "bg_top": [
+      60,
+      50,
+      80
+    ],
+    "bg_bottom": [
+      20,
+      16,
+      30
+    ],
+    "arena_fill": [
+      106,
+      96,
+      84
+    ]
+  },
+  "art": {
+    "floor": "dry grey-brown graveyard dirt with tiny scattered white bones, a uniform repeating texture with no plants",
+    "body": "a creepy necromancer: a perfectly round dusty purple ball body under a ragged dark purple hood, a bone-white skull face with glowing green eye sockets and a row of skull teeth",
+    "weapons": [
+      "a long dark wooden scythe with a pale glowing green curved blade at the right end, curving downward"
+    ],
+    "summons": {
+      "skeleton": "a small skeleton warrior: a round bone-white skull ball body with dark eye sockets and a toothy grin"
+    },
+    "summon_weapons": {
+      "skeleton": "a small rusty iron short sword with a bone handle"
+    },
+    "ultimate_icon": "a green ghostly soul wisp with a skull face",
+    "ult_circle": "a sinister green necromantic summoning circle with a skull in the center and bone runes",
+    "ult_aura": "a swirling sickly green ghost-fire aura with wailing spirit faces",
+    "hit_fx": "a green soul wisp splash with tiny skull-shaped sparks"
+  }
+}

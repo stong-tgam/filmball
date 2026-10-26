@@ -1,0 +1,121 @@
+{
+  "id": "knight",
+  "name": "Knight",
+  "emoji": "🗡️",
+  "blurb": "Sword gets +2 damage every hit, gains armor when hurt, awakens a MEGA sword.",
+  "color": [
+    214,
+    214,
+    214
+  ],
+  "hp": 90,
+  "radius": 70,
+  "speed": 600,
+  "decor": "helmet",
+  "stats": {
+    "dmg": 3,
+    "armor": 0.15,
+    "seek": 120
+  },
+  "blades": [
+    {
+      "style": "sword",
+      "length": 130,
+      "width": 30,
+      "spin": 230,
+      "damage": "$dmg"
+    }
+  ],
+  "abilities": [
+    {
+      "on": "blade_hit",
+      "do": [
+        {
+          "type": "add_stat",
+          "stat": "dmg",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "on": "hurt",
+      "do": [
+        {
+          "type": "add_stat",
+          "stat": "armor",
+          "amount": 0.02,
+          "max": 0.6
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Awakens MEGA sword",
+    "shout": "MEGA SWORD!",
+    "max": 100,
+    "per_hit": 25,
+    "active_duration": 3,
+    "on_full": [
+      {
+        "type": "buff",
+        "stat": "blade_scale",
+        "mul": 2.6,
+        "duration": 3
+      },
+      {
+        "type": "buff",
+        "stat": "dmg",
+        "mul": 1.4,
+        "duration": 3,
+        "label": "x1.4 ULT"
+      }
+    ]
+  },
+  "hud": [
+    "Awakens MEGA sword",
+    "DMG: {dmg:.0f}{dmg_buffs}",
+    "Armor: {armor_pct:.0f}%"
+  ],
+  "sfx": {
+    "blade_hit": "crisp 8-bit sword slash hit",
+    "ultimate": "heavy metallic sword unsheathe with power-up whoosh"
+  },
+  "voice": {
+    "voice_name": "Liam",
+    "voice_id": "TX3LPaxmHKxFdv7VOQHJ",
+    "lines": {
+      "ultimate": "Mega sword!",
+      "victory": "For honor!"
+    }
+  },
+  "arena": {
+    "stage": "Castle Courtyard",
+    "pattern": "flagstone",
+    "bg_top": [
+      80,
+      90,
+      110
+    ],
+    "bg_bottom": [
+      30,
+      34,
+      46
+    ],
+    "arena_fill": [
+      150,
+      155,
+      165
+    ]
+  },
+  "art": {
+    "floor": "grey castle courtyard flagstones with mossy cracks between the stones",
+    "body": "a brave knight: the perfectly round ball body is a polished light-grey steel great helm, a dark horizontal visor slit with two glowing eyes inside, small rivets, a tall red feather plume on top",
+    "weapons": [
+      "a steel longsword with a straight double-edged blade, gold crossguard, brown leather grip and a round gold pommel"
+    ],
+    "ultimate_icon": "a giant glowing steel sword pointing up with light rays",
+    "ult_circle": "a shining steel-blue knightly crest sigil with crossed swords and a shield emblem",
+    "ult_aura": "a tall pillar of brilliant white-blue holy steel light with sword-shaped light rays",
+    "hit_fx": "a sharp white and pale blue sword slash arc with metal sparks"
+  }
+}
