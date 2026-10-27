@@ -200,6 +200,12 @@ def build_track(cues, timemap, video_seconds, intro_len, spec=None, winner=None)
             hook[i:i + len(snd)] += snd[: n - i]  * g
     out = out + hook
 
+    # the picture dissolves into frame 1 at the end (seamless loop): fade the sound with it,
+    # so the replay starts clean on the intro's first hit
+    k = min(n, int(0.4 * SR))
+    if k:
+        out[-k:] *= np.linspace(1, 0, k) ** 1.5
+
     # soft limiter, then normalise to a safe peak
     out = np.tanh(out * 1.3)
     peak = float(np.max(np.abs(out))) or 1.0

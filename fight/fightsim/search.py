@@ -140,9 +140,7 @@ def _drama_boss(s, spec):
         close = 3.5 * (1.0 - min(1.0, s["boss_frac"] * 5))
     enraged = 1.5 if s["enraged"] else 0.0
     kos = min(1.0, s["kos"] / 2) * 1.0
-    # the raid decided who should win this time (heroes usually, the boss ~1 in 3)
-    want = 6.0 if s["winner"] == spec.get("want_winner", s["winner"]) else 0.0
-    return close + enraged + kos + want - dur_pen
+    return close + enraged + kos - dur_pen
 
 
 def _summarize_horde(world, s):
@@ -390,5 +388,16 @@ def search(spec, n_seeds, workers=None, start=1):
     results = run_many(spec, range(start, start + n_seeds), workers)
     for r in results:
         r["score"] = round(drama_score(r, spec), 3)
+    if spec.get("mode") == "boss" and results:
+        # fixed-HP raids: the party's real odds decide the ending. Draw heroes-win with the
+        # probability seen across all searched seeds, then keep the most dramatic seed of that kind.
+        import random as _random
+        odds = sum(1 for r in results if r["winner"] == 0) / len(results)
+        party = "|".join(str(f.get("id")) for f in spec["fighters"])
+        want = 0 if _random.Random(f"odds|{party}|{spec.get('salt', '')}").random() < odds else 1
+        for r in results:
+            r["hero_odds"] = round(odds, 3)
+            if r["winner"] == want:
+                r["score"] = round(r["score"] + 6.0, 3)
     results.sort(key=lambda r: r["score"], reverse=True)
     return results

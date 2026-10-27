@@ -215,10 +215,28 @@ def upload(out_dir, privacy=None, force=False, dry_run=False, log=print, publish
         "title": body["snippet"]["title"],
         "uploaded_at": datetime.datetime.now().isoformat(timespec="seconds"),
     }
+    result["cover"] = set_cover(yt, vid, out_dir, log)
     with open(record, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
     log(f"Uploaded: {result['url']} ({result['privacy']})")
     return result
+
+
+def set_cover(yt, vid, out_dir, log=print):
+    """Upload cover.jpg (the spoiler-free intro frame) as the thumbnail. Custom thumbnails need a
+    phone-verified channel; without it YouTube refuses and its own frame pick stays."""
+    from googleapiclient.errors import HttpError
+    from googleapiclient.http import MediaFileUpload
+    cover = os.path.join(out_dir, "cover.jpg")
+    if not os.path.exists(cover):
+        return None
+    try:
+        yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(cover, mimetype="image/jpeg")).execute()
+        log("  cover set")
+        return "set"
+    except HttpError as e:
+        log(f"  cover not set ({e.resp.status}): verify the channel by phone to allow custom thumbnails")
+        return f"refused {e.resp.status}"
 
 
 def main():

@@ -100,9 +100,9 @@ HORDE_HOOKS = [
 
 
 BOSS_HOOKS = [
-    "Can 4 heroes beat the {BOSS}? {E}",
-    "BOSS RAID: {BOSS} vs {A}, {B}, {C} and {D} {E}",
-    "4 heroes vs the {BOSS}. Who survives? {E}",
+    "Can {N} heroes beat the {BOSS}? {E}",
+    "BOSS RAID: {BOSS} vs {PARTY} {E}",
+    "{N} heroes vs the {BOSS}. Who survives? {E}",
     "The {BOSS} has never lost... {E}",
 ]
 
@@ -110,13 +110,31 @@ BOSS_HOOKS = [
 def youtube_meta_boss(spec, world, summary):
     import random
     fs = spec["fighters"]
-    boss = fs[4]
+    boss, party = fs[-1], fs[:-1]
     rng = random.Random("boss|" + "|".join(str(f.get("id")) for f in fs) + f"|{summary['seed']}")
-    facts = {"BOSS": boss["name"], "E": boss.get("emoji", ""), "A": fs[0]["name"], "B": fs[1]["name"],
-             "C": fs[2]["name"], "D": fs[3]["name"]}
+    names = [f["name"] for f in party]
+    facts = {"BOSS": boss["name"], "E": boss.get("emoji", ""), "N": len(party),
+             "PARTY": ", ".join(names[:-1]) + " and " + names[-1]}
     hooks = [h for h in BOSS_HOOKS if not ("never lost" in h and summary.get("winner") != 0)]
+    odds = summary.get("hero_odds")          # this party's win rate across the searched fights
+    if odds is not None:                     # the odds are the hook (they're known before the fight)
+        pct = max(1, min(99, round(odds * 100)))
+        facts["P"] = pct
+        if odds <= 0.25:
+            hooks = ["Only {P}% chance: can {PARTY} beat the {BOSS}? {E}",
+                     "This team wins just {P}% of the time vs the {BOSS} {E}",
+                     "The {BOSS} crushes this team {Q}% of the time {E}"]
+        elif odds >= 0.7:
+            hooks = ["{P}% favourites vs the {BOSS}... easy win? {E}",
+                     "This team beats the {BOSS} {P}% of the time. Watch {E}"]
+        else:
+            hooks = ["Coin flip: {PARTY} vs the {BOSS} ({P}% win chance) {E}",
+                     "{P}% chance: can these {N} beat the {BOSS}? {E}"]
+        facts["Q"] = 100 - pct
     title = " ".join(rng.choice(hooks).format(**facts).split())
-    lines = [f"Raid party: {', '.join(f['name'] for f in fs[:4])}",
+    lines = [f"Raid party: {', '.join(names)}",
+             *([f"We simulated this exact team {200} times: they beat the {boss['name']} in {facts['P']}% of raids."]
+               if odds is not None else []),
              f"Boss: {boss['name']}. Watch the red warning zones; it gets ENRAGED at half health.", "",
              rng.choice(["Did the heroes win? No spoilers in the comments!",
                          "Which boss should they fight next?",
@@ -251,7 +269,8 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("what", nargs="*", help="two character ids, one spec .json, or: royale [ids...]")
-    ap.add_argument("--boss", choices=["dragon", "lich", "golem", "kraken", "mech"], help="boss raid: which boss")
+    ap.add_argument("--boss", choices=["dragon", "lich", "golem", "kraken", "mech", "werewolf", "spider", "pharaoh",
+                                       "storm", "reaper"], help="boss raid: which boss")
     ap.add_argument("--horde", choices=["skeletons", "zombies"], help="horde survival: which horde")
     ap.add_argument("--map", help="battle royale map (rocky_canyon, lava_ruins, pillar_hall)")
     ap.add_argument("--list", action="store_true", help="list roster characters")
@@ -297,7 +316,7 @@ def main():
             ids = args.what[1:]
             if not ids:   # six random roster fighters
                 import random
-                ids = random.Random(time.strftime("%Y-%m-%d")).sample(list_characters(), 6)
+                ids = random.Random(time.strftime("%Y-%m-%d")).sample(list_characters(), 4)
             spec = finalize(build_royale(ids, args.map))
             name = f"royale_{spec['map']}_" + "-".join(ids)
         elif len(args.what) == 2:
@@ -410,14 +429,15 @@ def main():
             json.dump(resolved, f, indent=2, ensure_ascii=False)
     w, h, fps = (540, 960, 30) if args.preview else (1080, 1920, 60)
     video = os.path.join(out_dir, "video_preview.mp4" if args.preview else "video.mp4")
-    thumb_t = max(0.0, (best.get("climax_t") or best["duration"]) - 0.4)
     end_hold = winner_card_hold(resolved, best)
     print(f"[3/4] Rendering {w}x{h}@{fps} -> {video}")
     silent = video.replace(".mp4", "_silent.mp4")
     world, frames, timemap = render_video(resolved, best["seed"], silent, w, h, fps,
                                  slowmo_at=finish_t(best), end_hold=end_hold,
-                                 thumb_time=thumb_t,
-                                 thumb_path=os.path.join(out_dir, "thumbnail.png"))
+                                 cover_path=os.path.join(out_dir, "cover.jpg"))
+    stale = os.path.join(out_dir, "thumbnail.png")   # old covers were taken near the K.O.: spoilers
+    if os.path.exists(stale):
+        os.remove(stale)
     video_seconds = frames / fps
     if args.no_audio:
         os.replace(silent, video)

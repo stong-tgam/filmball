@@ -47,17 +47,17 @@ PROJ_FX = {   # style -> (launch flash, impact burst, impact size in world units
     "bolt": (None, "bolt_impact", 60),
 }
 ULT_FX = {    # character -> [(art/fx/ult file, layer, size x radius, seconds)]
-    "archer": [("archer_arrow_rain", "over", 4.2, 0.7)],
-    "captain": [("captain_onetimer", "over", 3.6, 0.55)],
-    "king": [("king_royal_portal", "under", 4.0, 0.8)],
-    "knight": [("knight_mega_sword", "over", 4.8, 0.75)],
-    "necromancer": [("necro_soul_drain", "under", 5.0, 0.8)],
-    "ninja": [("ninja_shadow_smoke", "over", 4.0, 0.7)],
-    "paladin": [("paladin_holy_ring", "under", 6.0, 0.7), ("paladin_holy_pillar", "over", 4.6, 0.75)],
-    "samurai": [("samurai_blade_dance", "over", 4.4, 0.7)],
-    "vampire": [("vampire_bat_swarm", "over", 4.6, 0.75)],
-    "viking": [("viking_ground_slam", "under", 6.5, 0.7)],
-    "wizard": [("wizard_frost_nova", "under", 6.5, 0.7)],
+    "archer": [("archer_arrow_rain", "under", 4.2, 0.55)],
+    "captain": [("captain_onetimer", "under", 3.6, 0.45)],
+    "king": [("king_royal_portal", "under", 4.0, 0.6)],
+    "knight": [("knight_mega_sword", "under", 4.8, 0.55)],
+    "necromancer": [("necro_soul_drain", "under", 5.0, 0.6)],
+    "ninja": [("ninja_shadow_smoke", "under", 4.0, 0.55)],
+    "paladin": [("paladin_holy_ring", "under", 6.0, 0.55), ("paladin_holy_pillar", "under", 4.6, 0.55)],
+    "samurai": [("samurai_blade_dance", "under", 4.4, 0.55)],
+    "vampire": [("vampire_bat_swarm", "under", 4.6, 0.55)],
+    "viking": [("viking_ground_slam", "under", 6.5, 0.55)],
+    "wizard": [("wizard_frost_nova", "under", 6.5, 0.55)],
 }
 BOSS_IMPACT_FX = {   # boss skill name -> art/boss/fx2 file drawn when it lands
     "FIRE BREATH": "dragon_fire_breath_big", "TAIL SWEEP": "dragon_tail_sweep", "METEOR RAIN": "dragon_meteor_impact",
@@ -67,9 +67,24 @@ BOSS_IMPACT_FX = {   # boss skill name -> art/boss/fx2 file drawn when it lands
     "INK BLAST": "kraken_ink_impact", "MISSILE BARRAGE": "mech_missile_impact", "LASER SWEEP": "mech_laser_big",
     "OVERDRIVE SLAM": "mech_overdrive_slam",
 }
-BOSS_PREFIX = {"dragon": "dragon", "lich_king": "lich", "golem": "golem", "kraken": "kraken", "mech_titan": "mech"}
+BOSS_PREFIX = {"dragon": "dragon", "lich_king": "lich", "golem": "golem", "kraken": "kraken", "mech_titan": "mech",
+               "werewolf": "werewolf", "spider_queen": "spider", "pharaoh": "pharaoh", "storm_titan": "storm",
+               "grim_reaper": "reaper"}
 SUMMON_FX = {"dragon": "dragon_summon_portal", "lich": "lich_grave_rise", "golem": "golem_rock_spike",
-             "mech": "mech_deploy_pad"}
+             "mech": "mech_deploy_pad", "werewolf": "werewolf_summon", "spider": "spider_summon",
+             "pharaoh": "pharaoh_summon", "storm": "storm_summon", "reaper": "reaper_summon"}
+
+LOOP_BLEND = 0.4   # the last this-many seconds dissolve into frame 1, so the Short loops seamlessly
+def cutin_rule(spec, uid):
+    """(min seconds between full ultimate cut-ins, who shares that clock). Survival: per hero
+    (its ults chain). Team modes: the whole video, so banners and voice lines never stack."""
+    mode = (spec or {}).get("mode")
+    if spec.get("cutin_gap"):
+        return float(spec["cutin_gap"]), uid
+    if mode in ("royale", "soccer", "boss"):
+        return 3.0, "all"
+    return 0.0, uid
+
 
 GOAL_PAUSE = 0.5   # soccer: the action freezes on every goal for this long (video seconds)
 SLOWMO_BEFORE, SLOWMO_AFTER = 0.45, 0.1   # seconds of sim time around the K.O. played at 1/3 speed
@@ -280,7 +295,9 @@ class Renderer:
         self.impacts = []          # boss attack hits: (event, t0)   # horde: leaderboard first, then the end card
         self.pause_p = None    # goal freeze-frame progress 0..1 (None = playing)
         self.pause_goal = None
+        self._rims = {}            # sprite id -> light halo surface
         self.last_cutin = {}       # uid -> time of the last full ultimate cut-in
+        self.boss_cast = None      # the boss's current wind-up: type, start, warn time, aim angle
         self.bursts = []           # one-shot PixelLab sprites: (path, wx, wy, size_world, t0, dur, deg, layer)
         self.proj_prev = {}        # id(projectile) -> (style, x, y): launches / impacts are spotted by diffing
         self.corpses = []          # knocked-out fighters: (unit, x, y, t0) drawn grey and tipped over
@@ -539,7 +556,10 @@ class Renderer:
             if t == "damage":
                 amt = ev["amount"]
                 txt = f"-{amt:.1f}" if amt < 1 else f"-{amt:.0f}"
-                self.popups.append((ev["x"], ev["y"], txt, YELLOW, self.t))
+                dst = by_uid.get(ev.get("dst"))
+                # numbers only where they matter: hits on a main fighter (or a boss), big hits
+                if (dst is not None and (dst.is_main or dst.tpl.get("boss")) and amt >= 1) or amt >= 15:
+                    self.popups.append((ev["x"], ev["y"], txt, YELLOW, self.t))
                 self.sparks.append((ev["hx"], ev["hy"], self.t, ev.get("src")))
                 if amt >= 12:
                     self.shake_until = self.t + 0.18
@@ -555,6 +575,10 @@ class Renderer:
                 self.popups.append((ev["x"], ev["y"], "POISON", LIME, self.t))
             elif t == "debuff":
                 self.rings.append((ev["x"], ev["y"], 20, 110, self.t, 0.3, ICE, 5))
+                if ev.get("stat") == "speed":     # frost: ice shards burst off the target
+                    du = by_uid.get(ev["unit"])
+                    size = (du.radius if du else 40) * 3.0
+                    self.bursts.append(("art/fx/freeze/ice_shatter.png", ev["x"], ev["y"], size, self.t, 0.35, 0.0, "over"))
             elif t == "ability":
                 u = by_uid.get(ev["unit"])
                 if u is not None and u.is_main:
@@ -562,6 +586,13 @@ class Renderer:
                                         _readable(u.color), self.t))
             elif t == "boss_skill":
                 self.shouts.append((ev["x"], ev["y"] - 200, ev["name"] + "!", (255, 120, 90), self.t))
+                b = self.world.boss
+                sk = next((k for k in b.skills if k["name"] == ev["name"]), {})
+                tg = next((g for g in reversed(self.world.telegraphs) if g["name"] == ev["name"]), None)
+                ang = tg.get("ang") if tg and tg.get("ang") is not None else (
+                    math.atan2(tg["y"] - b.y, tg["x"] - b.x) if tg else math.pi / 2)
+                self.boss_cast = {"type": ev["skill_type"], "t0": self.t, "warn": float(sk.get("warn", 0.85)),
+                                  "ang": ang}
             elif t == "boss_impact":
                 self.impacts.append((ev, self.t))
                 self.shake_until = self.t + 0.22
@@ -647,11 +678,11 @@ class Renderer:
                     for name, layer, mult, dur in ULT_FX.get(_art_id(u), []):
                         self.bursts.append((f"art/fx/ult/{name}.png", ev["x"], ev["y"], u.radius * mult,
                                             self.t, dur, 0.0, layer))
-                gap = float(self.spec.get("cutin_gap", 0))
-                if u is not None and u.is_main and gap and self.t - self.last_cutin.get(u.uid, -99) < gap:
-                    pass                          # chained cast (survival): effect only, no banner
+                gap, key = cutin_rule(self.spec, u.uid if u is not None else None)
+                if u is not None and u.is_main and gap and self.t - self.last_cutin.get(key, -99) < gap:
+                    pass                          # another ult just had the stage: effect only, no banner
                 elif u is not None and u.is_main:   # the full casting animation (shout goes in the cut-in)
-                    self.last_cutin[u.uid] = self.t
+                    self.last_cutin[key] = self.t
                     self.casts.append((u.uid, self.t, ev.get("shout") or (ev.get("label", "") + "!")))
                     self.shake_until = self.t + 0.25
                     self.shake_amp = 9 * self.S
@@ -741,7 +772,7 @@ class Renderer:
                 if u.tpl.get("boss"):
                     self._draw_mini_bar(u)
             elif not u.is_main:
-                self._draw_hp(u)
+                pass                      # minions: no HP numbers (too much text)
             elif self.royale or self.soccer:
                 self._draw_mini_bar(u)
         self._draw_fx()
@@ -819,7 +850,95 @@ class Renderer:
 
     # ── arena drawing ────────────────────────────────────────────────────
 
+    def _boss_cast_pose(self, u):
+        """(dx, dy, sx, sy) for the boss's wind-up, by skill type; None when not casting.
+        cone: rear back, then lunge into the breath. beam: tremble while charging. nova: crouch,
+        then burst up. meteors: rise and stretch, calling them down. summon: rhythmic pulse.
+        leap: crouch, launch into the air (shrinks away), slam down where it lands. mark: lean in."""
+        c = self.boss_cast
+        if not c:
+            return None
+        age = self.t - c["t0"]
+        warn = max(0.2, c["warn"])
+        if age > warn + 0.35:
+            self.boss_cast = None
+            return None
+        r = u.radius * self.k
+        p = min(1.0, age / warn)
+        post = max(0.0, age - warn) / 0.35           # 0..1 after the hit lands
+        ca, sa = math.cos(c["ang"]), math.sin(c["ang"])
+        kind = c["type"]
+        j = math.sin(age * 70) * r * 0.03
+        if kind == "cone":
+            if post == 0:
+                return (-ca * r * 0.18 * p, -sa * r * 0.18 * p, 1 - 0.1 * p, 1 + 0.08 * p)
+            k = 1 - post
+            return (ca * r * 0.22 * k, sa * r * 0.22 * k, 1 + 0.12 * k, 1 - 0.08 * k)
+        if kind == "beam":
+            g = 1 + 0.07 * math.sin(age * 25) * (1 - post)
+            return (j * (1 - post), j * 0.6 * (1 - post), g, g)
+        if kind == "nova":
+            if post == 0:
+                return (0.0, r * 0.12 * p, 1 + 0.18 * p, 1 - 0.22 * p)
+            k = 1 - post
+            return (0.0, -r * 0.15 * k, 1 - 0.08 * k, 1 + 0.2 * k)
+        if kind == "meteors":
+            k = p if post == 0 else 1 - post
+            return (j * k, -r * 0.3 * k, 1 - 0.06 * k, 1 + 0.14 * k)
+        if kind == "summon":
+            g = 1 + 0.08 * math.sin(age * 14)
+            return (0.0, 0.0, g, 2 - g)
+        if kind == "leap":
+            if p < 0.35:                               # crouch
+                q = p / 0.35
+                return (0.0, r * 0.1 * q, 1 + 0.2 * q, 1 - 0.25 * q)
+            if post == 0:                              # in the air: rises and shrinks away
+                q = (p - 0.35) / 0.65
+                return (0.0, -r * 1.6 * q, 1 - 0.55 * q, 1 - 0.45 * q)
+            k = 1 - post                               # slam down on the new spot
+            return (0.0, 0.0, 1 + 0.3 * k, 1 - 0.3 * k)
+        if kind == "mark":
+            k = p if post == 0 else 1 - post
+            return (ca * r * 0.1 * k + j * k, sa * r * 0.1 * k, 1.0, 1.0)
+        return None
+
+    def _draw_cast_sigil(self, u):
+        """A glowing magic circle under the boss while it winds up (its own art if it has one)."""
+        c = self.boss_cast
+        if not c:
+            return
+        age = self.t - c["t0"]
+        if age > c["warn"] + 0.2:
+            return
+        k = min(1.0, age / 0.15) * (1.0 if age < c["warn"] else max(0.0, 1 - (age - c["warn"]) / 0.2))
+        d = u.radius * self.k * 3.0 * (0.8 + 0.2 * k)
+        cx, cy = self.sx(u.x), self.sy(u.y) + u.radius * self.k * 0.45
+        pre = BOSS_PREFIX.get(u.kind, "")
+        own = f"art/boss/fx2/{pre}_cast.png"
+        if pre and self.sprites.load(own, trim=True) is not None:
+            img = pygame.transform.rotate(self.sprites.scaled(own, d, d * 0.55, trim=True), 0)
+        elif self.sprites.load("art/fx/magic_circle.png") is not None:
+            img = self._tinted("art/fx/magic_circle.png", _readable(u.color), d, d * 0.55)
+        else:
+            return
+        img = img.copy()
+        img.set_alpha(int(230 * k))
+        self.surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
+
     def _draw_body(self, u):
+        if self.boss_mode and u is self.world.boss and self.boss_cast:
+            self._draw_cast_sigil(u)
+            pose = self._boss_cast_pose(u)
+            if pose is not None:
+                dx, dy, sx_, sy_ = pose
+                if self.boss_cast and self.boss_cast["type"] == "leap" and dy < -u.radius * self.k * 0.2:
+                    sh = pygame.Rect(0, 0, int(u.radius * self.k * 1.6), int(u.radius * self.k * 0.5))
+                    sh.center = (int(self.sx(u.x)), int(self.sy(u.y) + u.radius * self.k * 0.8))
+                    shadow = pygame.Surface(sh.size, pygame.SRCALPHA)
+                    pygame.draw.ellipse(shadow, (0, 0, 0, 110), shadow.get_rect())
+                    self.surface.blit(shadow, sh)
+                self._token_squash(u, self.sx(u.x) + dx, self.sy(u.y) + dy, u.radius * self.k, sx_, sy_)
+                return
         if self.world.t < u.launch_until:        # sent flying: afterimages + speed lines
             sp = math.hypot(u.vx, u.vy) or 1.0
             dx, dy = u.vx / sp, u.vy / sp
@@ -872,9 +991,13 @@ class Renderer:
             f = 2.1 * r * float(fit.get("scale", 1.0)) / max(sw, sh)
             img = self.sprites.scaled(path, sw * f, sh * f, trim=True, flash=flash)
             top = cy - img.get_height() / 2 - r * (0.08 - float(fit.get("dy", 0.0)))
+            if u.is_main and not u.tpl.get("sprite") and status:
+                self._ground_shadow(cx, top + img.get_height(), img.get_width())
             surf.blit(img, (int(cx - img.get_width() / 2), int(top)))
             if pose == "hurt":
                 self._hurt_overlay(u, img, int(cx - img.get_width() / 2), int(top), r)
+            if status and self._chilled(u):
+                self._chill_overlay(u, img, int(cx - img.get_width() / 2), int(top), cx, cy, r)
         else:
             col = _mix(u.color, (255, 255, 255), 0.6) if flash else u.color
             pygame.draw.circle(surf, col, (cx, cy), r)
@@ -884,7 +1007,7 @@ class Renderer:
         if status:
             if u.dots:
                 pygame.draw.circle(surf, LIME, (cx, cy), r + 2, 2)
-            elif any(b["stat"] == "speed" and b.get("mul", 1) < 1 for b in u.buffs):
+            elif self._chilled(u) and src is None:
                 pygame.draw.circle(surf, ICE, (cx, cy), r + 2, 2)
 
     def _draw_props(self):
@@ -979,6 +1102,69 @@ class Renderer:
         img = self.sprites.scaled(path, sw * f, sh * f, trim=True).copy()
         img.set_alpha(int(255 * min(1.0, (1 - k) / 0.35)))
         self.surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
+
+    def _ground_shadow(self, cx, feet_y, w):
+        """A soft dark oval on the floor under a hero: separates it from busy or dark maps
+        without outlining the art (an outline made them look like stickers)."""
+        sw, sh = int(w * 0.8), max(6, int(w * 0.22))
+        key = (sw, sh)
+        img = self._rims.get(key)
+        if img is None:
+            img = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            for i, a in ((1.0, 40), (0.75, 45), (0.5, 50)):
+                r = pygame.Rect(0, 0, int(sw * i), int(sh * i))
+                r.center = (sw // 2, sh // 2)
+                pygame.draw.ellipse(img, (0, 0, 0, a), r)
+            self._rims[key] = img
+        self.surface.blit(img, (int(cx - sw / 2), int(feet_y - sh * 0.6)))
+
+    def _rim(self, img, x, y, key):
+        """A soft light halo hugging a hero's silhouette (drawn behind it), so dark heroes
+        stay readable on dark maps. Cached per sprite image."""
+        halo = self._rims.get(key)
+        if halo is None:
+            m = pygame.mask.from_surface(img)
+            sil = m.to_surface(setcolor=(255, 248, 225, 120), unsetcolor=(0, 0, 0, 0))
+            w, h = img.get_size()
+            halo = pygame.Surface((w + 6, h + 6), pygame.SRCALPHA)
+            for dx, dy in ((-3, 0), (3, 0), (0, -3), (0, 3), (-2, -2), (2, 2), (-2, 2), (2, -2)):
+                halo.blit(sil, (3 + dx, 3 + dy))
+            if len(self._rims) > 400:
+                self._rims.clear()
+            self._rims[key] = halo
+        self.surface.blit(halo, (x - 3, y - 3))
+
+    @staticmethod
+    def _chilled(u):
+        return any(b["stat"] == "speed" and b.get("mul", 1) < 1 for b in u.buffs)
+
+    def _chill_overlay(self, u, img, x, y, cx, cy, r):
+        """Slowed by frost: the body frosts over pale blue with a white rim, ice crystals grow
+        at its feet and snowflakes circle it."""
+        w, h = img.get_size()
+        sil = pygame.mask.from_surface(img)
+        if not (u.is_main or u.tpl.get("boss")):   # mobs: just a pale tint (a crowd of crystals is noise)
+            self.surface.blit(sil.to_surface(setcolor=(150, 215, 255, 90), unsetcolor=(0, 0, 0, 0)), (x, y))
+            return
+        ice = sil.to_surface(setcolor=(150, 215, 255, 140), unsetcolor=(0, 0, 0, 0))
+        self.surface.blit(ice, (x, y))
+        rim = sil.outline()
+        if len(rim) > 2:                       # frosty white outline
+            pygame.draw.lines(self.surface, (235, 248, 255), True, [(x + px, y + py) for px, py in rim],
+                              max(2, int(3 * self.S)))
+        crys = "art/fx/freeze/chill.png"
+        if self.sprites.load(crys, trim=True) is not None:
+            d = r * 1.1
+            c = self.sprites.scaled(crys, d, d, trim=True)
+            self.surface.blit(c, c.get_rect(midbottom=(int(cx), int(cy + r * 1.15))))
+        flake = "art/fx/freeze/snowflake.png"
+        if self.sprites.load(flake, trim=True) is not None:
+            fs = r * 0.4
+            img2 = self.sprites.scaled(flake, fs, fs, trim=True)
+            for i in range(3):
+                a = self.t * 3 + i * 2.094 + u.uid
+                self.surface.blit(img2, img2.get_rect(center=(int(cx + math.cos(a) * r * 1.2),
+                                                              int(cy + math.sin(a) * r * 0.9))))
 
     def _hurt_overlay(self, u, img, x, y, r):
         """Low HP: cracks across the sprite, a red pulse and a bobbing sweat drop."""
@@ -1460,11 +1646,10 @@ class Renderer:
         self.popups = keep
 
         keep = []
-        for sh in self.shouts:
+        live = [sh for sh in self.shouts if (t - sh[4]) / 1.1 < 1]
+        for sh in live[-1:]:              # one call-out at a time: the newest replaces the rest
             x, y, txt, col, t0 = sh
             p = (t - t0) / 1.1
-            if p >= 1:
-                continue
             keep.append(sh)
             scale = 1 if p < 0.06 else 2
             img = self.text.fit(txt, scale, _mix(col, (255, 255, 255), 0.2), self.arena_w).copy()
@@ -1572,7 +1757,7 @@ class Renderer:
         for u in self.world.mains:
             label = (u.meter or {}).get("label") or (u.hud[0] if u.hud else u.name)
             lines = u.hud[1:] if u.hud and u.hud[0] == label else list(u.hud)
-            rows.append((label, lines[:3]))
+            rows.append((label, []))     # stat lines dropped: nobody reads them mid-fight
         ph = 58 + 20 * max(len(lines) for _, lines in rows) + 4
         for side, u in enumerate(self.world.mains):
             label, lines = rows[side]
@@ -2954,7 +3139,7 @@ class Renderer:
                 pygame.draw.circle(layer, (255, 40, 30, 55), c, r)
                 pygame.draw.circle(layer, (255, 60, 40, 120), c, r * p)
                 pygame.draw.circle(layer, (255, 230, 200, blink), c, r, max(2, int(3 * self.S)))
-                mk = "art/boss/fx2/danger_marker.png"
+                mk = "art/boss/fx2/death_mark.png" if tg.get("mark") else "art/boss/fx2/danger_marker.png"
                 if tg["kind"] == "circle" and self.sprites.load(mk, trim=True) is not None:
                     d = r * 1.1
                     img = self.sprites.scaled(mk, d, d, trim=True).copy()
@@ -3117,7 +3302,7 @@ class Renderer:
                 self._token_squash(m, mx, my, mr, 1 + 0.4 * sq, 1 - 0.3 * sq)
         if p >= h0 + 0.1:
             t1 = self.text.fit(b.name.upper(), 5, RED_HI, self.arena_w - 16)
-            t2 = self.text.render("4 HEROES . 1 BOSS", 2, CREAM)
+            t2 = self.text.render(f"{len(self.world.mains) - 1} HEROES . 1 BOSS", 2, CREAM)
             y = int(self.ay + self.arena_h * 0.2)
             self.surface.blit(t1, (IW // 2 - t1.get_width() // 2, y))
             self.surface.blit(t2, (IW // 2 - t2.get_width() // 2, y + t1.get_height() + 6))
@@ -3165,6 +3350,18 @@ class Renderer:
 
     def _fx_cracks(self, cx, cy, since, scale=1.0):
         if since < 0:
+            return
+        crack = "art/fx/intro/crack_flash.png"
+        if self.sprites.load(crack, trim=True) is not None:
+            # PixelLab fracture: snaps open flat on the floor (perspective-squashed), glows molten
+            # on impact, then cools to dark cracks that stay
+            d = self.arena_w * 0.5 * scale * (0.6 + 0.4 * min(1.0, since / 0.07))
+            img = self.sprites.scaled(crack, d, d * 0.5, trim=True).copy()
+            cool = min(1.0, max(0.0, (since - 0.15) / 0.5))
+            if cool > 0:
+                c = int(255 - (255 - 90) * cool)
+                img.fill((c, int(c * 0.85), int(c * 0.8)), special_flags=pygame.BLEND_RGB_MULT)
+            self.surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
             return
         grow = min(1.0, since / 0.08) * scale
         glow = _mix((90, 70, 60), (255, 200, 90), max(0.0, 1 - since / 0.6))
@@ -3615,9 +3812,56 @@ class _Defaults(dict):
         return 0.0
 
 
+COVER_HOOK = {"royale": "WHO SURVIVES?", "horde": "HOW MANY?", "boss": "CAN THEY WIN?"}
+
+
+def _save_cover(r, size, path):
+    """The video's cover: the intro's VS moment (full HP, nothing decided yet) with a big
+    question banner. Never a frame from the fight, so it can't give the result away."""
+    if r.spec.get("mode") in (None, "1v1") and len(r.world.mains) == 2:
+        _vs_poster(r)
+    snap = r.surface.copy()
+    hook = COVER_HOOK.get(r.spec.get("mode"), "WHO WINS?")
+    img = r.text.fit(hook, 6, YELLOW, IW - 40)
+    band_h = img.get_height() + 36
+    y = int(r.ay + r.arena_h * 0.04)
+    band = pygame.Surface((IW, band_h), pygame.SRCALPHA)
+    band.fill((10, 8, 20, 200))
+    snap.blit(band, (0, y))
+    snap.fill(YELLOW, (0, y, IW, 4))
+    snap.fill(YELLOW, (0, y + band_h - 4, IW, 4))
+    snap.blit(img, (IW // 2 - img.get_width() // 2, y + 18))
+    pygame.image.save(pygame.transform.scale(snap, size), path)
+
+
+def _vs_poster(r):
+    """Draw a fighting-game VS poster over the arena: two big heroes facing off."""
+    surf = r.surface
+    surf.blit(r.floor, (r.ax, r.ay))
+    shade = pygame.Surface((int(r.arena_w), int(r.arena_h)), pygame.SRCALPHA)
+    shade.fill((0, 0, 0, 90))
+    surf.blit(shade, (r.ax, r.ay))
+    aw, ah = r.arena_w, r.arena_h
+    big = aw * 0.27
+    for side, m in enumerate(r.world.mains):
+        cx = r.ax + aw * (0.27 if side == 0 else 0.73)
+        cy = r.ay + ah * (0.58 if side == 0 else 0.62)
+        glow = pygame.Surface((int(big * 2.8), int(big * 2.8)), pygame.SRCALPHA)
+        for i, a in ((1.0, 40), (0.75, 60), (0.5, 80)):
+            pygame.draw.circle(glow, (*_readable(m.color), a), (glow.get_width() // 2,) * 2, int(big * 1.35 * i))
+        surf.blit(glow, glow.get_rect(center=(int(cx), int(cy))))
+        r._token_squash(m, cx, cy, big)
+        name = r.text.fit(m.name.upper(), 4, _readable(m.color), aw * 0.48)
+        surf.blit(name, (int(cx - name.get_width() / 2), int(cy + big * 1.15)))
+    vs = r.text.render("VS", 9, YELLOW)
+    surf.blit(vs, (int(r.ax + aw / 2 - vs.get_width() / 2), int(r.ay + ah * 0.6 - vs.get_height() / 2)))
+
+
 def render_video(spec, seed, out_path, width=IW * 2, height=IH * 2, fps=60,
-                 end_hold=None, thumb_time=None, thumb_path=None, slowmo_at=None, log=print):
-    """slowmo_at: sim time of the finishing blow; the moments around it play at 1/3 speed."""
+                 end_hold=None, thumb_time=None, thumb_path=None, slowmo_at=None, log=print,
+                 cover_path=None):
+    """slowmo_at: sim time of the finishing blow; the moments around it play at 1/3 speed.
+    cover_path: save a spoiler-free cover image (.jpg) taken from the intro."""
     if end_hold is None:
         end_hold = float(spec.get("end_hold", 2.0))
     scale = max(1, width // IW)
@@ -3642,15 +3886,23 @@ def render_video(spec, seed, out_path, width=IW * 2, height=IH * 2, fps=60,
 
     thumb_saved = False
     frames = 0
+    first = None        # the opening frame: the ending dissolves back into it (seamless loop)
+    blend = None        # 0..1 while dissolving
     out_fps = FPS / stride
     timemap = []   # (sim time, video time) after every sim step, for the audio mixer
 
     def emit_frame():
-        nonlocal frames, thumb_saved
+        nonlocal frames, thumb_saved, first
         r.draw()
         out = r.surface if scale == 1 else pygame.transform.scale(r.surface, out_size)
         if scan is not None:
             out.blit(scan, (0, 0))
+        if first is None:
+            first = out.copy()
+        elif blend is not None:
+            out = out.copy() if scale == 1 else out
+            first.set_alpha(int(255 * blend))
+            out.blit(first, (0, 0))
         proc.stdin.write(pygame.image.tobytes(out, "RGB"))
         frames += 1
         if thumb_path and not thumb_saved and thumb_time is not None and world.t >= thumb_time:
@@ -3659,9 +3911,13 @@ def render_video(spec, seed, out_path, width=IW * 2, height=IH * 2, fps=60,
 
     try:
         r.phase = "intro"
+        cover_at = max(0.0, r.intro_len - 0.6)    # VS is up, "FIGHT!" not yet
         for i in range(int(r.intro_len * FPS / stride)):
             r.intro_t = i * stride / FPS
             emit_frame()
+            if cover_path and cover_at is not None and r.intro_t >= cover_at:
+                _save_cover(r, out_size, cover_path)
+                cover_at = None
         r.phase = "fight"
         while not world.done:
             world.step()
@@ -3687,8 +3943,14 @@ def render_video(spec, seed, out_path, width=IW * 2, height=IH * 2, fps=60,
                 r.pause_p, r.pause_goal = None, None
             if world.frame % (FPS * 10) == 0:
                 log(f"  [render] {world.t:5.1f}s")
-        for _ in range(int(end_hold * FPS / stride)):
+        n_hold = int(end_hold * FPS / stride)
+        n_blend = min(n_hold, int(LOOP_BLEND * FPS / stride))
+        for i in range(n_hold):
             r.t += stride / FPS
+            k = i - (n_hold - n_blend)
+            blend = (k + 1) / n_blend if k >= 0 else None   # ease into the first frame
+            if blend is not None:
+                blend = blend * blend * (3 - 2 * blend)
             emit_frame()
         if thumb_path and not thumb_saved:
             out = pygame.transform.scale(r.surface, out_size) if scale > 1 else r.surface

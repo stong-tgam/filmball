@@ -345,8 +345,10 @@ class World:
             spec["fighters"] if (self.royale or self.soccer) else spec["fighters"][:2])
         self.mains = [None] * len(fighters)
         if self.boss_mode:
-            starts = [(0.2 * self.W, 0.14 * self.H), (0.8 * self.W, 0.14 * self.H),
-                      (0.2 * self.W, 0.86 * self.H), (0.8 * self.W, 0.86 * self.H), (0.5 * self.W, 0.5 * self.H)]
+            corners = [(0.2 * self.W, 0.14 * self.H), (0.8 * self.W, 0.14 * self.H),
+                       (0.5 * self.W, 0.88 * self.H) if len(fighters) == 4 else (0.2 * self.W, 0.86 * self.H),
+                       (0.8 * self.W, 0.86 * self.H)]
+            starts = corners[:len(fighters) - 1] + [(0.5 * self.W, 0.5 * self.H)]   # boss in the middle
         elif self.horde:
             starts = [(self.W / 2, self.H / 2)]
         elif self.soccer:   # team 0 (first half of the list) defends the bottom goal
@@ -1035,6 +1037,9 @@ class World:
             w = self.wave
             tpl = dict(tpl, hp=tpl["hp"] * (1 + 0.08 * (w - 1)),
                        speed=tpl["speed"] * min(1.5, 1 + 0.05 * (w - 1)))
+            grow = 1 + float(hc.get("dmg_grow", 0.0)) * (w - 1)   # later waves hit harder: every run ends
+            if grow != 1:
+                tpl["stats"] = dict(tpl.get("stats", {}), body_damage=tpl.get("stats", {}).get("body_damage", 2) * grow)
             u = Unit(self, tpl, 1, self.next_uid(), x, y, math.atan2(hero.y - y, hero.x - x), is_main=False)
             for a in u.abilities:                                  # timers count from the spawn
                 if a.get("_next"):
@@ -1082,10 +1087,19 @@ class World:
                 self._boss_ready = t + 1.1
                 self._cast(b, sk, heroes, t)
                 break
+        for tg in self.telegraphs:
+            if tg.get("follow") is not None and t < tg["t_hit"] - 0.45:
+                h = next((u for u in self.units if u.uid == tg["follow"] and u.alive), None)
+                if h is not None:
+                    tg["x"], tg["y"] = h.x, h.y
         for tg in list(self.telegraphs):
             if t < tg["t_hit"]:
                 continue
-            self.telegraphs.remove(tg)
+            self.telegraphs = [g for g in self.telegraphs if g is not tg]   # by identity: twins can exist
+            if tg.get("leap") and b.alive:          # pounce: the boss lands on the marked spot
+                b.x = min(max(tg["x"], b.radius), self.W - b.radius)
+                b.y = min(max(tg["y"], b.radius), self.H - b.radius)
+                b.vx = b.vy = 0.0
             if tg["kind"] == "summon_spot":
                 tpl = self.boss.tpl["minions"][tg["minion"]]
                 u = Unit(self, dict(tpl), 1, self.next_uid(), tg["x"], tg["y"], self.rng.uniform(0, 6.28), is_main=False)
@@ -1108,20 +1122,41 @@ class World:
                     if tg.get("burn") and u.alive:
                         u.dots.append({"src": b, "dps": tg["burn"], "until": t + 2.0, "next": t + POISON_TICK})
 
+    def _skill_targets(self, b, sk, heroes, count):
+        """Who a targeted skill goes after. "target": "farthest" hunts the backline (ranged
+        heroes can't just stand back and shoot); default: random heroes."""
+        n = min(count, len(heroes))
+        if sk.get("target") == "farthest":
+            return sorted(heroes, key=lambda h: -math.hypot(h.x - b.x, h.y - b.y))[:n]
+        return self.rng.sample(heroes, n)
+
     def _cast(self, b, sk, heroes, t):
         """Wind up a boss skill: a warning zone now, the hit when the warning runs out."""
         target = self.rng.choice(heroes)
         ang = math.atan2(target.y - b.y, target.x - b.x)
         warn = float(sk.get("warn", 0.85))
+        count = int(sk.get("count_enraged", sk.get("count", 1)) if self.enraged else sk.get("count", 1))
         base = {"name": sk["name"], "t0": t, "t_hit": t + warn, "dmg": float(sk.get("dmg", 8)),
                 "launch": sk.get("launch"), "freeze": sk.get("freeze"), "burn": sk.get("burn"), "fx": sk.get("fx"),
                 "pull": sk.get("pull")}
         kind = sk["type"]
-        if kind == "cone":
-            self.telegraphs.append(dict(base, kind="cone", x=b.x, y=b.y, ang=ang,
-                                        range=float(sk.get("range", 600)), half=float(sk.get("half", 30))))
+        if kind == "cone":       # count > 1: a quick flurry of cones fanned around the target
+            for i in range(count):
+                a = ang + (i - (count - 1) / 2) * math.radians(float(sk.get("spread", 0)))
+                self.telegraphs.append(dict(base, kind="cone", x=b.x, y=b.y, ang=a, t_hit=base["t_hit"] + 0.18 * i,
+                                            range=float(sk.get("range", 600)), half=float(sk.get("half", 30))))
+        elif kind == "leap":     # POUNCE: a circle on a hero's spot, the boss lands there
+            picks = self._skill_targets(b, sk, heroes, count)
+            for i, h in enumerate(picks):
+                self.telegraphs.append(dict(base, kind="circle", x=h.x, y=h.y, r=float(sk.get("r", 150)),
+                                            t_hit=base["t_hit"] + 0.7 * i, leap=True))
+        elif kind == "mark":     # DEATH MARK: follows a hero, locks 0.45 s before it lands
+            picks = self._skill_targets(b, sk, heroes, count)
+            for h in picks:
+                self.telegraphs.append(dict(base, kind="circle", x=h.x, y=h.y, r=float(sk.get("r", 110)),
+                                            follow=h.uid, mark=True))
         elif kind == "beam":
-            n = int(sk.get("count", 1))
+            n = count
             for i in range(n):
                 if sk.get("origin") == "edge":    # e.g. kraken tentacles slam in from the arena edge
                     tgt = heroes[i % len(heroes)] if n > 1 else target
@@ -1140,11 +1175,14 @@ class World:
             spots = [(h.x, h.y) for h in heroes]
             while len(spots) < int(sk.get("count", 5)):
                 spots.append((self.rng.uniform(100, self.W - 100), self.rng.uniform(100, self.H - 100)))
+            if sk.get("count_enraged") and self.enraged:
+                while len(spots) < int(sk["count_enraged"]):
+                    spots.append((self.rng.uniform(100, self.W - 100), self.rng.uniform(100, self.H - 100)))
             for i, (x, y) in enumerate(spots):
                 self.telegraphs.append(dict(base, kind="circle", x=x, y=y, r=float(sk.get("r", 90)),
                                             t_hit=t + warn + 0.12 * i))
         elif kind == "summon":
-            for i in range(int(sk.get("count", 3))):
+            for i in range(int(sk.get("count_enraged", sk.get("count", 3)) if self.enraged else sk.get("count", 3))):
                 a = self.rng.uniform(0, 2 * math.pi)
                 x = min(max(b.x + math.cos(a) * (b.radius + 80), 60), self.W - 60)
                 y = min(max(b.y + math.sin(a) * (b.radius + 80), 60), self.H - 60)
@@ -1373,9 +1411,16 @@ class World:
         else:
             self._kill(target, attacker)
 
+    def _fatigue(self):
+        """Survival: 1.0 on wave 1, falling by heal_fade each wave to 0 (endless lifesteal or
+        max-HP growth off an endless horde would otherwise make a hero immortal)."""
+        return max(0.0, 1 - float(self.horde_cfg.get("heal_fade", 0.0)) * (self.wave - 1))
+
     def heal(self, unit, amount):
         if not unit.alive or amount <= 0:
             return
+        if self.horde and unit.side == 0:      # survival fatigue: healing fades wave by wave
+            amount *= self._fatigue()
         before = unit.hp
         unit.hp = min(unit.max_hp, unit.hp + amount)
         gained = unit.hp - before
@@ -1535,6 +1580,8 @@ class World:
                 self.heal(tgt, self.resolve(eff.get("amount", 10), u))
             elif kind == "add_max_hp":
                 amt = self.resolve(eff.get("amount", 10), u)
+                if self.horde and tgt.side == 0:
+                    amt *= self._fatigue()
                 tgt.max_hp += amt
                 if eff.get("heal", True):
                     self.heal(tgt, amt)

@@ -53,11 +53,55 @@ def uploaded(a, b):
     return _has(f"{a}_vs_{b}", "upload.json") or _has(f"{b}_vs_{a}", "upload.json")
 
 
+def casting():
+    """casting.json: {"favor": {id: weight}, "rest": {id: "YYYY-MM-DD back"}} (both optional)."""
+    try:
+        return json.load(open(os.path.join(ROOT, "casting.json"), encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def cast_roster(today=None):
+    """The roster minus characters resting today."""
+    today = today or datetime.date.today().isoformat()
+    rest = casting().get("rest", {})
+    return [c for c in list_characters() if not (c in rest and today < rest[c])]
+
+
+def weight(c):
+    return float(casting().get("favor", {}).get(c, 1.0))
+
+
+def _weighted_order(items, rng, w):
+    """Random order where heavier items tend to come first (weighted shuffle)."""
+    return sorted(items, key=lambda it: -rng.random() ** (1.0 / max(0.05, w(it))))
+
+
+RAID_SLOTS = [("coin", 0.35, 0.65), ("doomed", 0.0, 0.2), ("favourite", 0.7, 1.01)]
+
+
+def raid_party(kind, rng, slot):
+    """3 heroes for a boss raid, chosen by their measured odds (reports/boss_power.json):
+    slot 0 a coin flip, 1 a doomed team, 2 a favourite, then repeat. Resting heroes are skipped;
+    without the study, a random favoured cast."""
+    cast = set(cast_roster())
+    try:
+        table = json.load(open(os.path.join(ROOT, "reports", "boss_power.json"), encoding="utf-8"))[kind]["parties"]
+    except (OSError, ValueError, KeyError):
+        table = []
+    _, lo, hi = RAID_SLOTS[slot % len(RAID_SLOTS)]
+    pool = [k.split("|") for k, wr, _ in table if lo <= wr < hi and set(k.split("|")) <= cast]
+    if pool:
+        return _weighted_order(pool, rng, lambda p: sum(weight(h) for h in p))[0]
+    return _weighted_order(cast_roster(), rng, weight)[:3]
+
+
 def pick(count, seed, render_only=False):
     """Queue first (rendered, not uploaded), then never-used pairs, then rematches (sides swapped)."""
     rng = random.Random(seed)
-    roster = list_characters()
+    roster = cast_roster()
     chosen, used = [], set()
+    pair_w = lambda p: weight(p[0]) + weight(p[1])   # noqa: E731  (favoured cast fights more often)
 
     def add(a, b, unique=True):
         if len(chosen) >= count or (a, b) in chosen:
@@ -70,14 +114,15 @@ def pick(count, seed, render_only=False):
     if not render_only:   # 1. ready-made videos waiting in the queue
         queue = [tuple(n.split("_vs_")) for n in sorted(os.listdir(os.path.join(ROOT, "out")))
                  if "_vs_" in n and ready(n)]
-        rng.shuffle(queue)              # mix characters: no one fights twice in a batch if avoidable
+        queue = [p for p in queue if p[0] in roster and p[1] in roster]   # resting characters wait
+        queue = _weighted_order(queue, rng, pair_w)   # no one fights twice in a batch if avoidable
         for a, b in queue:
             add(a, b)
         for a, b in queue:
             add(a, b, unique=False)
     # 2. pairs never uploaded in either order (when rendering ahead, skip ones already rendered)
     fresh = [p for p in itertools.combinations(roster, 2) if not uploaded(*p)]
-    rng.shuffle(fresh)
+    fresh = _weighted_order(fresh, rng, pair_w)
     fresh = [p if rng.random() < 0.5 else (p[1], p[0]) for p in fresh]
     if render_only:
         fresh = [(a, b) for a, b in fresh
@@ -90,7 +135,7 @@ def pick(count, seed, render_only=False):
     rem = [(b, a) for a, b in itertools.permutations(roster, 2)
            if _has(f"{a}_vs_{b}", "upload.json") and not _has(f"{b}_vs_{a}", "upload.json")
            and not (render_only and ready(f"{b}_vs_{a}"))]
-    rng.shuffle(rem)
+    rem = _weighted_order(rem, rng, pair_w)
     for a, b in rem:
         add(a, b, unique=False)
     return chosen
@@ -142,21 +187,25 @@ def new_special(fmt, rng, tag):
         per_kind = _runs("horde", lambda s: s["horde"]["kind"])
         kind = min(sorted(HORDES), key=lambda k: (per_kind.get(k, 0), rng.random()))
         per_hero = _runs("horde", lambda s: (s["horde"]["kind"], s["fighters"][0]["id"]))
-        hero = min(list_characters(), key=lambda h: (per_hero.get((kind, h), 0), rng.random()))
+        hero = min(cast_roster(), key=lambda h: (per_hero.get((kind, h), 0) / weight(h), rng.random()))
         return f"horde_{kind}_{hero}_{tag}", ["horde", hero, "--horde", kind]
     if fmt == "boss":
         # rotate through the bosses (least-used first) with a random party of 4
         per_boss = _runs("boss", lambda s: s.get("boss_kind"))
         kind = min(sorted(BOSSES), key=lambda k: (per_boss.get(k, 0), rng.random()))
-        heroes = rng.sample(list_characters(), 4)
+        heroes = raid_party(kind, rng, per_boss.get(kind, 0))
         return f"boss_{kind}_{tag}", ["boss", *heroes, "--boss", kind]
     if fmt == "royale":
-        ids = rng.sample(list_characters(), 6)
+        ids = _weighted_order(cast_roster(), rng, weight)[:4]
         maps = sorted(ROYALE_THEMES) + sorted(ROYALE_MAPS)
         m = rng.choice(maps)
         return f"royale_{tag}_{m}", ["royale", *ids, "--map", m]
     teams = ["light", "shadow"]
-    ids = rng.sample(SOCCER_TEAMS[teams[0]]["members"], 2) + rng.sample(SOCCER_TEAMS[teams[1]]["members"], 2)
+    cast = set(cast_roster())
+    ids = []
+    for t in teams:
+        members = [m for m in SOCCER_TEAMS[t]["members"] if m in cast] or SOCCER_TEAMS[t]["members"]
+        ids += _weighted_order(members, rng, weight)[:2]
     return "soccer_" + tag + "_" + "-".join(ids), ["soccer", *ids]
 
 

@@ -94,11 +94,12 @@ def build_cues(world):
             add(t, per_unit("summon", u), 0.8, u)
         elif kind == "ultimate":
             u = by_uid.get(ev["unit"])
-            gap = float(world.spec.get("cutin_gap", 0))
-            if gap and t - last_loud_ult.get(ev["unit"], -99) < gap:
-                add(t, per_unit("ultimate", u), 0.4, u, quiet=True)   # chained cast: no voice, softer
+            from .render import cutin_rule
+            gap, key = cutin_rule(world.spec, ev["unit"])
+            if gap and t - last_loud_ult.get(key, -99) < gap:
+                add(t, per_unit("ultimate", u), 0.4, u, quiet=True)   # no voice, softer
             else:
-                last_loud_ult[ev["unit"]] = t
+                last_loud_ult[key] = t
                 add(t, per_unit("ultimate", u), 1.0, u)
         elif kind == "shockwave":
             u = by_uid.get(ev["unit"])

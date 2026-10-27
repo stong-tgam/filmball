@@ -1,0 +1,5 @@
+{
+  "_doc": "Who the daily batch puts on screen. favor: weight (default 1; higher = picked more often). rest: character -> date (YYYY-MM-DD) they come back. Edit freely.",
+  "favor": {"vampire": 3, "necromancer": 3, "wizard": 2.5, "knight": 2},
+  "rest": {"archer": "2026-11-03"}
+}

@@ -330,7 +330,7 @@ def build_royale(ids, map_name=None, salt=""):
         "map": map_name,
         "theme": dict(m["theme"], floor="none") | _map_art(f"art/maps/royale_{map_name}.png"),
         "fighters": list(ids),
-        "unit_scale": 0.72,
+        "unit_scale": 0.9,
         "terrain": terrain,
         "hazards": hazards,
         "items": {"first": 1.5, "every": 2.2, "max": 3,
@@ -479,7 +479,7 @@ def build_horde(hero, kind="skeletons"):
         "cutin_gap": 5.0,
         "horde": {"kind": kind, "title": h["title"], "death_fx": h["death_fx"], "death_sound": h["death_sound"],
                   "enemies": copy.deepcopy(h["enemies"]), "first_wave": 0.2, "base": 6, "grow": 4, "gap": 3.6,
-                  "boss_waves": [5, 10], "max_alive": 40,
+                  "boss_waves": [5, 10], "max_alive": 25, "dmg_grow": 0.1, "heal_fade": 0.12,
                   "drops": {"chance": 0.07, "max": 3,
                             "weights": {"potion": 3, "power": 2, "bomb": 1.5, "freeze": 0.6, "lightning": 0.7}}},
         "duration": {"target": [17, 25], "max": 40},
@@ -521,7 +521,9 @@ def horde_board(kind, out_dir_root, current=None, exclude=None):
 # Boss raid: 4 heroes vs one giant boss with telegraphed skills and an enraged second phase
 BOSSES = {
     "dragon": {
-        "boss": {"id": "dragon", "name": "Inferno Dragon", "hp": 400, "radius": 150, "speed": 170,
+        # boss HP is FIXED (no per-raid balancing): set from tools/boss_power.py so an average
+        # 3-hero party wins about 45%; strong parties crush it, weak ones get wiped
+        "boss": {"id": "dragon", "name": "Inferno Dragon", "hp": 320, "radius": 150, "speed": 170,
                  "color": [220, 70, 40], "sprite": "art/boss/dragon.png", "art_fit": {"scale": 1.25},
                  "stats": {"seek": 50, "body_damage": 8, "stability": 0.75}, "emoji": "🐉",
                  "voice_intro": "dragon_intro", "voice_enraged": "dragon_enraged",
@@ -541,7 +543,7 @@ BOSSES = {
                   "arena_fill": [96, 70, 64], "arena_border": [24, 8, 6], "pattern": "flagstone", "floor": "none"},
     },
     "lich": {
-        "boss": {"id": "lich_king", "name": "Lich King", "hp": 380, "radius": 140, "speed": 160,
+        "boss": {"id": "lich_king", "name": "Lich King", "hp": 450, "radius": 140, "speed": 160,
                  "color": [120, 80, 200], "sprite": "art/boss/lich_king.png", "art_fit": {"scale": 1.25},
                  "stats": {"seek": 45, "body_damage": 8, "stability": 0.75}, "emoji": "💀",
                  "voice_intro": "lich_intro", "voice_enraged": "lich_enraged",
@@ -564,7 +566,7 @@ BOSSES = {
 
 BOSSES.update({
     "golem": {
-        "boss": {"id": "golem", "name": "Stone Golem", "hp": 450, "radius": 155, "speed": 140,
+        "boss": {"id": "golem", "name": "Stone Golem", "hp": 250, "radius": 155, "speed": 140,
                  "color": [150, 130, 110], "sprite": "art/boss/golem.png", "art_fit": {"scale": 1.25},
                  "stats": {"seek": 45, "body_damage": 9, "stability": 0.9}, "emoji": "🗿",
                  "voice_intro": "golem_intro", "voice_enraged": "golem_enraged", "enrage": {"armor": 0.3},
@@ -584,7 +586,7 @@ BOSSES.update({
                   "arena_fill": [196, 160, 112], "arena_border": [40, 24, 12], "pattern": "sand", "floor": "none"},
     },
     "kraken": {
-        "boss": {"id": "kraken", "name": "Kraken", "hp": 400, "radius": 150, "speed": 150,
+        "boss": {"id": "kraken", "name": "Kraken", "hp": 410, "radius": 150, "speed": 150,
                  "color": [150, 70, 180], "sprite": "art/boss/kraken.png", "art_fit": {"scale": 1.25},
                  "stats": {"seek": 40, "body_damage": 7, "stability": 0.8}, "emoji": "🐙",
                  "voice_intro": "kraken_intro", "voice_enraged": "kraken_enraged",
@@ -603,7 +605,7 @@ BOSSES.update({
                   "arena_fill": [120, 90, 64], "arena_border": [10, 20, 40], "pattern": "planks", "floor": "none"},
     },
     "mech": {
-        "boss": {"id": "mech_titan", "name": "Mech Titan", "hp": 420, "radius": 150, "speed": 170,
+        "boss": {"id": "mech_titan", "name": "Mech Titan", "hp": 230, "radius": 150, "speed": 170,
                  "color": [190, 60, 50], "sprite": "art/boss/mech_titan.png", "art_fit": {"scale": 1.25},
                  "stats": {"seek": 50, "body_damage": 7, "stability": 0.85}, "emoji": "🤖",
                  "voice_intro": "mech_intro", "voice_enraged": "mech_enraged",
@@ -628,29 +630,138 @@ BOSSES.update({
 })
 
 
+def _minion(id_, name, hp, r, speed, color, sprite, seek=140, body=2.0, **extra):
+    return {"id": id_, "name": name, "hp": hp, "radius": r, "speed": speed, "color": color,
+            "sprite": f"art/boss/{sprite}.png", "art_fit": {"scale": 1.4},
+            "stats": {"seek": seek, "body_damage": body}, **extra}
+
+
+BOSSES.update({
+    "werewolf": {
+        "boss": {"id": "werewolf", "name": "Blood Moon Alpha", "hp": 380, "radius": 145, "speed": 210,
+                 "color": [150, 140, 150], "sprite": "art/boss/werewolf.png", "art_fit": {"scale": 1.25},
+                 "stats": {"seek": 60, "body_damage": 8, "stability": 0.75}, "emoji": "🐺",
+                 "voice_intro": "werewolf_intro", "voice_enraged": "werewolf_enraged",
+                 "skills": [
+                     {"name": "POUNCE", "type": "leap", "every": 3.4, "phase": 1, "warn": 0.9, "dmg": 30,
+                      "r": 150, "launch": 2.2, "count_enraged": 2, "fx": "pounce_impact", "first": 1.0,
+                      "target": "farthest"},
+                     {"name": "CLAW FRENZY", "type": "cone", "count": 3, "spread": 28, "every": 3.0, "phase": 1,
+                      "warn": 0.7, "dmg": 16, "range": 420, "half": 22, "fx": "claw_slash"},
+                     {"name": "HOWL", "type": "nova", "every": 4.8, "phase": 1, "warn": 0.85, "dmg": 14,
+                      "r": 360, "launch": 2.6, "fx": "howl_wave"},
+                     {"name": "CALL THE PACK", "type": "summon", "every": 6.0, "phase": 2, "count": 2, "minion": "dire_wolf"},
+                 ],
+                 "minions": {"dire_wolf": _minion("dire_wolf", "Dire Wolf", 10, 36, 460, [110, 110, 120], "dire_wolf",
+                                                  seek=160, body=2.5)}},
+        "theme": {"stage": "Blood Moon Forest", "bg_top": [90, 20, 30], "bg_bottom": [25, 6, 12],
+                  "arena_fill": [60, 70, 50], "arena_border": [20, 6, 8], "pattern": "grass", "floor": "none"},
+    },
+    "spider": {
+        "boss": {"id": "spider_queen", "name": "Spider Queen", "hp": 400, "radius": 150, "speed": 160,
+                 "color": [120, 70, 150], "sprite": "art/boss/spider_queen.png", "art_fit": {"scale": 1.25},
+                 "stats": {"seek": 40, "body_damage": 7, "stability": 0.8}, "emoji": "🕷️",
+                 "voice_intro": "spider_intro", "voice_enraged": "spider_enraged",
+                 "skills": [
+                     {"name": "WEB SHOT", "type": "beam", "every": 3.0, "phase": 1, "warn": 0.85, "dmg": 18,
+                      "width": 110, "len": 1200, "freeze": 0.5, "fx": "web_beam", "first": 1.0},
+                     {"name": "VENOM RAIN", "type": "meteors", "every": 4.0, "phase": 1, "warn": 1.0, "dmg": 18,
+                      "r": 90, "count": 5, "count_enraged": 7, "burn": 4, "fx": "venom_splash"},
+                     {"name": "WEB PULL", "type": "nova", "every": 5.0, "phase": 1, "warn": 0.9, "dmg": 10,
+                      "r": 700, "pull": 2.6, "fx": "web_pull"},   # reaches the backline: drags archers in
+                     {"name": "HATCH", "type": "summon", "every": 6.0, "phase": 1, "count": 2, "count_enraged": 4,
+                      "minion": "spiderling"},
+                 ],
+                 "minions": {"spiderling": _minion("spiderling", "Spiderling", 8, 32, 400, [60, 60, 60], "spiderling",
+                                                   seek=150, body=2.0)}},
+        "theme": {"stage": "Web Cavern", "bg_top": [50, 30, 70], "bg_bottom": [14, 8, 22],
+                  "arena_fill": [70, 66, 78], "arena_border": [10, 8, 14], "pattern": "flagstone", "floor": "none"},
+    },
+    "pharaoh": {
+        "boss": {"id": "pharaoh", "name": "Pharaoh Ra-Khet", "hp": 280, "radius": 150, "speed": 150,
+                 "color": [220, 180, 80], "sprite": "art/boss/pharaoh.png", "art_fit": {"scale": 1.25},
+                 "stats": {"seek": 40, "body_damage": 8, "stability": 0.85}, "emoji": "👑",
+                 "voice_intro": "pharaoh_intro", "voice_enraged": "pharaoh_enraged",
+                 "skills": [
+                     {"name": "SANDSTORM", "type": "beam", "origin": "edge", "count": 2, "count_enraged": 3, "every": 3.2,
+                      "phase": 1, "warn": 0.95, "dmg": 22, "width": 120, "len": 1500, "fx": "sand_beam", "first": 1.0},
+                     {"name": "CURSE OF RA", "type": "meteors", "every": 4.2, "phase": 1, "warn": 1.0, "dmg": 26,
+                      "r": 95, "count": 4, "count_enraged": 6, "fx": "sun_beam_impact"},
+                     {"name": "SARCOPHAGUS SLAM", "type": "nova", "every": 4.6, "phase": 1, "warn": 0.85, "dmg": 20,
+                      "r": 340, "launch": 2.5, "fx": "sarcophagus_slam"},
+                     {"name": "RISE, MY SERVANTS", "type": "summon", "every": 6.0, "phase": 2, "count": 3, "minion": "mummy"},
+                 ],
+                 "minions": {"mummy": _minion("mummy", "Mummy", 14, 38, 260, [210, 200, 170], "mummy",
+                                              seek=130, body=2.5)}},
+        "theme": {"stage": "Tomb of Ra-Khet", "bg_top": [150, 110, 50], "bg_bottom": [60, 40, 18],
+                  "arena_fill": [200, 170, 110], "arena_border": [40, 26, 10], "pattern": "sand", "floor": "none"},
+    },
+    "storm": {
+        "boss": {"id": "storm_titan", "name": "Storm Titan", "hp": 250, "radius": 155, "speed": 150,
+                 "color": [90, 110, 160], "sprite": "art/boss/storm_titan.png", "art_fit": {"scale": 1.25},
+                 "stats": {"seek": 40, "body_damage": 8, "stability": 0.9}, "emoji": "⚡",
+                 "voice_intro": "storm_intro", "voice_enraged": "storm_enraged",
+                 "skills": [
+                     {"name": "LIGHTNING STRIKES", "type": "meteors", "every": 3.2, "phase": 1, "warn": 0.9, "dmg": 24,
+                      "r": 85, "count": 5, "count_enraged": 8, "fx": "lightning_impact", "first": 1.0},
+                     {"name": "CHAIN LIGHTNING", "type": "beam", "count": 3, "spread": 30, "every": 4.0, "phase": 1,
+                      "warn": 0.85, "dmg": 26, "width": 80, "len": 1300, "fx": "chain_lightning"},
+                     {"name": "THUNDERCLAP", "type": "nova", "every": 4.6, "phase": 1, "warn": 0.85, "dmg": 18,
+                      "r": 350, "launch": 2.8, "fx": "thunderclap"},
+                     {"name": "STORM SPRITES", "type": "summon", "every": 6.0, "phase": 2, "count": 3, "minion": "storm_sprite"},
+                 ],
+                 "minions": {"storm_sprite": _minion("storm_sprite", "Storm Sprite", 8, 30, 480, [140, 200, 255],
+                                                     "storm_sprite", seek=170, body=2.0)}},
+        "theme": {"stage": "Thunder Peak", "bg_top": [50, 60, 90], "bg_bottom": [16, 20, 34],
+                  "arena_fill": [110, 115, 125], "arena_border": [12, 14, 22], "pattern": "concrete", "floor": "none"},
+    },
+    "reaper": {
+        "boss": {"id": "grim_reaper", "name": "The Grim Reaper", "hp": 350, "radius": 145, "speed": 170,
+                 "color": [70, 50, 90], "sprite": "art/boss/grim_reaper.png", "art_fit": {"scale": 1.25},
+                 "stats": {"seek": 50, "body_damage": 8, "stability": 0.75}, "emoji": "💀",
+                 "voice_intro": "reaper_intro", "voice_enraged": "reaper_enraged",
+                 "skills": [
+                     {"name": "DEATH MARK", "type": "mark", "every": 3.6, "phase": 1, "warn": 2.0, "dmg": 40,
+                      "r": 110, "count": 1, "count_enraged": 2, "fx": "death_mark_impact", "first": 1.0,
+                      "target": "farthest"},
+                     {"name": "SCYTHE SWEEP", "type": "nova", "every": 3.4, "phase": 1, "warn": 0.8, "dmg": 22,
+                      "r": 330, "launch": 2.2, "fx": "scythe_sweep"},
+                     {"name": "SOUL REAP", "type": "beam", "every": 4.2, "phase": 1, "warn": 0.9, "dmg": 28,
+                      "width": 120, "len": 1300, "fx": "soul_reap"},
+                     {"name": "SHADOWS RISE", "type": "summon", "every": 6.0, "phase": 2, "count": 3, "minion": "shadow_wisp"},
+                 ],
+                 "minions": {"shadow_wisp": _minion("shadow_wisp", "Shadow Wisp", 8, 30, 420, [60, 50, 80], "shadow_wisp",
+                                                    seek=160, body=2.0)}},
+        "theme": {"stage": "River of Souls", "bg_top": [40, 30, 70], "bg_bottom": [10, 8, 22],
+                  "arena_fill": [60, 64, 80], "arena_border": [8, 6, 14], "pattern": "flagstone", "floor": "none"},
+    },
+})
+
+
 def build_boss(kind="dragon", heroes=None, salt=""):
-    """4 heroes vs a boss. heroes: 4 roster ids, or picked at random (seeded by salt)."""
+    """3 heroes vs a boss (fewer heroes = clearer video). heroes: roster ids, or picked at
+    random (seeded by salt)."""
     import random as _random
     b = BOSSES[kind]
     if not heroes:
-        heroes = _random.Random(f"boss|{kind}|{salt}").sample(list_characters(), 4)
+        heroes = _random.Random(f"boss|{kind}|{salt}").sample(list_characters(), 3)
     chars = [load_character(c) for c in heroes]
-    # about 1 raid in 3 ends with the boss winning (picked per raid, so it's a real surprise)
-    boss_wins = zlib.crc32(f"bosswin|{kind}|{'|'.join(heroes)}|{salt}".encode()) % 100 < 35
+    # fixed boss HP: the party decides the odds (tools/boss_power.py measured every party);
+    # search.py picks the ending with those odds
     return {
         "mode": "boss",
-        "want_winner": 1 if boss_wins else 0,
+        "salt": salt,
         "idea": f"{', '.join(c['name'] for c in chars)} vs the {b['boss']['name']}",
         "title": f"RAID: {b['boss']['name'].upper()}",
         "boss_kind": kind,
         "theme": dict(b["theme"]) | _map_art(f"art/maps/boss_{kind}.png"),
         "arena": {"width": 960, "height": 1160},
         "fighters": list(heroes) + [copy.deepcopy(b["boss"])],
-        "unit_scale": 0.85,
+        "unit_scale": 0.95,
         "duration": {"target": [16, 24], "max": 40},
         "video_seconds": [20, 34],
         "search": {"seeds": 200},
-        "balance": {"side": 4, "target": 0.62, "seeds": 80, "iters": 6, "range": [0.3, 4.0]},
+        "balance": False,
         "pace": {"seeds": 60, "range": [0.3, 5.0]},
         "end_hold": 4.0,
         "youtube": {"tags": ["boss raid", "boss fight", "ball battle", "simulation", "shorts",
@@ -766,8 +877,8 @@ def validate(spec):
     errors = []
     fighters = spec.get("fighters", [])
     if spec.get("mode") == "boss":
-        if len(fighters) != 5:
-            errors.append("a boss raid needs 4 heroes + the boss")
+        if not 3 <= len(fighters) <= 5:
+            errors.append("a boss raid needs 2-4 heroes + the boss")
     elif spec.get("mode") == "horde":
         if len(fighters) != 1:
             errors.append("horde survival needs exactly 1 hero")
