@@ -752,6 +752,8 @@ class Renderer:
             self._draw_frost_patch(u)
             if self.soccer:
                 self._draw_team_spot(u)
+            elif self.horde and u.is_main:
+                self._draw_team_spot(u, color=(255, 205, 70), size=1.5)
         for u in alive:
             self._draw_body(u)
             self._draw_frozen(u)
@@ -988,7 +990,8 @@ class Renderer:
             # characters can fine-tune with "art_fit": {"scale": 1.0, "dy": 0.0}
             fit = u.tpl.get("art_fit", {})
             sw, sh = src.get_size()
-            f = 2.1 * r * float(fit.get("scale", 1.0)) / max(sw, sh)
+            hero_boost = 1.4 if (self.horde and u.is_main) else 1.0   # survival: the hero must pop out of the crowd
+            f = 2.1 * r * float(fit.get("scale", 1.0)) * hero_boost / max(sw, sh)
             img = self.sprites.scaled(path, sw * f, sh * f, trim=True, flash=flash)
             top = cy - img.get_height() / 2 - r * (0.08 - float(fit.get("dy", 0.0)))
             if u.is_main and not u.tpl.get("sprite") and status:
@@ -2634,13 +2637,13 @@ class Renderer:
                 self.surface.blit(net, (int(x0), int(top)))
             pygame.draw.line(self.surface, self.team_color(team), (x0, y_line), (x1, y_line), max(2, int(3 * self.S)))
 
-    def _draw_team_spot(self, u):
+    def _draw_team_spot(self, u, color=None, size=1.0):
         """Sports-game team marker on the ground: a glowing team-colour ellipse under the feet
         (drawn before the body, so it never covers the character)."""
         if not u.is_main:
             return
-        cx, cy, r = self.sx(u.x), self.sy(u.y), u.radius * self.k
-        col = self.team_color(u.side)
+        cx, cy, r = self.sx(u.x), self.sy(u.y), u.radius * self.k * size
+        col = color or self.team_color(u.side)
         pulse = 0.5 + 0.5 * math.sin(self.t * 4 + u.uid)
         w, h = int(r * 2.3), int(r * 0.85)
         g = pygame.Surface((w + 8, h + 8), pygame.SRCALPHA)

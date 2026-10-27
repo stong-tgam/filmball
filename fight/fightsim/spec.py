@@ -392,7 +392,7 @@ def build_soccer(ids=None, teams=("light", "shadow"), salt=""):
 def _enemy(id_, name, hp, r, speed, color, sprite, seek=140, body=2.0, boss=False, **extra):
     t = {"id": id_, "name": name, "hp": hp, "radius": r * 1.4, "speed": speed, "color": color,
          "sprite": f"art/horde/{sprite}.png", "stats": {"seek": seek, "body_damage": body}}
-    t["art_fit"] = {"scale": 1.15 if boss else 1.5}   # draw bigger than the hitbox so they read on a phone
+    t["art_fit"] = {"scale": 1.15 if boss else 1.2}   # a bit bigger than the hitbox; the hero stays bigger
     if boss:
         t["boss"] = True
     t.update(extra)
