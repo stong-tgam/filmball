@@ -4,3 +4,5 @@ out/
 .env
 art/pixellab_log.jsonl
 secrets/
+art/_candidates/
+characters/art/captain/candidates/

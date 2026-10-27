@@ -172,6 +172,30 @@ def make(name, pitch=1.0, seed=0):
         b = mixdown(square(np.full(int(SR * 0.25), note(15)), 0.5),
                     square(np.full(int(SR * 0.25), note(22)), 0.25) * 0.5)
         return crush(seq(a * env(len(a), decay_pow=0.5), b * env(len(b), decay_pow=1.2)) * 0.45)
+    if name == "warn":               # boss wind-up: rising alarm beeps
+        parts = [square(np.full(int(SR * 0.07), (660 + 220 * i) * p), 0.5) * env(int(SR * 0.07), decay_pow=0.5) * 0.4
+                 for i in range(3)]
+        return crush(seq(*[x for pr in zip(parts, [np.zeros(int(SR * 0.03))] * 3) for x in pr]))
+    if name == "enraged":            # boss roar: low growl swelling up
+        n = int(SR * 0.9)
+        g = square(sweep(70 * p, 110 * p, 0.9), 0.5) * env(n, attack=0.2, decay_pow=0.8) * 0.6
+        x = noise(n, rng, hold=20) * env(n, attack=0.2, decay_pow=0.9) * 0.6
+        return crush(mixdown(g, x), bits=4, rate=8000)
+    if name == "bones":              # skeleton shatters: dry clatter of little clicks
+        parts = []
+        for i in range(4):
+            n = int(SR * 0.025)
+            parts.append(square(np.full(n, (1400 + 300 * i) * p), 0.3) * env(n, decay_pow=3) * 0.35)
+            parts.append(np.zeros(int(SR * 0.012)))
+        return crush(mixdown(seq(*parts), noise(int(SR * 0.08), rng) * env(int(SR * 0.08), decay_pow=3) * 0.3))
+    if name == "splat":              # zombie goes down: wet low squelch
+        s = square(sweep(260 * p, 70 * p, 0.14), 0.5) * env(int(SR * 0.14), decay_pow=1.6) * 0.5
+        n1 = noise(int(SR * 0.12), rng, hold=5) * env(int(SR * 0.12), decay_pow=2) * 0.5
+        return crush(mixdown(s, n1), bits=5)
+    if name == "wave_horn":          # new wave: two-note war horn
+        a = square(np.full(int(SR * 0.16), 196 * p), 0.5) * env(int(SR * 0.16), decay_pow=0.4)
+        b = square(np.full(int(SR * 0.35), 262 * p), 0.5) * env(int(SR * 0.35), decay_pow=0.7)
+        return crush(seq(a, b) * 0.45, bits=6)
     if name == "whistle":            # referee whistle: high trill, two blasts
         n = int(SR * 0.22)
         tt = np.arange(n) / SR

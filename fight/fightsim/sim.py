@@ -275,6 +275,8 @@ class World:
         self.max_units_per_side = int(spec.get("max_units_per_side", 30))
         # older tuned specs have no meter_rate, so their fights still replay exactly
         self.meter_rate = float(spec.get("meter_rate", 1.0))
+        self.meter_event_mult = float(spec.get("meter_event_mult", 1.0))   # per_hit / per_kill ... gain
+        self.ult_cooldown = float(spec.get("ult_cooldown", 0.0))   # seconds the meter can't charge after an ult
         self.rules = dict(DEFAULT_RULES)
         self.rules.update(spec.get("rules", {}))
 
@@ -321,9 +323,33 @@ class World:
             for gy in (self.goal_line, self.H - self.goal_line):   # goal posts
                 for gx in (gx0, gx1):
                     self.terrain.append({"shape": "circle", "kind": "post", "x": gx, "y": gy, "r": 12})
-        fighters = spec["fighters"] if (self.royale or self.soccer) else spec["fighters"][:2]
+        self.horde = spec.get("mode") == "horde"
+        if self.horde:
+            hc = spec["horde"]
+            self.horde_cfg = hc
+            self.wave = 0
+            self.next_wave_t = float(hc.get("first_wave", 0.2))
+            self.spawn_queue = []          # (t, enemy template)
+            self.kill_count = 0
+            self.combo, self.max_combo, self._last_kill_t = 0, 0, -9.0
+            self.bosses_killed = 0
+            if hc.get("drops"):
+                self.items_cfg = None      # items come from enemy drops, not timed spawns
+        self.boss_mode = spec.get("mode") == "boss"
+        if self.boss_mode:
+            self.telegraphs = []           # attacks being wound up: hit when t >= t_hit
+            self.enraged = False
+            self.boss_dmg = {}             # hero uid -> damage dealt to the boss (MVP)
+            self._boss_ready = 0.0         # global cooldown between boss skills
+        fighters = spec["fighters"] if self.boss_mode else spec["fighters"][:1] if self.horde else (
+            spec["fighters"] if (self.royale or self.soccer) else spec["fighters"][:2])
         self.mains = [None] * len(fighters)
-        if self.soccer:   # team 0 (first half of the list) defends the bottom goal
+        if self.boss_mode:
+            starts = [(0.2 * self.W, 0.14 * self.H), (0.8 * self.W, 0.14 * self.H),
+                      (0.2 * self.W, 0.86 * self.H), (0.8 * self.W, 0.86 * self.H), (0.5 * self.W, 0.5 * self.H)]
+        elif self.horde:
+            starts = [(self.W / 2, self.H / 2)]
+        elif self.soccer:   # team 0 (first half of the list) defends the bottom goal
             n2 = len(fighters) // 2
             self.team_of = [0] * n2 + [1] * (len(fighters) - n2)
             starts = self._kickoff_spots(len(fighters))
@@ -340,11 +366,17 @@ class World:
         for i, tpl in enumerate(fighters):
             sx, sy = starts[i]
             heading = self.rng.uniform(0, 2 * math.pi)
-            side = self.team_of[i] if self.soccer else i
+            side = self.team_of[i] if self.soccer else ((0 if i < len(fighters) - 1 else 1) if self.boss_mode else i)
             u = Unit(self, tpl, side, self.next_uid(), sx, sy, heading, is_main=True)
             u.role = (i % 2) if self.soccer else 0           # soccer: 0 striker, 1 defender
             self.units.append(u)
             self.mains[i] = u
+        if self.boss_mode:
+            self.boss = self.mains[-1]
+            for i, sk in enumerate(self.boss.tpl.get("skills", [])):
+                sk = dict(sk)
+                sk["_next"] = float(sk.get("first", 1.0 + 0.9 * i))
+                self.boss.__dict__.setdefault("skills", []).append(sk)
         if self.soccer:
             self.balls = [{"x": self.W / 2, "y": self.H / 2, "vx": 0.0, "vy": 0.0,
                            "r": float(spec["soccer"].get("ball_r", 26)), "last": None}]
@@ -426,8 +458,15 @@ class World:
             spots.append((x, fwd if team == 0 else H - fwd))
         return spots
 
+    def raid_mvp(self):
+        """Boss raid: the hero who dealt the boss the most damage."""
+        heroes = [m for m in self.mains if m.side == 0]
+        return max(heroes, key=lambda m: (self.boss_dmg.get(m.uid, 0.0), -m.uid)) if heroes else None
+
     def mvp(self):
         """Soccer: the winning team's player with the most goals (then knockouts)."""
+        if getattr(self, "boss_mode", False):
+            return self.raid_mvp()
         team = self.winner_side
         if team is None:
             return None
@@ -522,6 +561,10 @@ class World:
     def _sample(self):
         if self.soccer:
             self.timeline.append((round(self.t, 3), *self.score))
+            return
+        if self.horde:
+            h = self.mains[0]
+            self.timeline.append((round(self.t, 3), max(0.0, h.hp) / h.max_hp, self.kill_count))
             return
         self.timeline.append((round(self.t, 3), *(self.side_strength(i) for i in range(len(self.mains)))))
 
@@ -948,9 +991,174 @@ class World:
         tgt.vx, tgt.vy = nx * sp, ny * sp
         self.emit("launch", unit=tgt.uid, src=src.uid, x=tgt.x, y=tgt.y, mult=round(mult, 2))
 
+    def _horde_spawn(self, t):
+        hc = self.horde_cfg
+        if t >= self.next_wave_t:
+            self.wave += 1
+            w = self.wave
+            n = int(hc.get("base", 5)) + int(hc.get("grow", 3)) * (w - 1)
+            enemies = hc["enemies"]
+            boss = w in hc.get("boss_waves", [5, 10])
+            # each wave brings in one new enemy type (shown off with ~1/3 of the wave);
+            # the ones met earlier keep mixing in
+            pool = [e for e in enemies["elites"] if e.get("unlock", 3) <= w]
+            new = [e for e in pool if e.get("unlock", 3) == w]
+            old = [e for e in pool if e.get("unlock", 3) < w]
+            roster = []
+            for i in range(n):
+                if new and i % 3 == 1:
+                    roster.append(new[0])
+                elif old and self.rng.random() < min(0.5, 0.15 * (w - 1)):
+                    roster.append(self.rng.choice(old))
+                else:
+                    roster.append(enemies["basic"])
+            if boss:
+                roster.append(enemies["boss"])
+            for i, tpl in enumerate(roster):
+                self.spawn_queue.append((t + 1.4 * i / max(1, len(roster)), tpl))
+            self.emit("wave", wave=w, count=len(roster), boss=enemies["boss"]["name"] if boss else None,
+                      new=new[0]["name"] if new else None, new_sprite=new[0].get("sprite") if new else None)
+            self.next_wave_t = t + max(2.4, float(hc.get("gap", 4.0)) - 0.15 * (w - 1))
+        alive = [u for u in self.units if u.alive and u.side == 1]
+        if len(alive) <= 2 and self.wave and not self.spawn_queue:
+            self.next_wave_t = min(self.next_wave_t, t + 0.5)     # cleared: next wave right away
+        cap = int(hc.get("max_alive", 40))
+        while self.spawn_queue and self.spawn_queue[0][0] <= t and len(alive) < cap:
+            _, tpl = self.spawn_queue.pop(0)
+            hero = self.mains[0]
+            for _ in range(10):                                    # from an edge, away from the hero
+                edge = self.rng.randrange(4)
+                x = self.rng.uniform(40, self.W - 40) if edge < 2 else (40 if edge == 2 else self.W - 40)
+                y = (40 if edge == 0 else self.H - 40) if edge < 2 else self.rng.uniform(40, self.H - 40)
+                if math.hypot(x - hero.x, y - hero.y) > 260:
+                    break
+            w = self.wave
+            tpl = dict(tpl, hp=tpl["hp"] * (1 + 0.08 * (w - 1)),
+                       speed=tpl["speed"] * min(1.5, 1 + 0.05 * (w - 1)))
+            u = Unit(self, tpl, 1, self.next_uid(), x, y, math.atan2(hero.y - y, hero.x - x), is_main=False)
+            for a in u.abilities:                                  # timers count from the spawn
+                if a.get("_next"):
+                    a["_next"] = t + a["_next"]
+            self.units.append(u)
+            alive.append(u)
+            self._trigger(u, "start")
+            self.emit("enemy_spawn", unit=u.uid, x=x, y=y, boss=bool(tpl.get("boss")))
+
+    def _in_telegraph(self, tg, x, y, r):
+        k = tg["kind"]
+        if k in ("circle", "nova"):
+            return math.hypot(x - tg["x"], y - tg["y"]) <= tg["r"] + r
+        dx, dy = x - tg["x"], y - tg["y"]
+        ca, sa = math.cos(tg["ang"]), math.sin(tg["ang"])
+        along, perp = dx * ca + dy * sa, -dx * sa + dy * ca
+        if k == "beam":
+            return 0 <= along <= tg["len"] and abs(perp) <= tg["width"] / 2 + r
+        if k == "cone":
+            d = math.hypot(dx, dy)
+            if d > tg["range"] + r or d == 0:
+                return d == 0
+            diff = (math.atan2(dy, dx) - tg["ang"] + math.pi) % (2 * math.pi) - math.pi
+            return abs(diff) <= math.radians(tg["half"]) + math.asin(min(1.0, r / d))
+        return False
+
+    def _boss_tick(self, t):
+        b = self.boss
+        if not b.alive:
+            return
+        if not self.enraged and b.hp < 0.5 * b.max_hp:          # phase 2
+            self.enraged = True
+            b.base_stats["speed"] *= 1.3
+            b.base_stats["size"] = b.base_stats.get("size", 1.0) * 1.12
+            for stat, add in b.tpl.get("enrage", {}).items():   # e.g. the Golem hardens: armor +0.3
+                b.base_stats[stat] = b.base_stats.get(stat, 0.0) + float(add)
+            self.emit("enraged", unit=b.uid, x=b.x, y=b.y)
+        phase = 2 if self.enraged else 1
+        heroes = [u for u in self.units if u.alive and u.side == 0 and u.is_main]
+        if heroes and t >= self._boss_ready:
+            for sk in b.skills:
+                if sk.get("phase", 1) > phase or t < sk["_next"]:
+                    continue
+                sk["_next"] = t + float(sk["every"]) * (0.7 if self.enraged else 1.0)
+                self._boss_ready = t + 1.1
+                self._cast(b, sk, heroes, t)
+                break
+        for tg in list(self.telegraphs):
+            if t < tg["t_hit"]:
+                continue
+            self.telegraphs.remove(tg)
+            if tg["kind"] == "summon_spot":
+                tpl = self.boss.tpl["minions"][tg["minion"]]
+                u = Unit(self, dict(tpl), 1, self.next_uid(), tg["x"], tg["y"], self.rng.uniform(0, 6.28), is_main=False)
+                u.summoner = b.uid
+                self.units.append(u)
+                self.emit("summon", unit=u.uid, x=u.x, y=u.y)
+                continue
+            self.emit("boss_impact", kind=tg["kind"], name=tg["name"], x=tg["x"], y=tg["y"],
+                      r=tg.get("r"), ang=tg.get("ang"), len=tg.get("len"), width=tg.get("width"),
+                      range=tg.get("range"), half=tg.get("half"), fx=tg.get("fx"))
+            for u in [u for u in self.units if u.alive and u.side == 0]:
+                if self._in_telegraph(tg, u.x, u.y, u.radius):
+                    self.damage(b, u, tg["dmg"], "spell")
+                    if tg.get("launch") and u.alive:
+                        self.launch(b, u, u.x - b.x, u.y - b.y, tg["launch"], 0.5)
+                    if tg.get("pull") and u.alive:        # whirlpool: dragged toward the boss
+                        self.launch(b, u, b.x - u.x, b.y - u.y, tg["pull"], 0.55)
+                    if tg.get("freeze") and u.alive:
+                        self.freeze(u, tg["freeze"])
+                    if tg.get("burn") and u.alive:
+                        u.dots.append({"src": b, "dps": tg["burn"], "until": t + 2.0, "next": t + POISON_TICK})
+
+    def _cast(self, b, sk, heroes, t):
+        """Wind up a boss skill: a warning zone now, the hit when the warning runs out."""
+        target = self.rng.choice(heroes)
+        ang = math.atan2(target.y - b.y, target.x - b.x)
+        warn = float(sk.get("warn", 0.85))
+        base = {"name": sk["name"], "t0": t, "t_hit": t + warn, "dmg": float(sk.get("dmg", 8)),
+                "launch": sk.get("launch"), "freeze": sk.get("freeze"), "burn": sk.get("burn"), "fx": sk.get("fx"),
+                "pull": sk.get("pull")}
+        kind = sk["type"]
+        if kind == "cone":
+            self.telegraphs.append(dict(base, kind="cone", x=b.x, y=b.y, ang=ang,
+                                        range=float(sk.get("range", 600)), half=float(sk.get("half", 30))))
+        elif kind == "beam":
+            n = int(sk.get("count", 1))
+            for i in range(n):
+                if sk.get("origin") == "edge":    # e.g. kraken tentacles slam in from the arena edge
+                    tgt = heroes[i % len(heroes)] if n > 1 else target
+                    edge = self.rng.randrange(4)
+                    ox = (self.rng.uniform(80, self.W - 80) if edge < 2 else (0.0 if edge == 2 else self.W))
+                    oy = ((0.0 if edge == 0 else self.H) if edge < 2 else self.rng.uniform(80, self.H - 80))
+                    a = math.atan2(tgt.y - oy, tgt.x - ox)
+                else:                             # fan of beams from the boss (laser sweep)
+                    ox, oy = b.x, b.y
+                    a = ang + (i - (n - 1) / 2) * math.radians(float(sk.get("spread", 30)))
+                self.telegraphs.append(dict(base, kind="beam", x=ox, y=oy, ang=a, t_hit=base["t_hit"] + 0.1 * i,
+                                            len=float(sk.get("len", 1200)), width=float(sk.get("width", 90))))
+        elif kind == "nova":
+            self.telegraphs.append(dict(base, kind="nova", x=b.x, y=b.y, r=float(sk.get("r", 330)) * b.stat("size")))
+        elif kind == "meteors":
+            spots = [(h.x, h.y) for h in heroes]
+            while len(spots) < int(sk.get("count", 5)):
+                spots.append((self.rng.uniform(100, self.W - 100), self.rng.uniform(100, self.H - 100)))
+            for i, (x, y) in enumerate(spots):
+                self.telegraphs.append(dict(base, kind="circle", x=x, y=y, r=float(sk.get("r", 90)),
+                                            t_hit=t + warn + 0.12 * i))
+        elif kind == "summon":
+            for i in range(int(sk.get("count", 3))):
+                a = self.rng.uniform(0, 2 * math.pi)
+                x = min(max(b.x + math.cos(a) * (b.radius + 80), 60), self.W - 60)
+                y = min(max(b.y + math.sin(a) * (b.radius + 80), 60), self.H - 60)
+                self.telegraphs.append(dict(base, kind="summon_spot", x=x, y=y, r=40.0,
+                                            t_hit=t + 0.6, minion=sk["minion"]))
+        self.emit("boss_skill", unit=b.uid, name=sk["name"], skill_type=kind, x=b.x, y=b.y)
+
     def _per_frame(self, dt):
         t = self.t
         self._aim_blades()
+        if self.boss_mode:
+            self._boss_tick(t)
+        if self.horde:
+            self._horde_spawn(t)
         if self.soccer:
             for rt, m in list(self.respawns):
                 if t >= rt:
@@ -993,6 +1201,21 @@ class World:
             # steering toward (seek > 0) or away from (seek < 0, kiting) the nearest enemy
             seek = u.stat("seek") if t >= u.launch_until and t >= u.frozen_until else 0.0   # not mid-air / frozen
             seek *= self.slippery   # ice rink: everyone slides
+            if self.boss_mode and u.side == 0 and t >= u.launch_until and t >= u.frozen_until:
+                for tg in self.telegraphs:
+                    if tg["kind"] != "summon_spot" and tg["t_hit"] - t < 0.5 and self._in_telegraph(tg, u.x, u.y, u.radius):
+                        if tg["kind"] in ("circle", "nova"):
+                            want = math.atan2(u.y - tg["y"], u.x - tg["x"])
+                        else:   # sidestep out of the cone / beam
+                            side_ = 1 if (-(u.x - tg["x"]) * math.sin(tg["ang"]) + (u.y - tg["y"]) * math.cos(tg["ang"])) >= 0 else -1
+                            want = tg["ang"] + side_ * math.pi / 2
+                        have = math.atan2(u.vy, u.vx)
+                        diff = (want - have + math.pi) % (2 * math.pi) - math.pi
+                        turn = max(-math.radians(400) * dt, min(math.radians(400) * dt, diff))
+                        sp = math.hypot(u.vx, u.vy)
+                        u.vx, u.vy = math.cos(have + turn) * sp, math.sin(have + turn) * sp
+                        seek = 0.0
+                        break
             if self.soccer and u.is_main and t >= u.launch_until and t >= u.frozen_until:
                 tx, ty = self._soccer_target(u)
                 want = math.atan2(ty - u.y, tx - u.x)
@@ -1089,7 +1312,7 @@ class World:
                                     self.freeze(e, float(item["freeze_all"]))
                         if item.get("lightning"):
                             cfg_l = item["lightning"]
-                            foes = sorted((e for e in self.units if e.alive and e.side != u.side and e.is_main),
+                            foes = sorted((e for e in self.units if e.alive and e.side != u.side and (e.is_main or self.horde)),
                                           key=lambda e: (e.x - u.x) ** 2 + (e.y - u.y) ** 2)
                             for e in foes[:int(cfg_l.get("count", 2))]:
                                 self.emit("lightning", unit=e.uid, src=u.uid, x=e.x, y=e.y)
@@ -1122,6 +1345,10 @@ class World:
         dealt = amount * (1 - armor) * attacker.stat("dmg_mult", 1.0)
         target.hp -= dealt
         target.last_hurt = self.t
+        if getattr(self, "boss_mode", False) and target is getattr(self, "boss", None):
+            sm = attacker.summoner
+            ouid = attacker.uid if attacker.is_main or sm is None else (sm if isinstance(sm, int) else sm.uid)
+            self.boss_dmg[ouid] = self.boss_dmg.get(ouid, 0.0) + dealt
         self.emit("damage", src=attacker.uid, dst=target.uid, amount=round(dealt, 3),
                   source=source, x=target.x, y=target.y,
                   hx=hx if hx is not None else target.x,
@@ -1163,6 +1390,27 @@ class World:
                   x=unit.x, y=unit.y, main=unit.is_main)
         if self.soccer and unit.is_main:
             self.respawns.append((self.t + self.respawn_after, unit))
+        if getattr(self, "boss_mode", False) and unit is getattr(self, "boss", None):
+            self.telegraphs = []
+            for m in [x for x in self.units if x.alive and x.side == 1]:
+                m.hp, m.alive, m.died_at = 0, False, self.t
+                self.emit("death", unit=m.uid, killer=None, x=m.x, y=m.y, main=False)
+        if self.horde and unit.side == 1:
+            self.kill_count += 1
+            self.combo = self.combo + 1 if self.t - self._last_kill_t < 1.0 else 1
+            self._last_kill_t = self.t
+            self.max_combo = max(self.max_combo, self.combo)
+            if unit.tpl.get("boss"):
+                self.bosses_killed += 1
+            self.emit("horde_kill", unit=unit.uid, total=self.kill_count, combo=self.combo,
+                      x=unit.x, y=unit.y, boss=bool(unit.tpl.get("boss")))
+            drops = self.horde_cfg.get("drops") or {}
+            if (drops and len(self.items) < int(drops.get("max", 3))
+                    and self.rng.random() < float(drops.get("chance", 0.07)) * (6 if unit.tpl.get("boss") else 1)):
+                ks = sorted(drops["weights"])
+                kind = self.rng.choices(ks, [drops["weights"][k] for k in ks])[0]
+                self.items.append({"kind": kind, "x": unit.x, "y": unit.y, "t": self.t, "alive": True})
+                self.emit("item_spawn", kind=kind, x=unit.x, y=unit.y, tier=ITEMS[kind].get("tier", "common"))
         if self.royale and unit.is_main:
             self.placements.append(unit.side)
             if killer is not None:
@@ -1179,6 +1427,12 @@ class World:
     def _check_win(self):
         if self.done or self.soccer:   # soccer is decided by goals, not knockouts
             return
+        if self.horde:                 # survival: it's over when the hero falls
+            if not self.mains[0].alive:
+                self.done = True
+                self.winner_side = 1
+                self.emit("victory", side=1)
+            return
         alive_sides = {u.side for u in self.units if u.alive}
         if len(alive_sides) < 2:
             self.done = True
@@ -1189,11 +1443,12 @@ class World:
 
     def _add_meter(self, u, amount):
         m = u.meter
-        if not m or amount <= 0 or u.meter_active_until > self.t or not u.alive:
+        if not m or amount <= 0 or u.meter_active_until > self.t or not u.alive                 or self.t < getattr(u, "ult_ready_at", -1.0):
             return
         u.meter_value += amount * self.meter_rate
         if u.meter_value >= float(m.get("max", 100)):
             u.meter_value = 0.0
+            u.ult_ready_at = self.t + self.ult_cooldown
             u.meter_active_until = self.t + u.meter_active_len
             self.emit("ultimate", unit=u.uid, label=m.get("label", ""),
                       shout=m.get("shout", ""), x=u.x, y=u.y)
@@ -1205,7 +1460,7 @@ class World:
         if not u.alive and not allow_dead:
             return
         if u.meter and u.alive:
-            self._add_meter(u, float(u.meter.get("per_" + name, 0)))
+            self._add_meter(u, float(u.meter.get("per_" + name, 0)) * self.meter_event_mult)
         for a in u.abilities:
             if a.get("on") == name:
                 self._run_ability(u, a, other)

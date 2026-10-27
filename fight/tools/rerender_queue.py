@@ -21,7 +21,7 @@ def main():
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     log = open(log_path, "a", encoding="utf-8")
     names = [n for n in sorted(os.listdir(out))
-             if os.path.exists(os.path.join(out, n, "queued.json"))
+             if "_vs_" in n and os.path.exists(os.path.join(out, n, "queued.json"))   # 1v1 folders only
              and not os.path.exists(os.path.join(out, n, "upload.json"))]
     log.write(f"{len(names)} queued videos to re-render\n")
     for n in names:

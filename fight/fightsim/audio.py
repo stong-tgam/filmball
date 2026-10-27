@@ -46,6 +46,7 @@ def build_cues(world):
     cues = []
     last = {}
 
+    last_loud_ult = {}   # uid -> time of the last full (voiced) ultimate
     def add(t, cue, intensity=0.5, unit=None, **extra):
         if t - last.get(cue, -1) < MERGE_WINDOW:
             return
@@ -93,13 +94,28 @@ def build_cues(world):
             add(t, per_unit("summon", u), 0.8, u)
         elif kind == "ultimate":
             u = by_uid.get(ev["unit"])
-            add(t, per_unit("ultimate", u), 1.0, u)
+            gap = float(world.spec.get("cutin_gap", 0))
+            if gap and t - last_loud_ult.get(ev["unit"], -99) < gap:
+                add(t, per_unit("ultimate", u), 0.4, u, quiet=True)   # chained cast: no voice, softer
+            else:
+                last_loud_ult[ev["unit"]] = t
+                add(t, per_unit("ultimate", u), 1.0, u)
         elif kind == "shockwave":
             u = by_uid.get(ev["unit"])
             add(t, per_unit("shockwave", u), 0.9, u)
+        elif kind == "death" and getattr(world, "horde", False) and not ev.get("main"):
+            add(t, world.spec["horde"].get("death_sound", "bones"), 0.6)
+        elif kind == "boss_skill":
+            add(t, "warn", 0.8)
+        elif kind == "boss_impact":
+            add(t, "shockwave", 1.0)
+        elif kind == "enraged":
+            add(t, "enraged", 1.0)
+        elif kind == "wave":
+            add(t, "wave_horn", 1.0, boss=bool(ev.get("boss")))
         elif kind == "death":
-            final = not (getattr(world, "royale", False) or getattr(world, "soccer", False)) or (
-                getattr(world, "royale", False) and t >= world.t - 1e-6)
+            multi = getattr(world, "royale", False) or getattr(world, "boss_mode", False)
+            final = not (multi or getattr(world, "soccer", False)) or (multi and t >= world.t - 1e-6)
             name = ("death_main" if final else "elim") if ev.get("main") else "death"
             add(t, name, 1.0, by_uid.get(ev["unit"]))
         elif kind == "pickup":
@@ -119,7 +135,7 @@ def build_cues(world):
         elif kind in ("kick", "ball_hit"):
             add(t, "bump", 0.8 if kind == "ball_hit" else 0.5)
         elif kind == "victory":
-            add(t + 0.15, "victory", 1.0)
+            add(t + 0.15, "victory", 1.0, heroes=ev.get("side") == 0)
         elif kind == "bump":
             add(t, "bump", 0.6)
         elif kind == "wall":

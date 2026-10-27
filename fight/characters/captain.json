@@ -153,7 +153,7 @@
   },
   "art": {
     "floor": "smooth pale blue-white ice rink surface with faint skate scratches, a uniform repeating texture with no lines and no objects",
-    "body": "a determined hockey captain: a perfectly round bright yellow ball body wearing a white hockey helmet with a clear visor, a big black letter C stitched on the front, intense eyes",
+    "body": "a chibi ice hockey player, full body, front view, crouched in a ready stance: white hockey helmet with a clear visor, bright yellow and white jersey with a big black letter C on the chest, black gloves, yellow shin pads, black ice skates",
     "weapons": [
       "a hockey stick lying horizontally pointing right: long white shaft with black tape grip on the left, a black curved blade at the right end"
     ],
@@ -164,5 +164,9 @@
     "ult_circle": "a hockey faceoff circle on ice: a red ring with red hash marks and a blue center dot",
     "ult_aura": "a burst of white ice spray and frost shards flying upward like skates stopping hard",
     "hit_fx": "a spray of white ice shavings and snow chunks"
+  },
+  "art_fit": {
+    "scale": 1.15,
+    "dy": 0.05
   }
 }

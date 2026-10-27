@@ -38,6 +38,39 @@ SAFE_W = IW - 2 * SAFE
 BAR_W = IW // 2 - 32 - (SAFE + 60)   # HP bar: portrait edge to timer box
 
 CUT_IN, CAST_FX = 0.85, 2.0   # ultimate cut-in banner / casting effects, seconds
+# wave-2 PixelLab effects (each is optional: missing files fall back to the old drawing)
+PROJ_FX = {   # style -> (launch flash, impact burst, impact size in world units)
+    "fireball": ("fireball_launch", "fireball_impact", 120),
+    "arrow": ("arrow_launch", "arrow_impact", 80),
+    "puck": ("puck_launch", "puck_impact", 100),
+    "shuriken": ("shuriken_launch", "shuriken_impact", 70),
+    "bolt": (None, "bolt_impact", 60),
+}
+ULT_FX = {    # character -> [(art/fx/ult file, layer, size x radius, seconds)]
+    "archer": [("archer_arrow_rain", "over", 4.2, 0.7)],
+    "captain": [("captain_onetimer", "over", 3.6, 0.55)],
+    "king": [("king_royal_portal", "under", 4.0, 0.8)],
+    "knight": [("knight_mega_sword", "over", 4.8, 0.75)],
+    "necromancer": [("necro_soul_drain", "under", 5.0, 0.8)],
+    "ninja": [("ninja_shadow_smoke", "over", 4.0, 0.7)],
+    "paladin": [("paladin_holy_ring", "under", 6.0, 0.7), ("paladin_holy_pillar", "over", 4.6, 0.75)],
+    "samurai": [("samurai_blade_dance", "over", 4.4, 0.7)],
+    "vampire": [("vampire_bat_swarm", "over", 4.6, 0.75)],
+    "viking": [("viking_ground_slam", "under", 6.5, 0.7)],
+    "wizard": [("wizard_frost_nova", "under", 6.5, 0.7)],
+}
+BOSS_IMPACT_FX = {   # boss skill name -> art/boss/fx2 file drawn when it lands
+    "FIRE BREATH": "dragon_fire_breath_big", "TAIL SWEEP": "dragon_tail_sweep", "METEOR RAIN": "dragon_meteor_impact",
+    "SOUL BEAM": "lich_soul_beam_big", "FROST NOVA": "lich_frost_nova_big", "SOUL RAIN": "lich_soul_impact",
+    "BOULDER THROW": "golem_boulder_impact", "GROUND POUND": "golem_ground_pound", "ROCKSLIDE": "golem_boulder_impact",
+    "TENTACLE SLAM": "kraken_tentacle_big", "TENTACLE STORM": "kraken_tentacle_big", "WHIRLPOOL": "kraken_whirlpool_big",
+    "INK BLAST": "kraken_ink_impact", "MISSILE BARRAGE": "mech_missile_impact", "LASER SWEEP": "mech_laser_big",
+    "OVERDRIVE SLAM": "mech_overdrive_slam",
+}
+BOSS_PREFIX = {"dragon": "dragon", "lich_king": "lich", "golem": "golem", "kraken": "kraken", "mech_titan": "mech"}
+SUMMON_FX = {"dragon": "dragon_summon_portal", "lich": "lich_grave_rise", "golem": "golem_rock_spike",
+             "mech": "mech_deploy_pad"}
+
 GOAL_PAUSE = 0.5   # soccer: the action freezes on every goal for this long (video seconds)
 SLOWMO_BEFORE, SLOWMO_AFTER = 0.45, 0.1   # seconds of sim time around the K.O. played at 1/3 speed
 SLOWMO_EXTRA = 2 * (SLOWMO_BEFORE + SLOWMO_AFTER)   # video seconds that adds
@@ -238,8 +271,21 @@ class Renderer:
         self.soccer = bool(getattr(world, "soccer", False))
         self.confetti = []
         self.goal_banner = None
+        self.horde = bool(getattr(world, "horde", False))
+        self.puffs = []            # horde kill bursts: x, y, t0, boss
+        self.wave_banner = None
+        self.last_kill_draw = -9.0
+        self.cta_shift = 2.0 if self.horde else 0.0
+        self.boss_mode = bool(getattr(world, "boss_mode", False))
+        self.impacts = []          # boss attack hits: (event, t0)   # horde: leaderboard first, then the end card
         self.pause_p = None    # goal freeze-frame progress 0..1 (None = playing)
         self.pause_goal = None
+        self.last_cutin = {}       # uid -> time of the last full ultimate cut-in
+        self.bursts = []           # one-shot PixelLab sprites: (path, wx, wy, size_world, t0, dur, deg, layer)
+        self.proj_prev = {}        # id(projectile) -> (style, x, y): launches / impacts are spotted by diffing
+        self.corpses = []          # knocked-out fighters: (unit, x, y, t0) drawn grey and tipped over
+        self.freeze_t0 = {}        # uid -> video time the current freeze started (pop-in, shatter)
+        self.shatters = []         # (x, y, r, t0): ice bursting off a fighter as a freeze ends
         self.t_off = 0.0       # video time added by freeze-frames (keeps effect clocks moving)
         self._done_t = None
         # both name plates use the same text size, whichever name is longest
@@ -267,6 +313,13 @@ class Renderer:
         w, h = int(self.arena_w), int(self.arena_h)
         f = pygame.Surface((w, h))
         tile_img = None
+        whole = self.sprites.load(self.theme["map_art"]) if self.theme.get("map_art") else None
+        if whole is not None:         # one PixelLab image of the whole arena, scaled up (no tiling)
+            f.blit(pygame.transform.scale(whole, (w, h)), (0, 0))
+            veil = pygame.Surface((w, h), pygame.SRCALPHA)
+            veil.fill((*NIGHT, 45))   # a touch darker so fighters stand out
+            f.blit(veil, (0, 0))
+            return f
         if self.theme.get("floor_art"):
             tile_img = self.sprites.load(self.theme["floor_art"])
         if tile_img is None:
@@ -507,6 +560,28 @@ class Renderer:
                 if u is not None and u.is_main:
                     self.shouts.append((ev["x"], ev["y"], ev["name"].upper() + "!",
                                         _readable(u.color), self.t))
+            elif t == "boss_skill":
+                self.shouts.append((ev["x"], ev["y"] - 200, ev["name"] + "!", (255, 120, 90), self.t))
+            elif t == "boss_impact":
+                self.impacts.append((ev, self.t))
+                self.shake_until = self.t + 0.22
+                self.shake_amp = 10 * self.S
+            elif t == "enraged":
+                self.shouts.append((self.world.W / 2, self.world.H * 0.3, "ENRAGED!", RED_HI, self.t))
+                self.flash_t = self.t
+                self.shake_until = self.t + 0.4
+                self.shake_amp = 16 * self.S
+            elif t == "horde_kill":
+                self.puffs.append((ev["x"], ev["y"], self.t, ev.get("boss", False)))
+                self.last_kill_draw = self.t
+                if ev.get("boss"):
+                    self.shouts.append((ev["x"], ev["y"], "BOSS DOWN!", YELLOW, self.t))
+                    self.shake_until = self.t + 0.3
+                    self.shake_amp = 12 * self.S
+                elif ev.get("combo", 0) in (10, 20, 30, 40, 50):
+                    self.popups.append((ev["x"], ev["y"] - 30, f"x{ev['combo']} COMBO!", YELLOW, self.t))
+            elif t == "wave":
+                self.wave_banner = (self.t, ev["wave"], ev.get("boss"), ev.get("new"), ev.get("new_sprite"))
             elif t == "goal":
                 self._celebrate_goal(ev)
                 self.pause_goal = ev
@@ -520,6 +595,7 @@ class Renderer:
                 self.shake_until = self.t + 0.2
                 self.shake_amp = 9 * self.S
             elif t == "frozen":
+                self.freeze_t0.setdefault(ev["unit"], self.t)
                 self.rings.append((ev["x"], ev["y"], 10, 110, self.t, 0.3, (190, 230, 255), 6))
             elif t == "freeze_all":
                 self.shouts.append((self.world.W / 2, self.world.H * 0.3, "FREEZE!", (170, 225, 255), self.t))
@@ -549,11 +625,13 @@ class Renderer:
                 col = u.color if u else (255, 255, 255)
                 r = u.radius if u else 40
                 self.rings.append((ev["x"], ev["y"], r, r * 2.4, self.t, 0.4, col, 10))
-                if ev.get("main") and (self.soccer or (self.royale and not self.world.done)):
+                if ev.get("main") and u is not None:
+                    self.corpses.append((u, ev["x"], ev["y"], self.t))
+                if ev.get("main") and (self.soccer or ((self.royale or self.boss_mode) and not self.world.done)):
                     killer = by_uid.get(ev.get("killer"))
                     self.elims.append((u.name if u else "?", killer.name if killer else None, self.t,
                                        _readable(u.color) if u else CREAM))
-                    self.shouts.append((ev["x"], ev["y"], "K.O.!" if self.soccer else "ELIMINATED!", RED_HI, self.t))
+                    self.shouts.append((ev["x"], ev["y"], "K.O.!" if (self.soccer or self.boss_mode) else "ELIMINATED!", RED_HI, self.t))
                     self.shake_until = self.t + 0.25
                     self.shake_amp = 10 * self.S
                 elif ev.get("main"):
@@ -565,7 +643,15 @@ class Renderer:
                 u = by_uid.get(ev["unit"])
                 col = _mix(u.color, (255, 255, 255), 0.5) if u else (255, 255, 255)
                 self.rings.append((ev["x"], ev["y"], 30, 260, self.t, 0.5, col, 10))
-                if u is not None and u.is_main:   # the full casting animation (shout goes in the cut-in)
+                if u is not None and u.is_main:
+                    for name, layer, mult, dur in ULT_FX.get(_art_id(u), []):
+                        self.bursts.append((f"art/fx/ult/{name}.png", ev["x"], ev["y"], u.radius * mult,
+                                            self.t, dur, 0.0, layer))
+                gap = float(self.spec.get("cutin_gap", 0))
+                if u is not None and u.is_main and gap and self.t - self.last_cutin.get(u.uid, -99) < gap:
+                    pass                          # chained cast (survival): effect only, no banner
+                elif u is not None and u.is_main:   # the full casting animation (shout goes in the cut-in)
+                    self.last_cutin[u.uid] = self.t
                     self.casts.append((u.uid, self.t, ev.get("shout") or (ev.get("label", "") + "!")))
                     self.shake_until = self.t + 0.25
                     self.shake_amp = 9 * self.S
@@ -600,14 +686,18 @@ class Renderer:
         surf.blit(self.bg, (0, 0))
         surf.blit(self.frame_img, (self.ax - 8 + self._ox, self.ay - 8 + self._oy))
         surf.blit(self.floor, (self.ax + self._ox, self.ay + self._oy))
+        if self.theme.get("props"):
+            self._draw_props()
         if self.soccer:
             self._draw_goals()
-        if self.royale or self.soccer:
+        if self.boss_mode and self.phase == "fight":
+            self._draw_telegraphs()
+        if self.royale or self.soccer or self.horde:
             self._draw_hazards()
             if self.phase == "fight":
                 self._draw_storm()
             self._draw_terrain()
-            if self.phase == "fight":
+            if self.phase == "fight" or self.horde:
                 self._draw_items()
             if not (self.soccer and self.phase == "intro"):
                 self._draw_balls()
@@ -621,10 +711,19 @@ class Renderer:
         casting = [(c, u) for c, u in casting if u is not None and u.alive]
         for c, u in casting:
             self._draw_cast_under(u, self.t - c[1])
+        self._track_projectiles()
+        self._draw_bursts("under")
+        if self.boss_mode and w.boss is not None and w.boss.alive and getattr(w, "enraged", False):
+            self._draw_enraged_aura(w.boss)
+        if self.corpses:
+            self._draw_corpses()
+        for u in alive:
+            self._draw_frost_patch(u)
+            if self.soccer:
+                self._draw_team_spot(u)
         for u in alive:
             self._draw_body(u)
-            if self.royale or self.soccer:
-                self._draw_frozen(u)
+            self._draw_frozen(u)
             if self.soccer:
                 self._draw_jersey(u)
         for u in alive:
@@ -634,16 +733,39 @@ class Renderer:
             if p.alive:
                 self._draw_projectile(p)
         for u in alive:
-            if not u.is_main:
+            if self.boss_mode and u.side == 0 and u.is_main:
+                self._draw_mini_bar(u)
+            elif self.boss_mode and not u.is_main:
+                continue
+            elif not u.is_main and self.horde:
+                if u.tpl.get("boss"):
+                    self._draw_mini_bar(u)
+            elif not u.is_main:
                 self._draw_hp(u)
             elif self.royale or self.soccer:
                 self._draw_mini_bar(u)
         self._draw_fx()
+        self._draw_bursts("over")
+        if self.shatters:
+            self._draw_shatters()
+        if self.impacts:          # boss hits stay inside the arena (a long fire breath can overshoot)
+            clip = self.surface.get_clip()
+            self.surface.set_clip(pygame.Rect(int(self.ax), int(self.ay), int(self.arena_w), int(self.arena_h)))
+            self._draw_impacts()
+            self.surface.set_clip(clip)
         if self.bolts:
             self._draw_bolts()
         for c, u in casting:
             self._draw_cast_over(u, self.t - c[1])
-        if self.soccer:
+        if self.boss_mode:
+            self._draw_boss_hud()
+            self._draw_boss_panels()
+        elif self.horde:
+            self._draw_puffs()
+            self._draw_horde_hud()
+            self._draw_horde_panel()
+            self._draw_wave_banner()
+        elif self.soccer:
             self._draw_soccer_hud()
             self._draw_soccer_panels()
         elif self.royale:
@@ -668,14 +790,24 @@ class Renderer:
         elif self.cta_on and not self.soccer and not w.done and cta.PREDICT[0] <= w.t < cta.PREDICT[1]:
             self._draw_predict_strip(w.t)
         if self.ko_t is not None and self.t - self.ko_t < 0.9:
-            self._draw_center_text("K.O.!", 6, RED_HI, pop=self.t - self.ko_t)
+            self._draw_center_text("DEFEATED!" if self.horde else ("BOSS DOWN!" if self.boss_mode and self.world.winner_side == 0
+                                   else ("WIPED OUT!" if self.boss_mode else "K.O.!")), 6 if not self.horde else 5, RED_HI,
+                                   pop=self.t - self.ko_t)
         if w.done and (self.ko_t is None or self.t - self.ko_t >= 0.6):
             if self._done_t is None:
                 self._done_t = self.t
             since = self.t - self._done_t   # seconds since the fight ended (the end hold advances self.t)
-            self._draw_winner_card(lift=self._cta_lift(since))
-            if self.cta_on and since >= cta.CTA_AT:
-                self._draw_end_cta(since)
+            if self.horde and since < self.cta_shift + cta.CTA_AT:
+                if since >= 0.6:
+                    self._draw_horde_board(since)
+            elif self.horde:
+                self._draw_horde_card(1.0)
+                if self.cta_on:
+                    self._draw_end_cta(since - self.cta_shift)
+            else:
+                self._draw_winner_card(lift=self._cta_lift(since))
+                if self.cta_on and since >= cta.CTA_AT:
+                    self._draw_end_cta(since)
         if intro_flash:   # one white frame on impact
             fl = pygame.Surface((IW, IH), pygame.SRCALPHA)
             fl.fill((255, 255, 255, 235))
@@ -703,16 +835,35 @@ class Renderer:
         self._draw_token(u, self.sx(u.x), self.sy(u.y), u.radius * self.k)
 
     def _body_sprite_path(self, u):
+        if u.tpl.get("sprite"):            # horde enemies: their own PixelLab art
+            return u.tpl["sprite"]
         if u.is_main:
             return f"characters/art/{_art_id(u)}/body.png"
         return f"characters/art/{_art_id(u)}/summon_{u.kind}.png"
 
-    def _draw_token(self, u, cx, cy, r, status=True):
+    def _pose(self, u, status):
+        """'hurt' (main below 30% HP), 'victory' (the winner once it's over) or None."""
+        if not u.is_main or not u.alive or u.tpl.get("sprite"):
+            return None
+        w = self.world
+        if w.done and w.winner_side == u.side and not self.soccer:
+            return "victory"
+        if status and not w.done and u.hp < 0.3 * u.max_hp:
+            return "hurt"
+        return None
+
+    def _draw_token(self, u, cx, cy, r, status=True, pose=None):
         """A unit's ball at screen position (cx, cy) with radius r: sprite or procedural."""
         surf = self.surface
         flash = self.world.t - u.last_hurt < 0.1 and status
         path = self._body_sprite_path(u)
         src = self.sprites.load(path, trim=True)
+        pose = pose or self._pose(u, status)
+        if pose == "hurt":          # shaky on its feet
+            cx += math.sin(self.t * 31 + u.uid) * r * 0.05
+        elif pose == "victory":     # proud hops + a golden glow behind
+            cy -= abs(math.sin(self.t * 6.5)) * r * 0.14
+            self._victory_glow(cx, cy, r)
         if src is not None:
             # fit the visible art (hood, cape, wings included) to ~2.1x the physics radius;
             # characters can fine-tune with "art_fit": {"scale": 1.0, "dy": 0.0}
@@ -722,6 +873,8 @@ class Renderer:
             img = self.sprites.scaled(path, sw * f, sh * f, trim=True, flash=flash)
             top = cy - img.get_height() / 2 - r * (0.08 - float(fit.get("dy", 0.0)))
             surf.blit(img, (int(cx - img.get_width() / 2), int(top)))
+            if pose == "hurt":
+                self._hurt_overlay(u, img, int(cx - img.get_width() / 2), int(top), r)
         else:
             col = _mix(u.color, (255, 255, 255), 0.6) if flash else u.color
             pygame.draw.circle(surf, col, (cx, cy), r)
@@ -733,6 +886,185 @@ class Renderer:
                 pygame.draw.circle(surf, LIME, (cx, cy), r + 2, 2)
             elif any(b["stat"] == "speed" and b.get("mul", 1) < 1 for b in u.buffs):
                 pygame.draw.circle(surf, ICE, (cx, cy), r + 2, 2)
+
+    def _draw_props(self):
+        """Neutral arenas: the two theme props sit in opposite corners (decor only, no collision)."""
+        size = self.arena_w * 0.15
+        spots = [(0.1, 0.08), (0.9, 0.92), (0.9, 0.08), (0.1, 0.92)]
+        for i, path in enumerate(self.theme["props"] * 2):
+            src = self.sprites.load(path, trim=True)
+            if src is None:
+                continue
+            sw, sh = src.get_size()
+            f = size / max(sw, sh)
+            img = self.sprites.scaled(path, sw * f, sh * f, trim=True)
+            if i >= 2:
+                img = pygame.transform.flip(img, True, False)
+            fx, fy = spots[i]
+            x = self.ax + self._ox + fx * self.arena_w
+            y = self.ay + self._oy + fy * self.arena_h
+            self.surface.blit(img, img.get_rect(center=(int(x), int(y))))
+
+    def _track_projectiles(self):
+        """Launch flash when a projectile appears, impact burst (and a scorch mark for fireballs)
+        where it disappears: spotted by diffing the projectile list frame to frame."""
+        cur = {id(p): p for p in self.world.projectiles if p.alive}
+        for pid, (style, x, y) in self.proj_prev.items():
+            if pid in cur or style not in PROJ_FX:
+                continue
+            _, hit, size = PROJ_FX[style]
+            if hit:
+                self.bursts.append((f"art/fx/proj/{hit}.png", x, y, size, self.t, 0.28, 0.0, "over"))
+            if style == "fireball":
+                self.bursts.append(("art/fx/proj/scorch_mark.png", x, y, 90, self.t, 1.6, 0.0, "under"))
+        for pid, p in cur.items():
+            if pid in self.proj_prev or p.style not in PROJ_FX:
+                continue
+            launch = PROJ_FX[p.style][0]
+            if launch:
+                deg = -math.degrees(math.atan2(p.vy, p.vx))
+                self.bursts.append((f"art/fx/proj/{launch}.png", p.x, p.y, 70, self.t, 0.16, deg, "over"))
+        self.proj_prev = {pid: (p.style, p.x, p.y) for pid, p in cur.items()}
+
+    def _draw_bursts(self, layer):
+        """One-shot sprites: pop in, grow a little, fade out. Missing art is skipped."""
+        keep = []
+        for b in self.bursts:
+            path, x, y, size, t0, dur, deg, lay = b
+            age = self.t - t0
+            if age > dur:
+                continue
+            keep.append(b)
+            if lay != layer:
+                continue
+            src = self.sprites.load(path, trim=True)
+            if src is None:
+                continue
+            k = age / dur
+            grow = 0.75 + 0.35 * min(1.0, k * 3) if dur < 1.0 else 1.0
+            d = size * self.k * grow
+            sw, sh = src.get_size()
+            f = d / max(sw, sh)
+            img = self.sprites.scaled(path, sw * f, sh * f, trim=True)
+            if deg:
+                img = pygame.transform.rotate(img, deg)
+            else:
+                img = img.copy()
+            img.set_alpha(int(255 * min(1.0, (1 - k) / 0.4)))
+            self.surface.blit(img, img.get_rect(center=(int(self.sx(x)), int(self.sy(y)))))
+        if layer == "over":
+            self.bursts = keep
+
+    def _draw_enraged_aura(self, b):
+        pre = BOSS_PREFIX.get(b.kind, "")
+        path = f"art/boss/fx2/{pre}_enraged_aura.png"
+        if not pre or self.sprites.load(path, trim=True) is None:
+            return
+        d = b.radius * self.k * 2.9 * (1 + 0.04 * math.sin(self.t * 6))
+        img = pygame.transform.rotate(self.sprites.scaled(path, d, d, trim=True), (self.t * 40) % 360)
+        img.set_alpha(200)
+        self.surface.blit(img, img.get_rect(center=(int(self.sx(b.x)), int(self.sy(b.y)))))
+
+    def _fx_sprite(self, path, cx, cy, size, since, dur=0.4, grow=0.4):
+        """Intro helper: a sprite burst at screen (cx, cy), `since` seconds after it started."""
+        if since < 0 or since > dur:
+            return
+        src = self.sprites.load(path, trim=True)
+        if src is None:
+            return
+        k = since / dur
+        d = size * (1 - grow + grow * min(1.0, k * 3))
+        sw, sh = src.get_size()
+        f = d / max(sw, sh)
+        img = self.sprites.scaled(path, sw * f, sh * f, trim=True).copy()
+        img.set_alpha(int(255 * min(1.0, (1 - k) / 0.35)))
+        self.surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
+
+    def _hurt_overlay(self, u, img, x, y, r):
+        """Low HP: cracks across the sprite, a red pulse and a bobbing sweat drop."""
+        w, h = img.get_size()
+        over = pygame.Surface((w, h), pygame.SRCALPHA)
+        pulse = 0.5 + 0.5 * math.sin(self.t * 10)
+        over.fill((255, 40, 40, int(40 + 50 * pulse)))
+        rng = random.Random(u.uid * 7919)
+        for _ in range(3):                      # jagged cracks
+            px, py = rng.uniform(0.2, 0.8) * w, rng.uniform(0.15, 0.5) * h
+            pts = [(px, py)]
+            ang = rng.uniform(0, math.tau)
+            for _ in range(4):
+                ang += rng.uniform(-0.9, 0.9)
+                px += math.cos(ang) * w * 0.09
+                py += math.sin(ang) * h * 0.09
+                pts.append((px, py))
+            pygame.draw.lines(over, (25, 15, 20, 230), False, pts, max(2, int(w / 28)))
+        # keep the overlay inside the sprite's own silhouette
+        sil = pygame.mask.from_surface(img).to_surface(setcolor=(255, 255, 255, 255), unsetcolor=(0, 0, 0, 0))
+        over.blit(sil, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+        self.surface.blit(over, (x, y))
+        dx, dy = x + w * 0.85, y + h * 0.12 + math.sin(self.t * 5) * r * 0.06   # sweat drop
+        d = max(4, r * 0.16)
+        pygame.draw.polygon(self.surface, (150, 210, 255), [(dx, dy - d * 1.4), (dx - d * 0.7, dy), (dx + d * 0.7, dy)])
+        pygame.draw.circle(self.surface, (150, 210, 255), (dx, dy), d * 0.7)
+        pygame.draw.circle(self.surface, (255, 255, 255), (dx - d * 0.25, dy - d * 0.1), max(1, d * 0.22))
+
+    def _victory_glow(self, cx, cy, r):
+        """Winner: a pulsing golden halo behind the sprite with twinkling sparkles."""
+        p = 0.5 + 0.5 * math.sin(self.t * 5)
+        R = int(r * (1.35 + 0.1 * p))
+        g = pygame.Surface((R * 2 + 4, R * 2 + 4), pygame.SRCALPHA)
+        for i, a in ((1.0, 50), (0.82, 70), (0.64, 90)):
+            pygame.draw.circle(g, (255, 215, 80, int(a * (0.7 + 0.3 * p))), (R + 2, R + 2), int(R * i))
+        self.surface.blit(g, (int(cx - R - 2), int(cy - R - 2)))
+        for i in range(5):                      # 4-point twinkles orbiting
+            a = self.t * 1.6 + i * math.tau / 5
+            tw = max(0.0, math.sin(self.t * 7 + i * 1.7))
+            sx, sy = cx + math.cos(a) * r * 1.45, cy + math.sin(a) * r * 1.3
+            L = r * 0.22 * tw
+            if L < 1:
+                continue
+            pygame.draw.line(self.surface, (255, 250, 210), (sx - L, sy), (sx + L, sy), max(1, int(r * 0.05)))
+            pygame.draw.line(self.surface, (255, 250, 210), (sx, sy - L), (sx, sy + L), max(1, int(r * 0.05)))
+
+    def _draw_corpses(self):
+        """K.O.'d fighters: the real sprite tips over and goes grey, with dizzy stars. Fades,
+        unless it was the final K.O. (then it stays down while the winner celebrates)."""
+        keep = []
+        for u, x, y, t0 in self.corpses:
+            age = self.t - t0
+            final = self.world.done
+            if age > 1.6 and not final:
+                continue
+            keep.append((u, x, y, t0))
+            path = self._body_sprite_path(u)
+            src = self.sprites.load(path, trim=True)
+            if src is None:
+                continue
+            cx, cy, r = self.sx(x), self.sy(y), u.radius * self.k
+            fit = u.tpl.get("art_fit", {})
+            sw, sh = src.get_size()
+            f = 2.1 * r * float(fit.get("scale", 1.0)) / max(sw, sh)
+            img = pygame.transform.grayscale(self.sprites.scaled(path, sw * f, sh * f, trim=True))
+            tip = min(1.0, age / 0.25)
+            img = pygame.transform.rotate(img, -80 * tip * (1 if u.side == 0 else -1))
+            alpha = 210 if final else int(210 * max(0.0, 1 - max(0.0, age - 1.1) / 0.5))
+            img.set_alpha(alpha)
+            self.surface.blit(img, img.get_rect(center=(int(cx), int(cy + r * 0.3 * tip))))
+            for i in range(3):                  # dizzy stars circling above
+                a = age * 5 + i * math.tau / 3
+                self._star(cx + math.cos(a) * r * 0.7, cy - r * 0.9 + math.sin(a) * r * 0.25,
+                           max(3, r * 0.17), (255, 230, 90, alpha))
+        self.corpses = keep
+
+    def _star(self, x, y, R, col):
+        pts = []
+        for i in range(10):
+            rr = R if i % 2 == 0 else R * 0.45
+            a = -math.pi / 2 + i * math.pi / 5
+            pts.append((R + 2 + math.cos(a) * rr, R + 2 + math.sin(a) * rr))
+        g = pygame.Surface((int(R * 2 + 4), int(R * 2 + 4)), pygame.SRCALPHA)
+        pygame.draw.polygon(g, col, pts)
+        pygame.draw.polygon(g, (60, 40, 10, col[3]), pts, 1)
+        self.surface.blit(g, (int(x - R - 2), int(y - R - 2)))
 
     def _cap(self, cx, cy, R, y_cut, n=24):
         """Polygon of the part of a circle above the line y = cy - y_cut."""
@@ -1005,6 +1337,8 @@ class Renderer:
                 pygame.draw.line(surf, (225, 240, 255), a, (a[0] - d[0] * ln, a[1] - d[1] * ln),
                                  max(1, int(r * 0.25)))
         path = f"characters/art/{_art_id(p.owner)}/projectile_{p.style}.png"
+        if p.style in ("fireball", "puck", "shuriken") and self.sprites.load(f"art/fx/proj/{p.style}.png", trim=True) is not None:
+            path = f"art/fx/proj/{p.style}.png"
         straight = p.style not in ("shuriken", "puck")
         src = self.sprites.load(path, trim=True, straighten=straight)
         if src is not None:
@@ -1610,6 +1944,12 @@ class Renderer:
         self.surface.fill(INK, (x - 1, y - 1, w + 2, h + 2))
         self.surface.fill((60, 20, 24), (x, y, w, h))
         col = (90, 220, 90) if frac > 0.5 else ((255, 200, 60) if frac > 0.25 else (240, 60, 60))
+        if self.soccer and u.is_main:     # team-coloured bars: which side a player is on at a glance
+            col = self.team_color(u.side)
+            self.surface.fill(col, (x - 3, y - 3, w + 6, h + 6))
+            self.surface.fill(INK, (x - 1, y - 1, w + 2, h + 2))
+            self.surface.fill((60, 20, 24), (x, y, w, h))
+            col = _mix(col, (255, 255, 255), 0.25)
         self.surface.fill(col, (x, y, w * frac, h))
 
     def _draw_royale_hud(self):
@@ -1972,18 +2312,86 @@ class Renderer:
             pygame.draw.circle(self.surface, (30, 30, 34), (cx, cy), r * 0.25)
             pygame.draw.circle(self.surface, INK, (cx, cy), r, max(1, int(2 * self.S)))
 
+    FREEZE_ART = "art/fx/freeze"
+
+    def _is_frozen(self, u):
+        return self.world.t < u.frozen_until and not (self.soccer and self.world.t < self.world.kickoff_until)
+
+    def _draw_frost_patch(self, u):
+        """Frost spreading on the floor under a frozen fighter (drawn under the bodies)."""
+        if not self._is_frozen(u):
+            return
+        path = f"{self.FREEZE_ART}/frost_patch.png"
+        if self.sprites.load(path, trim=True) is None:
+            return
+        age = self.t - self.freeze_t0.get(u.uid, self.t)
+        d = u.radius * self.k * 3.0 * min(1.0, 0.4 + age / 0.15)
+        img = self.sprites.scaled(path, d, d, trim=True)
+        self.surface.blit(img, img.get_rect(center=(int(self.sx(u.x)), int(self.sy(u.y) + u.radius * self.k * 0.35))))
+
     def _draw_frozen(self, u):
-        """Ice block over a frozen fighter."""
-        if self.world.t >= u.frozen_until or (self.soccer and self.world.t < self.world.kickoff_until):
-            return   # (the kickoff hold isn't a freeze)
-        cx, cy, r = self.sx(u.x), self.sy(u.y), u.radius * self.k * 1.25
-        g = pygame.Surface((int(r * 2.2), int(r * 2.2)), pygame.SRCALPHA)
-        c = g.get_width() / 2
-        pts = [(c + math.cos(a) * r, c + math.sin(a) * r) for a in [i * math.pi / 3 + 0.5 for i in range(6)]]
-        pygame.draw.polygon(g, (170, 220, 255, 150), pts)
-        pygame.draw.polygon(g, (240, 250, 255, 230), pts, max(2, int(3 * self.S)))
-        pygame.draw.line(g, (255, 255, 255, 200), (c - r * 0.4, c - r * 0.5), (c - r * 0.1, c - r * 0.1), 2)
-        self.surface.blit(g, (int(cx - c), int(cy - c)))
+        """Ice prison over a frozen fighter: pops in, glints, shatters when the freeze ends."""
+        if not self._is_frozen(u):
+            if u.uid in self.freeze_t0:          # just thawed: burst the ice off
+                del self.freeze_t0[u.uid]
+                self.shatters.append((u.x, u.y, u.radius * self.k, self.t))
+            return
+        t0 = self.freeze_t0.setdefault(u.uid, self.t)
+        age = self.t - t0
+        cx, cy, r = self.sx(u.x), self.sy(u.y), u.radius * self.k
+        # the fighter itself goes icy: a pale-blue wash over the body
+        tint = pygame.Surface((int(r * 2.3), int(r * 2.3)), pygame.SRCALPHA)
+        pygame.draw.circle(tint, (150, 210, 255, 110), (tint.get_width() // 2, tint.get_height() // 2), int(r * 1.05))
+        self.surface.blit(tint, (int(cx - tint.get_width() / 2), int(cy - tint.get_height() / 2)))
+        path = f"{self.FREEZE_ART}/ice_prison.png"
+        if self.sprites.load(path, trim=True) is not None:
+            pop = 1.0 + 0.35 * max(0.0, 1 - age / 0.12)          # slams shut slightly oversized
+            d = r * 2.75 * pop
+            img = self.sprites.scaled(path, d, d, trim=True)
+            self.surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
+        else:
+            rr = r * 1.25
+            g = pygame.Surface((int(rr * 2.2), int(rr * 2.2)), pygame.SRCALPHA)
+            c = g.get_width() / 2
+            pts = [(c + math.cos(a) * rr, c + math.sin(a) * rr) for a in [i * math.pi / 3 + 0.5 for i in range(6)]]
+            pygame.draw.polygon(g, (170, 220, 255, 150), pts)
+            pygame.draw.polygon(g, (240, 250, 255, 230), pts, max(2, int(3 * self.S)))
+            pygame.draw.line(g, (255, 255, 255, 200), (c - rr * 0.4, c - rr * 0.5), (c - rr * 0.1, c - rr * 0.1), 2)
+            self.surface.blit(g, (int(cx - c), int(cy - c)))
+        flake = f"{self.FREEZE_ART}/snowflake.png"
+        if self.sprites.load(flake, trim=True) is not None:     # three glints orbiting the ice
+            fs = r * 0.42
+            img = self.sprites.scaled(flake, fs, fs, trim=True)
+            for i in range(3):
+                a = age * 2.4 + i * 2.094
+                tw = 0.6 + 0.4 * math.sin(age * 9 + i * 2)
+                sm = pygame.transform.scale(img, (max(1, int(fs * tw)), max(1, int(fs * tw))))
+                self.surface.blit(sm, sm.get_rect(center=(int(cx + math.cos(a) * r * 1.25),
+                                                          int(cy + math.sin(a) * r * 1.1))))
+
+    def _draw_shatters(self):
+        """Ice chunks bursting outward when a freeze ends (0.3 s)."""
+        path = f"{self.FREEZE_ART}/ice_shatter.png"
+        have = self.sprites.load(path, trim=True) is not None
+        keep = []
+        for x, y, r, t0 in self.shatters:
+            age = self.t - t0
+            if age > 0.3:
+                continue
+            keep.append((x, y, r, t0))
+            p = age / 0.3
+            cx, cy = self.sx(x), self.sy(y)
+            if have:
+                d = r * (2.4 + 1.6 * p)
+                img = self.sprites.scaled(path, d, d, trim=True).copy()
+                img.set_alpha(int(255 * (1 - p)))
+                self.surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
+            else:
+                for i in range(8):
+                    a = i * math.pi / 4 + 0.3
+                    pygame.draw.circle(self.surface, (220, 240, 255), (cx + math.cos(a) * r * (1 + p * 1.5),
+                                       cy + math.sin(a) * r * (1 + p * 1.5)), max(2, r * 0.18 * (1 - p)))
+        self.shatters = keep
 
     def _draw_bolts(self):
         keep = []
@@ -2041,20 +2449,26 @@ class Renderer:
                 self.surface.blit(net, (int(x0), int(top)))
             pygame.draw.line(self.surface, self.team_color(team), (x0, y_line), (x1, y_line), max(2, int(3 * self.S)))
 
-    def _draw_jersey(self, u):
-        """Team colour ring + a little shirt badge: which team a player is on."""
+    def _draw_team_spot(self, u):
+        """Sports-game team marker on the ground: a glowing team-colour ellipse under the feet
+        (drawn before the body, so it never covers the character)."""
         if not u.is_main:
             return
         cx, cy, r = self.sx(u.x), self.sy(u.y), u.radius * self.k
         col = self.team_color(u.side)
-        pygame.draw.circle(self.surface, INK, (cx, cy), r * 1.18, max(3, int(6 * self.S)))
-        pygame.draw.circle(self.surface, col, (cx, cy), r * 1.15, max(2, int(4 * self.S)))
-        bx, by, s = cx + r * 0.8, cy + r * 0.75, max(6, r * 0.38)     # shirt badge
-        shirt = [(bx - s, by - s * 0.6), (bx - s * 0.4, by - s), (bx + s * 0.4, by - s), (bx + s, by - s * 0.6),
-                 (bx + s * 0.6, by - s * 0.2), (bx + s * 0.4, by - s * 0.3), (bx + s * 0.4, by + s),
-                 (bx - s * 0.4, by + s), (bx - s * 0.4, by - s * 0.3), (bx - s * 0.6, by - s * 0.2)]
-        pygame.draw.polygon(self.surface, col, shirt)
-        pygame.draw.polygon(self.surface, INK, shirt, max(1, int(2 * self.S)))
+        pulse = 0.5 + 0.5 * math.sin(self.t * 4 + u.uid)
+        w, h = int(r * 2.3), int(r * 0.85)
+        g = pygame.Surface((w + 8, h + 8), pygame.SRCALPHA)
+        rect = pygame.Rect(4, 4, w, h)
+        pygame.draw.ellipse(g, (*col, int(120 + 50 * pulse)), rect)                       # team-colour fill
+        pygame.draw.ellipse(g, (*_mix(col, (255, 255, 255), 0.45), 255), rect, max(3, int(5 * self.S)))  # bright rim
+        inner = rect.inflate(-w * 0.35, -h * 0.35)
+        pygame.draw.ellipse(g, (*col, 150), inner, max(1, int(2 * self.S)))
+        self.surface.blit(g, (int(cx - w / 2 - 4), int(cy + r * 0.62 - h / 2 - 4)))
+
+    def _draw_jersey(self, u):
+        """(Team colour now lives on the ground spot and the HP bar.)"""
+        return
 
     def _draw_soccer_hud(self):
         surf, w = self.surface, self.world
@@ -2283,6 +2697,431 @@ class Renderer:
             img = self.text.fit(f"MVP: {m.name.upper()} . {g} GOAL{'S' if g != 1 else ''}", 1, YELLOW, cw - 90)
             self.surface.blit(img, (x + 68, y + ch - 30 - img.get_height() // 2))
 
+    # ── horde survival: HUD, kill fx, waves, leaderboard ────────────────
+
+    def _draw_horde_hud(self):
+        surf, w = self.surface, self.world
+        hero = w.mains[0]
+        hc = self.spec["horde"]
+        title = self.text.render(hc["title"], 2, (200, 210, 190))
+        surf.blit(title, (SAFE + 4, HUD_Y - 30))
+        wave = self.text.render(f"WAVE {max(1, w.wave)}", 2, YELLOW)
+        surf.blit(wave, (IW - SAFE - wave.get_width() - 4, HUD_Y - 30))
+        # the big number
+        cnt = self.text.render(str(w.kill_count), 5, CREAM)
+        icon = self.sprites.load("art/horde/skull_icon.png")
+        total = cnt.get_width() + (44 if icon else 0)
+        x = IW // 2 - total // 2
+        if icon:
+            img = self.sprites.scaled("art/horde/skull_icon.png", 38, 38)
+            surf.blit(img, (x, HUD_Y - 10 + (cnt.get_height() - 38) // 2))
+            x += 44
+        pop = self.t - self.last_kill_draw < 0.08
+        surf.blit(cnt, (x, HUD_Y - 10 - (3 if pop else 0)))
+        lab = self.text.render("DEFEATED", 1, (200, 200, 210))
+        surf.blit(lab, (IW // 2 - lab.get_width() // 2, HUD_Y - 10 + cnt.get_height() + 2))
+        # hero HP bar
+        y = HUD_Y + 58
+        frac = max(0.0, hero.hp) / hero.max_hp if hero.alive else 0.0
+        bw = SAFE_W - 70
+        self._draw_token(hero, SAFE + 22, y + 7, 18, status=False)
+        surf.fill(INK, (SAFE + 46, y, bw, 16))
+        col = (90, 220, 90) if frac > 0.5 else ((255, 200, 60) if frac > 0.25 else (240, 60, 60))
+        surf.fill(col, (SAFE + 48, y + 2, (bw - 4) * frac, 12))
+        hp = self.text.render(f"{max(0, math.ceil(hero.hp))}", 1, CREAM)
+        surf.blit(hp, (SAFE + 48 + bw - hp.get_width() - 6, y + 2))
+
+    def _draw_horde_panel(self):
+        surf, w = self.surface, self.world
+        hero = w.mains[0]
+        top = int(self.ay + self.arena_h + 12)
+        ph = 64
+        self._panel((SAFE, top, SAFE_W, ph), trim=_readable(hero.color))
+        label = (hero.meter or {}).get("label") or hero.name
+        self._ult_icon(hero, SAFE + 8, top + 8, 48, label)
+        name = self.text.fit(label.upper(), 1, _readable(hero.color), SAFE_W // 2 - 70)
+        surf.blit(name, (SAFE + 64, top + 10))
+        segs = 8
+        f = hero.meter_fraction() if hero.meter else 0
+        for i in range(segs):
+            on = (i + 1) / segs <= f + 1e-6
+            surf.fill(_readable(hero.color) if on else (40, 40, 50), (SAFE + 64 + i * 22, top + 32, 18, 10))
+        board = self.spec["horde"].get("board") or {}
+        prev = board.get("prev_record") or 0
+        rec = self.text.render(f"RECORD: {prev}" if prev else "RECORD: -", 2, YELLOW)
+        surf.blit(rec, (SAFE + SAFE_W - rec.get_width() - 12, top + (ph - rec.get_height()) // 2))
+
+    def _draw_puffs(self):
+        keep = []
+        fx = self.spec["horde"].get("death_fx", "fx_bones")
+        path = f"art/horde/{fx}.png"
+        for x, y, t0, big in self.puffs:
+            age = self.t - t0
+            if age > 0.35:
+                continue
+            keep.append((x, y, t0, big))
+            size = (34 if not big else 110) * self.S * (0.7 + age * 1.6)
+            if self.sprites.load(path) is not None:
+                img = self.sprites.scaled(path, int(size) // 4 * 4, int(size) // 4 * 4)
+                if age > 0.2:
+                    img = img.copy()
+                    img.set_alpha(int(255 * (0.35 - age) / 0.15))
+                self.surface.blit(img, (int(self.sx(x) - img.get_width() / 2), int(self.sy(y) - img.get_height() / 2)))
+        self.puffs = keep
+
+    def _draw_wave_banner(self):
+        if not self.wave_banner:
+            return
+        t0, wave, boss, new, new_sprite = self.wave_banner
+        age = self.t - t0
+        if new and not boss and age <= 1.1:
+            self._draw_new_enemy_card(age, new, new_sprite)
+        if age > (1.0 if boss else 0.6):
+            return
+        sc = 5 if age < 0.05 else 4
+        img = self.text.render(f"WAVE {wave}!", sc, YELLOW)
+        y = int(self.ay + self.arena_h * 0.3)
+        self.surface.blit(img, (IW // 2 - img.get_width() // 2, y))
+        if boss:
+            b = self.text.fit(f"! {boss} INCOMING !", 2, RED_HI if int(age * 8) % 2 == 0 else CREAM, self.arena_w - 20)
+            self.surface.blit(b, (IW // 2 - b.get_width() // 2, y + img.get_height() + 6))
+
+    def _draw_new_enemy_card(self, age, name, sprite):
+        """'NEW ENEMY!' card under the wave banner: the enemy type this wave brings in."""
+        pop = min(1.0, age / 0.12)
+        fade = 1.0 if age < 0.9 else max(0.0, 1 - (age - 0.9) / 0.2)
+        S = self.S
+        w = int(self.arena_w * 0.8)
+        tx = int(104 * S)
+        tag = self.text.fit("NEW ENEMY!", 2, RED_HI if int(age * 8) % 2 == 0 else YELLOW, w - tx - 8)
+        nm = self.text.fit(name.upper(), 3, CREAM, w - tx - 8)
+        h = max(int(96 * S), tag.get_height() + nm.get_height() + int(30 * S))
+        x = IW // 2 - w // 2
+        y = int(self.ay + self.arena_h * 0.5) + int((1 - pop) * 30 * S)   # below the wave banner / cut-ins
+        card = pygame.Surface((w, h), pygame.SRCALPHA)
+        card.fill((20, 18, 30, int(215 * fade)))
+        pygame.draw.rect(card, (*RED_HI, int(255 * fade)), (0, 0, w, h), 3)
+        if sprite and self.sprites.load(sprite, trim=True) is not None:
+            src = self.sprites.load(sprite, trim=True)
+            k = 80 * S / max(src.get_size())
+            img = self.sprites.scaled(sprite, src.get_width() * k, src.get_height() * k, trim=True)
+            card.blit(img, (12, (h - img.get_height()) // 2))
+        ty = (h - tag.get_height() - nm.get_height() - 6) // 2
+        card.blit(tag, (tx, ty))
+        card.blit(nm, (tx, ty + tag.get_height() + 6))
+        card.set_alpha(int(255 * fade))
+        self.surface.blit(card, (x, y))
+
+    def _draw_horde_board(self, since):
+        """End screen: this run's score, then the top-10 leaderboard for this horde."""
+        surf = self.surface
+        hc = self.spec["horde"]
+        board = hc.get("board") or {"rows": []}
+        hero = self.world.mains[0]
+        pop = min(1.0, (since - 0.6) / 0.2)
+        x, y = int(self.ax + 8), int(self.ay + 10 + (1 - pop) * 40)
+        w, h = int(self.arena_w - 16), int(self.arena_h - 20)
+        self._panel((x, y, w, h), trim=GOLD)
+        tro = self.sprites.load("art/horde/trophy.png")
+        tt = self.text.fit(f"{hc['title']} LEADERBOARD", 2, YELLOW, w - 70)
+        tx = x + (w - tt.get_width() - (36 if tro else 0)) // 2
+        if tro:
+            surf.blit(self.sprites.scaled("art/horde/trophy.png", 30, 30), (tx, y + 10))
+            tx += 36
+        surf.blit(tt, (tx, y + 14))
+        sc = hc.get("score", {})
+        line = self.text.fit(f"{hero.name.upper()}: {sc.get('kills', self.world.kill_count)} DEFEATED . WAVE {sc.get('wave', self.world.wave)}",
+                             2, CREAM, w - 20)
+        surf.blit(line, (x + (w - line.get_width()) // 2, y + 46))
+        yy = y + 46 + line.get_height() + 6
+        if board.get("new_record") and int(since * 6) % 2 == 0:
+            nr = self.text.render("NEW RECORD!", 3, RED_HI)
+            surf.blit(nr, (x + (w - nr.get_width()) // 2, yy))
+        yy += 34
+        rh = max(22, (y + h - yy - 8) // 10)
+        for i, row in enumerate(board.get("rows", [])[:10]):
+            ry = yy + i * rh
+            me = row["id"] == hero.kind
+            if me:
+                surf.fill(_mix(GOLD, NIGHT, 0.6), (x + 8, ry - 2, w - 16, rh - 2))
+            rank = self.text.render(f"{i + 1}.", 1, YELLOW if i < 3 else CREAM)
+            surf.blit(rank, (x + 16, ry + (rh - rank.get_height()) // 2 - 1))
+            path = f"characters/art/{row['id']}/body.png"
+            if self.sprites.load(path, trim=True) is not None:
+                img = self.sprites.scaled(path, rh - 4, rh - 4, trim=True)
+                surf.blit(img, (x + 48, ry))
+            nm = self.text.fit(row["name"].upper(), 1, CREAM if row["best"] is not None else (130, 130, 140), w // 2)
+            surf.blit(nm, (x + 54 + rh, ry + (rh - nm.get_height()) // 2 - 1))
+            val = self.text.render(str(row["best"]) if row["best"] is not None else "-", 1,
+                                   YELLOW if me else (CREAM if row["best"] is not None else (130, 130, 140)))
+            surf.blit(val, (x + w - val.get_width() - 18, ry + (rh - val.get_height()) // 2 - 1))
+
+    def _draw_horde_card(self, lift):
+        w = self.world
+        hero = w.mains[0]
+        cw, ch = 400, 156
+        x = int(self.ax + (self.arena_w - cw) / 2)
+        y = int(self.ay + 14)
+        self._panel((x, y, cw, ch), trim=GOLD)
+        self._draw_token(hero, x + 62, y + ch // 2 + 4, 36, status=False)
+        n = self.text.render(str(w.kill_count), 5, YELLOW)
+        self.surface.blit(n, (x + 120, y + 16))
+        d = self.text.fit(f"{self.spec['horde']['title']} DEFEATED", 1, CREAM, cw - 140)
+        self.surface.blit(d, (x + 120, y + 18 + n.get_height()))
+        wv = self.text.render(f"WAVE {w.wave}", 2, CREAM)
+        self.surface.blit(wv, (x + 120, y + ch - 36))
+
+    def _intro_horde(self, p, black):
+        """The hero crashes down in the middle; the horde creeps in from every edge; the question."""
+        w = self.world
+        hero = w.mains[0]
+        hc = self.spec["horde"]
+        basic = hc["enemies"]["basic"]["sprite"]
+        # enemies creeping in from the edges
+        if self.sprites.load(basic) is not None:
+            for i in range(12):
+                a = i * 2 * math.pi / 12 + 0.2
+                d = 0.62 - 0.12 * min(1.0, p / 1.3)
+                ex = self.ax + self.arena_w * (0.5 + d * math.cos(a) * 0.75)
+                ey = self.ay + self.arena_h * (0.5 + d * math.sin(a) * 0.75)
+                img = self.sprites.scaled(basic, int(30 * self.S), int(30 * self.S))
+                self.surface.blit(img, (int(ex - img.get_width() / 2), int(ey - img.get_height() / 2 + math.sin(p * 12 + i) * 2)))
+        h0 = INTRO_STYLES["horde"]["hits"][0][0]
+        x1, y1, r = self.sx(hero.x), self.sy(hero.y), hero.radius * self.k
+        if p < h0:
+            e = max(0.0, p / h0)
+            sh = pygame.Rect(0, 0, int(r * 2 * (0.3 + 0.7 * e)), int(r * 0.6 * (0.3 + 0.7 * e)))
+            sh.center = (int(x1), int(y1 + r * 0.9))
+            pygame.draw.ellipse(self.surface, (0, 0, 0), sh)
+            self._token_squash(hero, x1, y1 - (1 - e * e) * self.arena_h * 0.5, r * 1.6, 0.8, 1.3)
+        else:
+            since = p - h0
+            if since < 0.4:
+                k = since / 0.4
+                pygame.draw.circle(self.surface, (255, 255, 255), (x1, y1), r * (1.5 + 5 * k), max(2, int(8 * (1 - k) * self.S)))
+                self._fx_cracks(x1, y1, since, 0.6)
+            sq = max(0.0, 1 - since / 0.12)
+            big = 1.6 - 0.6 * min(1.0, since / 0.5)
+            self._token_squash(hero, x1, y1, r * big, 1 + 0.45 * sq, 1 - 0.35 * sq)
+        if p >= h0 + 0.15:
+            q1 = self.text.fit(f"HOW MANY {hc['title']}", 4, CREAM, self.arena_w - 16)
+            q2 = self.text.fit(f"CAN THE {hero.name.upper()} DEFEAT?", 4, YELLOW, self.arena_w - 16)
+            q3 = self.text.fit("GUESS IN THE COMMENTS!", 2, (255, 150, 150), self.arena_w - 16)
+            y = int(self.ay + self.arena_h * 0.12)
+            for img in (q1, q2):
+                self.surface.blit(img, (IW // 2 - img.get_width() // 2, y))
+                y += img.get_height() + 4
+            self.surface.blit(q3, (IW // 2 - q3.get_width() // 2, int(self.ay + self.arena_h * 0.8)))
+
+    # ── boss raid: warning zones, impacts, boss HUD, enraged ────────────
+
+    def _tg_points(self, tg, grow=1.0):
+        """Screen polygon for a cone / beam warning (grow 0..1 = how far the fill has crept)."""
+        cx, cy = self.sx(tg["x"]), self.sy(tg["y"])
+        if tg["kind"] == "cone":
+            rng_ = tg["range"] * self.k * grow
+            half = math.radians(tg["half"])
+            pts = [(cx, cy)]
+            for i in range(9):
+                a = tg["ang"] - half + 2 * half * i / 8
+                pts.append((cx + math.cos(a) * rng_, cy + math.sin(a) * rng_))
+            return pts
+        ln, wd = tg["len"] * self.k * grow, tg["width"] * self.k / 2
+        ca, sa = math.cos(tg["ang"]), math.sin(tg["ang"])
+        return [(cx - sa * wd, cy + ca * wd), (cx + ca * ln - sa * wd, cy + sa * ln + ca * wd),
+                (cx + ca * ln + sa * wd, cy + sa * ln - ca * wd), (cx + sa * wd, cy - ca * wd)]
+
+    def _draw_telegraphs(self):
+        """Red danger zones: the outline flashes, the fill creeps in until the hit lands."""
+        w = self.world
+        aw, ah = int(self.arena_w), int(self.arena_h)
+        layer = pygame.Surface((IW, IH), pygame.SRCALPHA)
+        for tg in w.telegraphs:
+            if tg["kind"] == "summon_spot":
+                pygame.draw.circle(layer, (170, 90, 255, 120), (self.sx(tg["x"]), self.sy(tg["y"])), tg["r"] * self.k, 3)
+                pre = BOSS_PREFIX.get(getattr(w.boss, "kind", ""), "")
+                sp = f"art/boss/fx2/{SUMMON_FX.get(pre, '')}.png"
+                if pre in SUMMON_FX and self.sprites.load(sp, trim=True) is not None:
+                    d = tg["r"] * self.k * 2.6
+                    img = self.sprites.scaled(sp, d, d, trim=True)
+                    layer.blit(img, img.get_rect(center=(int(self.sx(tg["x"])), int(self.sy(tg["y"])))))
+                continue
+            p = min(1.0, max(0.0, (w.t - tg["t0"]) / max(0.05, tg["t_hit"] - tg["t0"])))
+            blink = 150 if int(w.t * 10) % 2 == 0 else 90
+            if tg["kind"] in ("circle", "nova"):
+                c = (self.sx(tg["x"]), self.sy(tg["y"]))
+                r = tg["r"] * self.k
+                pygame.draw.circle(layer, (255, 40, 30, 55), c, r)
+                pygame.draw.circle(layer, (255, 60, 40, 120), c, r * p)
+                pygame.draw.circle(layer, (255, 230, 200, blink), c, r, max(2, int(3 * self.S)))
+                mk = "art/boss/fx2/danger_marker.png"
+                if tg["kind"] == "circle" and self.sprites.load(mk, trim=True) is not None:
+                    d = r * 1.1
+                    img = self.sprites.scaled(mk, d, d, trim=True).copy()
+                    img.set_alpha(blink + 60)
+                    layer.blit(img, img.get_rect(center=(int(c[0]), int(c[1]))))
+            else:
+                pygame.draw.polygon(layer, (255, 40, 30, 55), self._tg_points(tg))
+                pygame.draw.polygon(layer, (255, 60, 40, 120), self._tg_points(tg, p))
+                pygame.draw.polygon(layer, (255, 230, 200, blink), self._tg_points(tg), max(2, int(3 * self.S)))
+        clip = self.surface.get_clip()
+        self.surface.set_clip(pygame.Rect(int(self.ax), int(self.ay), aw, ah))
+        self.surface.blit(layer, (0, 0))
+        self.surface.set_clip(clip)
+
+    def _draw_impacts(self):
+        keep = []
+        for ev, t0 in self.impacts:
+            age = self.t - t0
+            if age > 0.45:
+                continue
+            keep.append((ev, t0))
+            k = age / 0.45
+            fx = ev.get("fx")
+            path = f"art/boss/{fx}.png" if fx else None
+            big = BOSS_IMPACT_FX.get(ev.get("name"))
+            if big and self.sprites.load(f"art/boss/fx2/{big}.png", trim=True) is not None:
+                path = f"art/boss/fx2/{big}.png"
+            cx, cy = self.sx(ev["x"]), self.sy(ev["y"])
+            alpha = int(255 * (1 - max(0.0, k - 0.5) / 0.5))
+            if ev["kind"] in ("cone", "beam"):
+                if path and self.sprites.load(path, trim=True) is not None:
+                    length = (ev.get("range") or ev.get("len")) * self.k
+                    thick = (math.tan(math.radians(ev["half"])) * 2 * length) if ev["kind"] == "cone" else ev["width"] * self.k * 1.6
+                    img = self.sprites.scaled(path, int(length) // 4 * 4, max(8, int(thick) // 4 * 4), trim=True)
+                    img = pygame.transform.rotate(img, -math.degrees(ev["ang"]))
+                    img.set_alpha(alpha)
+                    ca, sa = math.cos(ev["ang"]), math.sin(ev["ang"])
+                    mx, my = cx + ca * length / 2, cy + sa * length / 2
+                    self.surface.blit(img, (int(mx - img.get_width() / 2), int(my - img.get_height() / 2)))
+            else:
+                r = (ev.get("r") or 80) * self.k
+                if path and self.sprites.load(path, trim=True) is not None:
+                    size = r * (2.0 if ev["kind"] == "nova" else 1.6) * (0.8 + 0.4 * k)
+                    img = self.sprites.scaled(path, int(size) // 4 * 4, int(size) // 4 * 4, trim=True)
+                    img.set_alpha(alpha)
+                    self.surface.blit(img, (int(cx - img.get_width() / 2), int(cy - img.get_height() / 2)))
+                pygame.draw.circle(self.surface, (255, 220, 150), (cx, cy), r * (0.6 + 0.6 * k), max(2, int(6 * (1 - k) * self.S)))
+        self.impacts = keep
+
+    def _draw_boss_hud(self):
+        surf, w = self.surface, self.world
+        b = w.boss
+        name = self.text.fit(b.name.upper(), 2, RED_HI if w.enraged else CREAM, SAFE_W - 90)
+        surf.blit(name, (SAFE + 70, HUD_Y - 30))
+        if w.enraged and int(self.t * 4) % 2 == 0:
+            en = self.text.render("ENRAGED", 1, RED_HI)
+            surf.blit(en, (IW - SAFE - en.get_width() - 4, HUD_Y - 26))
+        self._draw_token(b, SAFE + 30, HUD_Y + 4, 30, status=False)
+        bw, bh = SAFE_W - 70, 26
+        x, y = SAFE + 66, HUD_Y + 2
+        frac = max(0.0, b.hp) / b.max_hp if b.alive else 0.0
+        surf.fill(INK, (x - 2, y - 2, bw + 4, bh + 4))
+        surf.fill((60, 14, 18), (x, y, bw, bh))
+        surf.fill((235, 50, 40) if w.enraged else (200, 40, 50), (x, y, bw * frac, bh))
+        surf.fill((255, 140, 120), (x, y, bw * frac, 4))
+        pygame.draw.line(surf, YELLOW, (x + bw * 0.5, y - 4), (x + bw * 0.5, y + bh + 4), 2)   # enrage mark
+        pct = self.text.render(f"{math.ceil(frac * 100)}%", 2, CREAM)
+        surf.blit(pct, (x + bw - pct.get_width() - 6, y + (bh - pct.get_height()) // 2))
+        yk = HUD_Y + 42                                      # knockout feed
+        for nm, killer, t0, col in self.elims[-2:][::-1]:
+            if self.t - t0 > 3:
+                continue
+            img = self.text.fit(f"{nm} IS DOWN!".upper(), 1, CREAM, SAFE_W - 8)
+            surf.fill(NIGHT, (SAFE, yk - 2, img.get_width() + 12, img.get_height() + 4))
+            pygame.draw.rect(surf, col, (SAFE, yk - 2, 4, img.get_height() + 4))
+            surf.blit(img, (SAFE + 8, yk))
+            yk += img.get_height() + 6
+
+    def _draw_boss_panels(self):
+        surf, w = self.surface, self.world
+        heroes = [m for m in w.mains if m.side == 0]
+        n = len(heroes)
+        gw = (SAFE_W - (n - 1) * 6) // n
+        gh = 58
+        top = int(self.ay + self.arena_h + 12)
+        for i, m in enumerate(heroes):
+            x = SAFE + i * (gw + 6)
+            self._panel((x, top, gw, gh), trim=_readable(m.color) if m.alive else (70, 70, 80))
+            self._draw_token(m, x + gw // 2, top + 22, 15, status=False)
+            if m.alive:
+                frac = max(0.0, m.hp) / m.max_hp
+                surf.fill(INK, (x + 6, top + gh - 15, gw - 12, 9))
+                surf.fill((90, 220, 90) if frac > 0.5 else ((255, 200, 60) if frac > 0.25 else (240, 60, 60)),
+                          (x + 7, top + gh - 14, (gw - 14) * frac, 7))
+            else:
+                cx_, cy_ = x + gw // 2, top + 22
+                pygame.draw.line(surf, RED_HI, (cx_ - 14, cy_ - 14), (cx_ + 14, cy_ + 14), 4)
+                pygame.draw.line(surf, RED_HI, (cx_ + 14, cy_ - 14), (cx_ - 14, cy_ + 14), 4)
+
+    def _draw_boss_card(self, lift):
+        w = self.world
+        cw, ch = 400, 156
+        x = int(self.ax + (self.arena_w - cw) / 2)
+        y = int(self.ay + (self.arena_h - ch) / 2 + ((self.ay + 14) - (self.ay + (self.arena_h - ch) / 2)) * lift)
+        won = w.winner_side == 0
+        col = YELLOW if won else RED_HI
+        self._panel((x, y, cw, ch), trim=col)
+        if won and self.sprites.load("art/boss/loot_chest.png") is not None:
+            self.surface.blit(self.sprites.scaled("art/boss/loot_chest.png", 56, 56), (x + cw - 70, y + 12))
+        t = self.text.fit("BOSS DEFEATED!" if won else "RAID FAILED", 4, col, cw - (90 if won else 24))
+        self.surface.blit(t, (x + 14 if won else x + (cw - t.get_width()) // 2, y + 18))
+        m = w.raid_mvp()
+        if won and m is not None:
+            self._draw_token(m, x + 40, y + ch - 40, 22, status=False)
+            dmg = int(w.boss_dmg.get(m.uid, 0))
+            img = self.text.fit(f"MVP: {m.name.upper()} . {dmg} DAMAGE", 2, CREAM, cw - 90)
+            self.surface.blit(img, (x + 72, y + ch - 40 - img.get_height() // 2))
+        elif not won:
+            hp = math.ceil(100 * max(0.0, w.boss.hp) / w.boss.max_hp)
+            img = self.text.fit(f"{w.boss.name.upper()} SURVIVED WITH {hp}% HP", 2, CREAM, cw - 24)
+            self.surface.blit(img, (x + (cw - img.get_width()) // 2, y + ch - 44))
+
+    def _intro_boss(self, p, black):
+        """Warning siren, the boss crashes down in the middle, the party drops into the corners."""
+        w = self.world
+        b = w.boss
+        hits = INTRO_STYLES["boss"]["hits"]
+        h0 = hits[0][0]
+        if int(p * 6) % 2 == 0 and p < h0 + 0.6:       # flashing red warning bars
+            for yy in (self.ay + 6, self.ay + self.arena_h - 30):
+                self.surface.fill((200, 30, 30), (self.ax, yy, self.arena_w, 24))
+                warn = self.text.render("! WARNING ! BOSS ! WARNING !", 1, CREAM)
+                self.surface.blit(warn, (IW // 2 - warn.get_width() // 2, yy + 6))
+        x1, y1, r = self.sx(b.x), self.sy(b.y), b.radius * self.k
+        if p < h0:
+            e = max(0.0, p / h0)
+            sh = pygame.Rect(0, 0, int(r * 2 * (0.3 + 0.7 * e)), int(r * 0.6 * (0.3 + 0.7 * e)))
+            sh.center = (int(x1), int(y1 + r * 0.9))
+            pygame.draw.ellipse(self.surface, (0, 0, 0), sh)
+            self._token_squash(b, x1, y1 - (1 - e * e) * self.arena_h * 0.6, r, 0.85, 1.2)
+        else:
+            since = p - h0
+            if since < 0.5:
+                k = since / 0.5
+                pygame.draw.circle(self.surface, (255, 120, 80), (x1, y1), r * (1.2 + 2.5 * k), max(2, int(10 * (1 - k) * self.S)))
+                self._fx_cracks(x1, y1, since, 1.0)
+            sq = max(0.0, 1 - since / 0.15)
+            self._token_squash(b, x1, y1 + r * 0.2 * sq, r, 1 + 0.3 * sq, 1 - 0.25 * sq)
+        for i, m in enumerate([m for m in w.mains if m.side == 0]):
+            h = hits[min(i + 1, len(hits) - 1)][0]
+            mx, my, mr = self.sx(m.x), self.sy(m.y), m.radius * self.k
+            since = p - h
+            if since < -0.3:
+                continue
+            if since < 0:
+                e = 1 + since / 0.3
+                self._token_squash(m, mx, my - (1 - e * e) * self.arena_h * 0.4, mr, 0.8, 1.3)
+            else:
+                sq = max(0.0, 1 - since / 0.12)
+                self._token_squash(m, mx, my, mr, 1 + 0.4 * sq, 1 - 0.3 * sq)
+        if p >= h0 + 0.1:
+            t1 = self.text.fit(b.name.upper(), 5, RED_HI, self.arena_w - 16)
+            t2 = self.text.render("4 HEROES . 1 BOSS", 2, CREAM)
+            y = int(self.ay + self.arena_h * 0.2)
+            self.surface.blit(t1, (IW // 2 - t1.get_width() // 2, y))
+            self.surface.blit(t2, (IW // 2 - t2.get_width() // 2, y + t1.get_height() + 6))
+
     def _token_squash(self, u, cx, cy, r, sx=1.0, sy=1.0, alpha=255, white=False):
         """A fighter's ball stretched by (sx, sy), for the intro's squash-and-stretch."""
         sx, sy = round(sx * 20) / 20, round(sy * 20) / 20   # quantise: keeps the sprite cache small
@@ -2428,7 +3267,7 @@ class Renderer:
         self.surface.blit(dim, (self.ax, self.ay))
         getattr(self, f"_intro_{style}")(p, black)
         if (style == "faceoff" and p < INTRO_STYLES["faceoff"]["hits"][1][0]) or (style == "drop" and p < 0.5) \
-                or style in ("royale", "soccer"):
+                or style in ("royale", "soccer", "horde", "boss"):
             pass   # these styles show the names elsewhere / keep the sky clear for the fall
         else:
             self._fx_names()
@@ -2462,8 +3301,11 @@ class Renderer:
         if not black:
             self._fx_cracks(cx0, cy0, since)
         self._fx_burst(cx0, cy0, since, white=black)
+        if not black:
+            self._fx_sprite("art/fx/intro/shockwave_ring.png", cx0, cy0, aw * 0.95, since, 0.4, 0.7)
         self._draw_charge(state, p, hit, black)
         if not black:
+            self._fx_sprite("art/fx/intro/clash_star.png", cx0, cy0, aw * 0.62, since - 0.02, 0.32)
             self._fx_debris(cx0, cy0, since)
             self._fx_word("SMASH!", cx0, cy0, since - 0.02, 3, dur=0.33)
         self._fx_vs(p - stop)
@@ -2505,6 +3347,10 @@ class Renderer:
                 pygame.draw.ellipse(surf, _mix((220, 200, 170), (80, 70, 60), k), rect,
                                     max(2, int(8 * (1 - k) * self.S)))
             self._fx_burst(lx, land_y + big * 0.6, since, size=0.5 if side == 0 else 0.7, dur=0.3)
+        for side, m in enumerate(self.world.mains):   # each hero's signature entrance on landing
+            lx = cx0 + (-1 if side == 0 else 1) * 0.24 * aw
+            self._fx_sprite(f"art/fx/intro/enter_{_art_id(m)}.png", lx, land_y + big * 0.2, big * 3.0,
+                            p - hits[side], 0.55, 0.3)
         for side, m in enumerate(self.world.mains):
             sgn = -1 if side == 0 else 1
             h = hits[side]
@@ -2588,6 +3434,8 @@ class Renderer:
             return
         since = p - shatter                      # shatter: shards of both colours, fly home
         cx0, cy0 = ax + half, ay + ah / 2
+        self._fx_sprite("art/fx/intro/shockwave_ring.png", cx0, cy0, aw * 1.0, since, 0.4, 0.7)
+        self._fx_sprite("art/fx/intro/debris_burst.png", cx0, cy0, aw * 0.7, since, 0.35)
         self._fx_burst(cx0, cy0, since, 1.0)
         self._fx_debris(cx0, cy0, since, 1.2, colors=[mains[0].color, mains[1].color, (255, 255, 255)])
         for side, m in enumerate(mains):
@@ -2653,7 +3501,7 @@ class Renderer:
         a, b = cta.PREDICT
         k = max(0.0, min(1.0, (t - a) / 0.15, (b - t) / 0.2))
         col = YELLOW if int(t * 4) % 2 == 0 else CREAM
-        img = self.text.fit("WHO WINS? COMMENT!", 2, col, self.arena_w - 16)
+        img = self.text.fit("GUESS THE SCORE! COMMENT!" if self.horde else "WHO WINS? COMMENT!", 2, col, self.arena_w - 16)
         band = pygame.Surface((int(self.arena_w), img.get_height() + 10), pygame.SRCALPHA)
         band.fill((*NIGHT, int(170 * k)))
         y = int(self.ay + 6)
@@ -2671,9 +3519,11 @@ class Renderer:
         x = int(self.ax + (self.arena_w - cw) / 2)
         y = int(self.ay + 14 + 156 + 14 + (1 - pop) * 60)
         self._panel((x, y, cw, ch), trim=GOLD)
-        t1 = self.text.fit("WHO FIGHTS NEXT?", 3, YELLOW, cw - 24)
+        t1 = self.text.fit("WHICH BOSS NEXT?" if self.boss_mode else ("WHO'S NEXT?" if self.horde else "WHO FIGHTS NEXT?"),
+                           3, YELLOW, cw - 24)
         surf.blit(t1, (x + (cw - t1.get_width()) // 2, y + 14))
-        t2 = self.text.fit("COMMENT 2 FIGHTERS!", 2, CREAM, cw - 50)
+        t2 = self.text.fit("COMMENT A BOSS!" if self.boss_mode else ("COMMENT A HERO!" if self.horde else "COMMENT 2 FIGHTERS!"),
+                           2, CREAM, cw - 50)
         ty = y + 22 + t1.get_height()
         surf.blit(t2, (x + (cw - t2.get_width()) // 2, ty))
         bob = int(3 * math.sin(since * 12))      # little arrows pointing down at the comments
@@ -2731,6 +3581,8 @@ class Renderer:
     def _draw_winner_card(self, lift=0.0):
         if self.soccer:
             return self._draw_soccer_winner(lift)
+        if self.boss_mode:
+            return self._draw_boss_card(lift)
         side = self.world.winner_side
         cw, ch = 400, 156
         x = int(self.ax + (self.arena_w - cw) / 2)
@@ -2741,7 +3593,7 @@ class Renderer:
             self.surface.blit(img, (x + (cw - img.get_width()) // 2, y + (ch - img.get_height()) // 2))
             return
         m = self.world.mains[side]
-        self._draw_token(m, x + 62, y + ch // 2 + 4, 36, status=False)
+        self._draw_token(m, x + 62, y + ch // 2 + 4, 36, status=False, pose="victory" if m.alive else None)
         name = self.text.fit(m.name.upper(), 3, _readable(m.color), cw - 140)
         self.surface.blit(name, (x + 120, y + 18))
         wins = self.text.render("WINS!", 3, YELLOW)

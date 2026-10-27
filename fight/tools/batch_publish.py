@@ -45,7 +45,8 @@ def _has(name, f):
 def ready(name):
     """Rendered by a batch with the current pipeline and waiting to be posted.
     (Old test renders in out/ have no queued.json, so they get re-rendered, never posted.)"""
-    return _has(name, "video.mp4") and _has(name, "queued.json") and not _has(name, "upload.json")
+    return (_has(name, "video.mp4") and _has(name, "queued.json") and not _has(name, "upload.json")
+            and not _has(name, "uploading.json"))   # being posted by hand / browser: hands off
 
 
 def uploaded(a, b):
@@ -95,8 +96,72 @@ def pick(count, seed, render_only=False):
     return chosen
 
 
-def check_video(path):
-    """(ok, reason): duration 15-25 s and an audio stream."""
+# allowed video length per format (seconds): 1v1 stays inside the classic short window
+LENGTHS = {"1v1": (15, 25.5), "soccer": (15, 38), "royale": (18, 40), "horde": (18, 38), "boss": (18, 38)}
+
+
+def fmt_of(name):
+    try:
+        mode = json.load(open(os.path.join(ROOT, "out", name, "spec.resolved.json"), encoding="utf-8")).get("mode")
+    except (OSError, ValueError):
+        mode = None
+    return mode if mode in ("royale", "soccer", "horde", "boss") else "1v1"
+
+
+def queued(fmt):
+    """Ready-to-post folders of one format, oldest render first."""
+    names = [n for n in os.listdir(os.path.join(ROOT, "out")) if ready(n) and fmt_of(n) == fmt]
+
+    def rendered(n):
+        try:
+            return json.load(open(os.path.join(ROOT, "out", n, "queued.json"), encoding="utf-8")).get("rendered_at", "")
+        except (OSError, ValueError):
+            return ""
+    return sorted(names, key=rendered)
+
+
+def _runs(mode, key):
+    """How many rendered videos of a mode use each value of key(spec) (horde hero, boss kind)."""
+    counts = {}
+    for n in os.listdir(os.path.join(ROOT, "out")):
+        try:
+            spec = json.load(open(os.path.join(ROOT, "out", n, "spec.resolved.json"), encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if spec.get("mode") == mode:
+            k = key(spec)
+            counts[k] = counts.get(k, 0) + 1
+    return counts
+
+
+def new_special(fmt, rng, tag):
+    """(folder name, make_fight args) for a new battle royale, soccer, horde or boss video."""
+    from fightsim.spec import SOCCER_TEAMS, ROYALE_THEMES, ROYALE_MAPS, HORDES, BOSSES
+    if fmt == "horde":
+        # alternate hordes, and give the hero with the fewest runs in that horde the next turn
+        per_kind = _runs("horde", lambda s: s["horde"]["kind"])
+        kind = min(sorted(HORDES), key=lambda k: (per_kind.get(k, 0), rng.random()))
+        per_hero = _runs("horde", lambda s: (s["horde"]["kind"], s["fighters"][0]["id"]))
+        hero = min(list_characters(), key=lambda h: (per_hero.get((kind, h), 0), rng.random()))
+        return f"horde_{kind}_{hero}_{tag}", ["horde", hero, "--horde", kind]
+    if fmt == "boss":
+        # rotate through the bosses (least-used first) with a random party of 4
+        per_boss = _runs("boss", lambda s: s.get("boss_kind"))
+        kind = min(sorted(BOSSES), key=lambda k: (per_boss.get(k, 0), rng.random()))
+        heroes = rng.sample(list_characters(), 4)
+        return f"boss_{kind}_{tag}", ["boss", *heroes, "--boss", kind]
+    if fmt == "royale":
+        ids = rng.sample(list_characters(), 6)
+        maps = sorted(ROYALE_THEMES) + sorted(ROYALE_MAPS)
+        m = rng.choice(maps)
+        return f"royale_{tag}_{m}", ["royale", *ids, "--map", m]
+    teams = ["light", "shadow"]
+    ids = rng.sample(SOCCER_TEAMS[teams[0]]["members"], 2) + rng.sample(SOCCER_TEAMS[teams[1]]["members"], 2)
+    return "soccer_" + tag + "_" + "-".join(ids), ["soccer", *ids]
+
+
+def check_video(path, fmt="1v1"):
+    """(ok, reason): duration inside the format's window and an audio stream."""
     import imageio_ffmpeg
     if not os.path.exists(path):
         return False, "no video.mp4"
@@ -106,8 +171,9 @@ def check_video(path):
     if not m:
         return False, "unreadable video"
     secs = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
-    if not 15 <= secs <= 25.5:
-        return False, f"length {secs:.1f}s outside 15-25 s"
+    lo, hi = LENGTHS.get(fmt, LENGTHS["1v1"])
+    if not lo <= secs <= hi:
+        return False, f"length {secs:.1f}s outside {lo:g}-{hi:g} s"
     if "Audio:" not in info:
         return False, "no audio track"
     return True, f"{secs:.1f}s with audio"
@@ -124,6 +190,8 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--max-total", type=int, help="stop once this many videos are uploaded in total")
     ap.add_argument("--render-only", action="store_true", help="render ahead into the queue, upload nothing")
+    ap.add_argument("--mix", help="per-format counts, e.g. 1v1=2,royale=2,soccer=2 (overrides --count); "
+                                  "takes ready videos from the queue and renders new ones if short")
     ap.add_argument("--stagger", help="local release times, e.g. 07:30,10:00,12:30,15:30,18:00,20:30 "
                                       "(uploads now, YouTube publishes each at its slot)")
     args = ap.parse_args()
@@ -137,8 +205,36 @@ def main():
                          if os.path.exists(os.path.join(ROOT, "out", n, "upload.json")))
         count = max(0, min(count, args.max_total - done_total))
         log(f"{done_total} uploaded so far, target {args.max_total}: making {count} today")
-    matchups = pick(count, stamp.strftime("%Y-%m-%d"), args.render_only)
-    log(f"batch of {len(matchups)}: " + ", ".join(f"{a} vs {b}" for a, b in matchups))
+    # jobs: (folder, format, render command or None if already queued)
+    jobs = []
+    if args.mix:
+        want = {k: int(v) for k, v in (x.split("=") for x in args.mix.split(","))}
+        rng = random.Random(stamp.strftime("%Y-%m-%d"))
+        per = {}
+        for a, b in pick(want.get("1v1", 0), stamp.strftime("%Y-%m-%d"), args.render_only):
+            per.setdefault("1v1", []).append((f"{a}_vs_{b}", "1v1", [sys.executable, "publish.py", a, b, "--no-upload"]))
+        for fmt in ("royale", "soccer", "horde", "boss"):
+            n = want.get(fmt, 0)
+            have = [] if args.render_only else queued(fmt)[:n]
+            lst = [(name, fmt, None) for name in have]
+            k = 0
+            while len(lst) < n:
+                k += 1
+                name, fargs = new_special(fmt, rng, f"{stamp:%Y%m%d}{k}")
+                if _has(name, "video.mp4"):
+                    continue
+                lst.append((name, fmt, [sys.executable, "make_fight.py", *fargs, "--out", os.path.join("out", name)]))
+            per[fmt] = lst
+        # alternate formats across the release slots: 1v1, soccer, royale, 1v1, soccer, royale
+        order = ["1v1", "soccer", "royale", "horde", "boss"]
+        while any(per.get(f) for f in order):
+            for f in order:
+                if per.get(f):
+                    jobs.append(per[f].pop(0))
+    else:
+        for a, b in pick(count, stamp.strftime("%Y-%m-%d"), args.render_only):
+            jobs.append((f"{a}_vs_{b}", "1v1", [sys.executable, "publish.py", a, b, "--no-upload"]))
+    log(f"batch of {len(jobs)}: " + ", ".join(f"{n} ({f})" for n, f, _ in jobs))
     if args.dry_run:
         return
 
@@ -153,25 +249,24 @@ def main():
             slots.append(t)
         slots.sort()
     results = []
-    for a, b in matchups:
-        name = f"{a}_vs_{b}"
+    for name, fmt, cmd in jobs:
         video = os.path.join(ROOT, "out", name, "video.mp4")
         if ready(name) and not args.render_only:
             log(f"--- {name}: already rendered (from the queue)")
-            ok, why = check_video(video)
+            ok, why = check_video(video, fmt)
         else:
-            log(f"--- {name}: rendering")
-            res = subprocess.run([sys.executable, "publish.py", a, b, "--no-upload"], cwd=ROOT,
+            log(f"--- {name}: rendering ({fmt})")
+            res = subprocess.run(cmd, cwd=ROOT,
                                  capture_output=True, text=True, encoding="utf-8", errors="replace")
             for line in (res.stdout + res.stderr).splitlines():
                 if line.strip() and "[render]" not in line:
                     log_file.write("    " + line + "\n")
-            ok, why = check_video(video) if res.returncode == 0 else (False, f"render failed ({res.returncode})")
+            ok, why = check_video(video, fmt) if res.returncode == 0 else (False, f"render failed ({res.returncode})")
         log(f"    check: {why}")
         if ok and not _has(name, "queued.json"):
             with open(os.path.join(ROOT, "out", name, "queued.json"), "w", encoding="utf-8") as f:
                 json.dump({"rendered_at": datetime.datetime.now().isoformat(timespec="seconds")}, f)
-        entry = {"matchup": name, "ok": ok, "check": why}
+        entry = {"matchup": name, "format": fmt, "ok": ok, "check": why}
         if ok and not (args.no_upload or args.render_only):
             try:
                 from tools.youtube_upload import upload
@@ -181,6 +276,8 @@ def main():
                     publish_at = t.astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                 r = upload(os.path.join(ROOT, "out", name), args.privacy, log=log, publish_at=publish_at)
                 entry["url"] = r["url"]
+                from tools.youtube_upload import add_to_playlist
+                add_to_playlist(os.path.join(ROOT, "out", name), log=log)
             except SystemExit as e:          # the uploader exits with a message on errors
                 entry["ok"], entry["error"] = False, str(e)
                 log(f"    upload failed: {e}")

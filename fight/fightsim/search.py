@@ -25,6 +25,10 @@ def summarize(world):
         "duration": round(world.t, 2),
         "timeout": winner is None,
     }
+    if getattr(world, "horde", False):
+        return _summarize_horde(world, s)
+    if getattr(world, "boss_mode", False) and winner is not None:
+        return _summarize_boss(world, s)
     if winner is None:
         return s
     if getattr(world, "royale", False):
@@ -105,6 +109,73 @@ def _summarize_royale(world, s):
     return s
 
 
+def _summarize_boss(world, s):
+    b = world.boss
+    heroes = [m for m in world.mains if m.side == 0]
+    alive = [m for m in heroes if m.alive]
+    deaths = [ev["t"] for ev in world.events if ev["type"] == "death" and ev.get("main")]
+    mvp = world.raid_mvp()
+    s.update({
+        "winner_name": "HEROES" if s["winner"] == 0 else b.name,
+        "winner_frac": 0.0, "winner_hp": None, "lead_changes": 0, "ultimates": [0, 0],
+        "heroes_alive": len(alive),
+        "last_hero_frac": round(min((m.hp / m.max_hp for m in alive), default=0.0), 3),
+        "boss_frac": round(max(0.0, b.hp) / b.max_hp, 3),
+        "enraged": world.enraged,
+        "kos": len([d for d in deaths if d < world.t - 1e-6]),
+        "skills": sum(1 for ev in world.events if ev["type"] == "boss_skill"),
+        "mvp": mvp.name if mvp else None, "mvp_index": world.mains.index(mvp) if mvp else None,
+        "climax_t": deaths[-1] if deaths else None,
+    })
+    return s
+
+
+def _drama_boss(s, spec):
+    lo, hi = spec.get("duration", {}).get("target", [16, 24])
+    d = s["duration"]
+    dur_pen = 0.0 if lo <= d <= hi else min(abs(d - lo), abs(d - hi)) * 1.5
+    if s["winner"] == 0:      # heroes won: best when it took everything they had
+        close = {1: 3.0, 2: 1.8, 3: 0.6}.get(s["heroes_alive"], 0.0) + (1.0 - min(1.0, s["last_hero_frac"] * 3))
+    else:                     # boss won: best when the boss was nearly dead
+        close = 3.5 * (1.0 - min(1.0, s["boss_frac"] * 5))
+    enraged = 1.5 if s["enraged"] else 0.0
+    kos = min(1.0, s["kos"] / 2) * 1.0
+    # the raid decided who should win this time (heroes usually, the boss ~1 in 3)
+    want = 6.0 if s["winner"] == spec.get("want_winner", s["winner"]) else 0.0
+    return close + enraged + kos + want - dur_pen
+
+
+def _summarize_horde(world, s):
+    """Survival: the hero always falls (a run that outlasts the cap is a timeout)."""
+    hero = world.mains[0]
+    s["timeout"] = hero.alive
+    low = 0.0                      # seconds spent under 25% HP: the last stand
+    prev = None
+    for t, frac, _ in world.timeline:
+        if prev is not None and frac < 0.25:
+            low += t - prev
+        prev = t
+    s.update({
+        "winner": 1, "winner_name": hero.name, "winner_frac": 0.0, "winner_hp": None,
+        "kills": world.kill_count, "wave": world.wave, "max_combo": world.max_combo,
+        "bosses_killed": world.bosses_killed, "last_stand": round(low, 2),
+        "lead_changes": 0, "ultimates": [0, 0],
+        "climax_t": hero.died_at,
+    })
+    return s
+
+
+def _drama_horde(s, spec):
+    lo, hi = spec.get("duration", {}).get("target", [17, 25])
+    d = s["duration"]
+    dur_pen = 0.0 if lo <= d <= hi else min(abs(d - lo), abs(d - hi)) * 1.5
+    stand = min(1.0, s["last_stand"] / 3.0) * 2.5         # a long last stand on low HP
+    boss = 1.5 if s["bosses_killed"] else 0.0               # took down the mini-boss
+    waves = min(1.0, s["wave"] / 7) * 1.5
+    combo = min(1.0, s["max_combo"] / 15) * 1.0
+    return stand + boss + waves + combo - dur_pen
+
+
 def _summarize_soccer(world, s):
     winner = s["winner"]
     score = [0, 0]
@@ -176,6 +247,10 @@ def drama_score(s, spec):
         return _drama_royale(s, spec)
     if spec.get("mode") == "soccer":
         return _drama_soccer(s, spec)
+    if spec.get("mode") == "horde":
+        return _drama_horde(s, spec)
+    if spec.get("mode") == "boss":
+        return _drama_boss(s, spec)
     lo, hi = spec.get("duration", {}).get("target", [13, 20])
     d = s["duration"]
     dur_pen = 0.0 if lo <= d <= hi else min(abs(d - lo), abs(d - hi)) * 1.5  # length matters a lot in shorts
@@ -227,7 +302,7 @@ def pace(spec, workers=None, log=print):
     t_lo, t_hi = spec.get("duration", {}).get("target", [13, 20])
     goal = (t_lo + t_hi) / 2
     max_d = spec.get("duration", {}).get("max", 90)
-    nf = len(spec["fighters"]) if spec.get("mode") == "royale" else 2
+    nf = len(spec["fighters"]) if spec.get("mode") in ("royale", "boss") else (1 if spec.get("mode") == "horde" else 2)
     base = [float(f["hp"]) for f in spec["fighters"][:nf]]
     seeds = list(range(200000, 200000 + n))
 
@@ -297,7 +372,7 @@ def balance(spec, workers=None, log=print):
         if best is None or abs(w0 - target) < abs(best[1] - target):
             best = (mid, w0, hp)
         # more HP for `side` lowers side 0's win rate
-        side_wins_too_much = (w0 < target) if side == 1 else (w0 > target)
+        side_wins_too_much = (w0 < target) if side != 0 else (w0 > target)
         if side_wins_too_much:
             hi = mid
         else:

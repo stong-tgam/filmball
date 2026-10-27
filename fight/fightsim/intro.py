@@ -54,11 +54,24 @@ INTRO_STYLES["soccer"] = {
                (0.48, "body_hit", 0.9, 0.5), (0.58, "body_hit", 1.0, 0.5), (0.68, "body_hit", 1.1, 0.5),
                (0.78, "body_hit", 1.2, 0.5), (0.95, "whistle", 1.0, 0.9)],
 }
+# horde: the hero crashes down, the horde creeps in from the edges, the question appears
+INTRO_STYLES["horde"] = {
+    "hits": [(0.3, 0.9)],
+    "sounds": [(0.0, "debuff", 1.5, 0.55), (0.3, "shockwave", 0.9, 1.0), (0.3, "clash", 0.9, 0.5),
+               (0.55, "wave_horn", 1.0, 0.7)],
+}
+# boss raid: warning siren, the boss crashes down, the party drops into the corners
+INTRO_STYLES["boss"] = {
+    "hits": [(0.35, 1.0), (0.62, 0.3), (0.72, 0.3), (0.82, 0.3), (0.92, 0.3)],
+    "sounds": [(0.0, "warn", 1.0, 0.7), (0.35, "death_main", 0.7, 0.9), (0.35, "shockwave", 0.6, 1.0),
+               (0.62, "body_hit", 0.9, 0.5), (0.72, "body_hit", 1.0, 0.5), (0.82, "body_hit", 1.1, 0.5),
+               (0.92, "body_hit", 1.2, 0.5)],
+}
 STYLE_ORDER = ["smash", "drop", "faceoff", "rally"]
 
 
 def intro_style(spec):
-    if (spec or {}).get("mode") in ("royale", "soccer"):
+    if (spec or {}).get("mode") in ("royale", "soccer", "horde", "boss"):
         return spec["mode"]
     forced = (spec or {}).get("intro_style")
     if forced in INTRO_STYLES:

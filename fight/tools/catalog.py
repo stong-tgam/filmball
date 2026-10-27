@@ -25,8 +25,8 @@ TOKEN = os.path.join(SECRETS, "drive_token.json")
 STATE = os.path.join(SECRETS, "drive_catalog.json")      # remembers the Sheet's file id
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 SHEET_NAME = "Pixel Hero Fights — Video Catalog"
-COLUMNS = ["status", "rendered_at", "uploaded_at", "publish_at", "title", "url", "privacy", "left", "right", "stage", "winner",
-           "winner_hp", "lead_changes", "fight_seconds", "seed", "folder"]
+COLUMNS = ["status", "format", "rendered_at", "uploaded_at", "publish_at", "title", "url", "privacy", "left", "right", "stage", "winner",
+           "score", "winner_hp", "lead_changes", "fight_seconds", "seed", "folder"]
 
 
 def _load(path):
@@ -59,13 +59,28 @@ def rows():
         rep = _load(os.path.join(d, "report.json")).get("chosen", {})
         spec = _load(os.path.join(d, "spec.resolved.json"))
         fighters = spec.get("fighters", [{}, {}])
+        mode = spec.get("mode")
+        names = [f.get("name", "") for f in fighters]
+        if mode == "soccer":        # teams: "Knight + Paladin" vs "Vampire + Ninja"
+            left, right = " + ".join(names[:2]), " + ".join(names[2:])
+        elif mode == "boss":        # the party vs the boss
+            left, right = ", ".join(names[:4]), names[4] if len(names) > 4 else ""
+        elif mode == "horde":       # hero vs the horde; the score is the number defeated
+            left, right = names[0], spec.get("horde", {}).get("title", "").title()
+        elif mode == "royale":      # everyone in one cell
+            left, right = ", ".join(names), ""
+        else:
+            left, right = (names + ["", ""])[0], (names + ["", ""])[1]
+        fsc = rep.get("final_score")
         result.append({
+            "format": {"royale": "Battle Royale", "soccer": "Soccer 2v2", "horde": "Horde Survival", "boss": "Boss Raid"}.get(mode, "1v1"),
+            "score": f"{fsc[0]}-{fsc[1]}" if fsc else (f"{rep['kills']} defeated" if "kills" in rep else ""),
             "status": _status(up),
             "publish_at": up.get("publish_at") or "", "rendered_at": q.get("rendered_at", ""),
             "uploaded_at": up.get("uploaded_at", ""),
             "title": up.get("title") or _load(os.path.join(d, "youtube.json")).get("title", ""),
             "url": up.get("url", ""), "privacy": up.get("privacy", ""),
-            "left": fighters[0].get("name", ""), "right": fighters[1].get("name", "") if len(fighters) > 1 else "",
+            "left": left, "right": right,
             "stage": spec.get("theme", {}).get("stage", ""), "winner": rep.get("winner_name", ""),
             "winner_hp": rep.get("winner_hp", ""), "lead_changes": rep.get("lead_changes", ""),
             "fight_seconds": rep.get("duration", ""), "seed": rep.get("seed", ""), "folder": name,

@@ -27,11 +27,11 @@ GAIN = {
     "blade_hit": 0.55, "body_hit": 0.5, "bump": 0.45, "projectile_hit": 0.45, "spell_hit": 0.5,
     "shockwave_hit": 0.35, "thorns_hit": 0.3, "poison_hit": 0.15, "heal": 0.35, "clash": 0.42,
     "block": 0.4, "shoot": 0.3, "poison": 0.3, "debuff": 0.4, "ability": 0.5, "summon": 0.5,
-    "slapshot": 0.6, "check": 0.85, "elim": 0.8, "pickup": 0.45, "freeze": 0.6, "lightning": 0.8, "goal": 0.9, "whistle": 0.6, "ultimate": 0.7, "shockwave": 0.6, "death": 0.4, "death_main": 0.95, "victory": 0.6,
+    "slapshot": 0.6, "check": 0.85, "elim": 0.8, "pickup": 0.45, "freeze": 0.6, "lightning": 0.8, "goal": 0.9, "whistle": 0.6, "bones": 0.4, "splat": 0.4, "wave_horn": 0.6, "warn": 0.55, "enraged": 0.9, "ultimate": 0.7, "shockwave": 0.6, "death": 0.4, "death_main": 0.95, "victory": 0.6,
     "wall": 0.12, "round": 0.6, "fight": 0.7,
 }
 # never dropped by the pile-up limiter
-PRIORITY = {"goal", "whistle", "freeze", "lightning", "elim", "pickup", "check", "ultimate", "death_main", "victory", "summon", "shockwave", "round", "fight", "ability"}
+PRIORITY = {"warn", "enraged", "wave_horn", "goal", "whistle", "freeze", "lightning", "elim", "pickup", "check", "ultimate", "death_main", "victory", "summon", "shockwave", "round", "fight", "ability"}
 # these get a per-character pitch so each fighter sounds a bit different
 PITCHED = {"blade_hit", "body_hit", "projectile_hit", "shoot", "ultimate", "summon", "ability", "spell_hit"}
 MAX_STACK, STACK_WINDOW = 3, 0.05
@@ -59,6 +59,14 @@ def _to_video(timemap):
 VOICE_GAIN, ANNOUNCER_GAIN, DUCK = 1.45, 1.35, 0.5
 MUSIC_GAIN = 0.3   # chiptune bed under the effects
 VICTORY_LINE_DELAY = 1.05   # after the K.O. clip, when the winner card is up
+
+
+def _boss_line(name):
+    """A boss voice / raid result line from audio/boss/ (None if missing)."""
+    if not name:
+        return None
+    from .audio_assets import load_clip
+    return load_clip(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "audio", "boss", f"{name}.mp3"))
 
 
 def build_track(cues, timemap, video_seconds, intro_len, spec=None, winner=None):
@@ -97,7 +105,12 @@ def build_track(cues, timemap, video_seconds, intro_len, spec=None, winner=None)
         return voice(kind, name, float(v.get("pitch", 0))) if v else None
 
     if (spec or {}).get("mode") == "soccer":
-        say(0.85, announcer("kickoff"), ANNOUNCER_GAIN)       # soccer: "Kick off!" with the whistle
+        say(0.85, announcer("kickoff"), ANNOUNCER_GAIN)
+    elif (spec or {}).get("mode") == "horde":
+        say(0.85, announcer("survive"), ANNOUNCER_GAIN)
+    elif (spec or {}).get("mode") == "boss":   # the boss speaks first, in its own voice
+        boss_tpl = spec["fighters"][-1]
+        say(0.55, _boss_line(boss_tpl.get("voice_intro")), VOICE_GAIN)       # soccer: "Kick off!" with the whistle
     elif not say(0.0, announcer("round_fight"), ANNOUNCER_GAIN):
         place(0.05, "round", gain=GAIN["round"])
         place(max(0.0, intro_len - 0.45), "fight", gain=GAIN["fight"])
@@ -126,14 +139,22 @@ def build_track(cues, timemap, video_seconds, intro_len, spec=None, winner=None)
         if base == "death_main" and ko_clip is not None:
             say(vt, ko_clip, ANNOUNCER_GAIN)
             gain *= 0.7   # let the announcer lead
-        elif base in ("ultimate", "ability") and kind:
+        elif base in ("ultimate", "ability") and kind and not c.get("quiet"):
             say(vt + 0.03, line(kind, base), VOICE_GAIN)
         elif base == "victory":
             victory_vt = vt
         elif base == "goal":
             say(vt + 0.05, announcer("goal"), ANNOUNCER_GAIN)
+        elif base == "enraged":
+            say(vt + 0.05, _boss_line((spec or {}).get("fighters", [{}])[-1].get("voice_enraged")), VOICE_GAIN)
+        elif base == "victory" and (spec or {}).get("mode") == "boss":
+            say(vt + 0.05, _boss_line("boss_defeated" if c.get("heroes") else "raid_failed"), ANNOUNCER_GAIN)
+        elif base == "wave_horn" and c.get("boss"):
+            say(vt + 0.1, announcer("wave"), ANNOUNCER_GAIN)
+        if c.get("quiet"):
+            gain *= 0.5
         place(vt, base, pitch, seed=idx % 4, gain=gain)
-        if base == "ultimate":   # the cut-in banner's whoosh + a deep boom under the power-up
+        if base == "ultimate" and not c.get("quiet"):   # the cut-in banner's whoosh + a deep boom under the power-up
             place(vt, "shoot", 0.5, gain=0.4)
             place(vt + 0.05, "shockwave", 1.3, gain=0.35)
 
@@ -168,7 +189,10 @@ def build_track(cues, timemap, video_seconds, intro_len, spec=None, winner=None)
     hook_sounds = list(INTRO_STYLES[intro_style(spec)]["sounds"])
     if cta.enabled(spec) and victory_vt is not None:   # clicks for the end CTA's LIKE / SUBSCRIBE
         end_vt = victory_vt - 0.15                       # the victory cue sits 0.15 s after the fight ends
-        hook_sounds += [(end_vt + t, name, pitch, g) for t, name, pitch, g in cta.SOUNDS]
+        shift = 2.0 if (spec or {}).get("mode") == "horde" else 0.0   # horde: leaderboard first
+        hook_sounds += [(end_vt + shift + t, name, pitch, g) for t, name, pitch, g in cta.SOUNDS]
+        if (spec or {}).get("horde", {}).get("board", {}).get("new_record"):
+            say(end_vt + 0.9, announcer("new_record"), ANNOUNCER_GAIN)
     for vt, name, pitch, g in hook_sounds:
         snd = make(name, pitch, 0)
         i = int(vt * SR)
@@ -205,7 +229,12 @@ def mux(video_in, wav_path, video_out):
 def add_soundtrack(world, timemap, spec, silent_video, final_video, wav_path, video_seconds):
     cues = build_cues(world)
     winner = None
-    if getattr(world, "soccer", False):
+    if getattr(world, "horde", False):
+        winner = None                    # the hero fell: no victory line
+    elif getattr(world, "boss_mode", False):
+        m = world.raid_mvp() if world.winner_side == 0 else None
+        winner = m.kind if m is not None else None
+    elif getattr(world, "soccer", False):
         m = world.mvp()
         winner = m.kind if m is not None else None
     elif world.winner_side is not None and world.mains[world.winner_side].alive:

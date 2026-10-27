@@ -63,6 +63,92 @@ def credentials(interactive):
     return creds
 
 
+# ── playlists: one per video format, so viewers can find all battle royales, soccer matches... ──
+# Managing playlists needs the broader "youtube" scope, kept in its own token so uploads never
+# depend on it:  python tools/youtube_upload.py --auth-playlists
+MANAGE_TOKEN = os.path.join(SECRETS, "youtube_manage_token.json")
+MANAGE_SCOPES = ["https://www.googleapis.com/auth/youtube"]
+PLAYLISTS_STATE = os.path.join(SECRETS, "playlists.json")
+PLAYLISTS = {
+    "1v1": ("1v1 Fights | Pixel Hero Fights", "Every 1v1 pixel ball battle: two heroes, one winner."),
+    "royale": ("Battle Royale | Pixel Hero Fights", "6 fighters, themed maps, items and a closing storm. Last one standing wins."),
+    "soccer": ("2v2 Soccer | Pixel Hero Fights", "Soccer with superpowers: 2v2, first to 2 goals, knockouts allowed."),
+    "boss": ("Boss Raid | Pixel Hero Fights", "4 heroes vs a giant boss with deadly skills. Do they win?"),
+    "horde": ("Horde Survival | Pixel Hero Fights", "One hero vs endless waves. Guess the score; the leaderboard is at the end."),
+}
+
+
+def manage_credentials(interactive=False):
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    creds = Credentials.from_authorized_user_file(MANAGE_TOKEN, MANAGE_SCOPES) if os.path.exists(MANAGE_TOKEN) else None
+    if creds and creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+        except Exception:
+            creds = None
+    if not creds or not creds.valid:
+        if not interactive:
+            return None
+        flow = InstalledAppFlow.from_client_secrets_file(find_client(), MANAGE_SCOPES)
+        creds = flow.run_local_server(port=0, prompt="consent")
+    with open(MANAGE_TOKEN, "w", encoding="utf-8") as f:
+        f.write(creds.to_json())
+    return creds
+
+
+def video_format(out_dir):
+    """1v1 / royale / soccer, from the rendered spec."""
+    try:
+        mode = json.load(open(os.path.join(out_dir, "spec.resolved.json"), encoding="utf-8")).get("mode")
+    except (OSError, ValueError):
+        mode = None
+    return mode if mode in ("royale", "soccer", "horde", "boss") else "1v1"
+
+
+def playlist_id(yt, fmt, log=print):
+    """The format's playlist id, created (public) the first time it is needed."""
+    state = json.load(open(PLAYLISTS_STATE, encoding="utf-8")) if os.path.exists(PLAYLISTS_STATE) else {}
+    if state.get(fmt):
+        return state[fmt]
+    title, desc = PLAYLISTS[fmt]
+    resp = yt.playlists().insert(part="snippet,status", body={
+        "snippet": {"title": title, "description": desc}, "status": {"privacyStatus": "public"}}).execute()
+    state[fmt] = resp["id"]
+    with open(PLAYLISTS_STATE, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+    log(f"  created playlist {title!r}: https://youtube.com/playlist?list={resp['id']}")
+    return resp["id"]
+
+
+def add_to_playlist(out_dir, log=print):
+    """Put an uploaded video into its format's playlist. Never fails the upload."""
+    rec_path = os.path.join(out_dir, "upload.json")
+    rec = json.load(open(rec_path, encoding="utf-8")) if os.path.exists(rec_path) else {}
+    if not rec.get("video_id") or rec.get("playlist"):
+        return rec.get("playlist")
+    creds = manage_credentials()
+    if creds is None:
+        log("  playlist: skipped (run  python tools/youtube_upload.py --auth-playlists  once)")
+        return None
+    from googleapiclient.discovery import build
+    try:
+        yt = build("youtube", "v3", credentials=creds, cache_discovery=False)
+        fmt = video_format(out_dir)
+        pid = playlist_id(yt, fmt, log)
+        yt.playlistItems().insert(part="snippet", body={"snippet": {
+            "playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": rec["video_id"]}}}).execute()
+    except Exception as e:
+        log(f"  playlist: failed ({str(e)[:160]})")
+        return None
+    rec["playlist"] = pid
+    with open(rec_path, "w", encoding="utf-8") as f:
+        json.dump(rec, f, indent=2, ensure_ascii=False)
+    log(f"  added to the {PLAYLISTS[fmt][0].split(' |')[0]} playlist")
+    return pid
+
+
 def metadata(out_dir, privacy, publish_at=None):
     meta = json.load(open(os.path.join(out_dir, "youtube.json"), encoding="utf-8"))
     title = meta["title"]
@@ -141,10 +227,20 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("out_dir", nargs="?", help="a rendered fight folder, e.g. out/king_vs_knight")
     ap.add_argument("--auth", action="store_true", help="sign in to YouTube (opens your browser)")
+    ap.add_argument("--auth-playlists", action="store_true",
+                    help="allow managing playlists (separate sign-in; then creates the format playlists)")
     ap.add_argument("--privacy", choices=["private", "unlisted", "public"])
     ap.add_argument("--force", action="store_true", help="upload even if this folder was uploaded before")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    if args.auth_playlists:
+        creds = manage_credentials(interactive=True)
+        from googleapiclient.discovery import build
+        yt = build("youtube", "v3", credentials=creds, cache_discovery=False)
+        for fmt in PLAYLISTS:
+            playlist_id(yt, fmt)
+        print(f"Playlists ready; token saved to {os.path.relpath(MANAGE_TOKEN, ROOT)}")
+        return
     if args.auth:
         credentials(interactive=True)
         print(f"Signed in; token saved to {os.path.relpath(TOKEN, ROOT)}")

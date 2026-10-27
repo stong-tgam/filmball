@@ -91,6 +91,63 @@ def youtube_meta_soccer(spec, world, summary):
             "winner": summary.get("winner_name"), "format": "soccer"}
 
 
+HORDE_HOOKS = [
+    "How many {HORDE} can the {HERO} defeat? Guess first! {E}",
+    "{HERO} {E} vs ENDLESS {HORDE}. Guess the score!",
+    "Can the {HERO} survive the {HORDE} horde? {E}",
+    "{HERO} {E} vs wave after wave of {HORDE}",
+]
+
+
+BOSS_HOOKS = [
+    "Can 4 heroes beat the {BOSS}? {E}",
+    "BOSS RAID: {BOSS} vs {A}, {B}, {C} and {D} {E}",
+    "4 heroes vs the {BOSS}. Who survives? {E}",
+    "The {BOSS} has never lost... {E}",
+]
+
+
+def youtube_meta_boss(spec, world, summary):
+    import random
+    fs = spec["fighters"]
+    boss = fs[4]
+    rng = random.Random("boss|" + "|".join(str(f.get("id")) for f in fs) + f"|{summary['seed']}")
+    facts = {"BOSS": boss["name"], "E": boss.get("emoji", ""), "A": fs[0]["name"], "B": fs[1]["name"],
+             "C": fs[2]["name"], "D": fs[3]["name"]}
+    hooks = [h for h in BOSS_HOOKS if not ("never lost" in h and summary.get("winner") != 0)]
+    title = " ".join(rng.choice(hooks).format(**facts).split())
+    lines = [f"Raid party: {', '.join(f['name'] for f in fs[:4])}",
+             f"Boss: {boss['name']}. Watch the red warning zones; it gets ENRAGED at half health.", "",
+             rng.choice(["Did the heroes win? No spoilers in the comments!",
+                         "Which boss should they fight next?",
+                         "Who was the MVP? Comment!"]), "",
+             "#shorts #bossfight #raid #pixelart #ballbattle"]
+    tags = (spec.get("youtube", {}).get("tags") or []) + ["pixel hero fights", "boss raid"]
+    return {"title": title[:100], "description": "\n".join(lines), "tags": list(dict.fromkeys(tags))[:30],
+            "category": "Gaming", "made_for_kids": False, "visibility": "public", "seed": summary["seed"],
+            "winner": summary.get("winner_name"), "format": "boss"}
+
+
+def youtube_meta_horde(spec, world, summary):
+    import random
+    hero = spec["fighters"][0]
+    hc = spec["horde"]
+    rng = random.Random(f"horde|{hero.get('id')}|{hc['kind']}|{summary['seed']}")
+    facts = {"HERO": hero["name"], "HORDE": hc["title"].title(), "E": hero.get("emoji", "")}
+    title = " ".join(rng.choice(HORDE_HOOKS).format(**facts).split())
+    lines = [f"{hero.get('emoji', '')} {hero['name']}: {hero.get('blurb', '')}".strip(),
+             f"Endless waves of {facts['HORDE'].lower()} until the {hero['name']} falls. Every hero gets a run; "
+             "the leaderboard is at the end.", "",
+             rng.choice(["Guess the score before the end! Comment your number.",
+                         "Which hero should face the horde next?",
+                         "Who will top the leaderboard? Comment!"]), "",
+             "#shorts #hordesurvival #pixelart #ballbattle #simulation"]
+    tags = (spec.get("youtube", {}).get("tags") or []) + ["pixel hero fights", "survival"]
+    return {"title": title[:100], "description": "\n".join(lines), "tags": list(dict.fromkeys(tags))[:30],
+            "category": "Gaming", "made_for_kids": False, "visibility": "public", "seed": summary["seed"],
+            "winner": None, "format": "horde"}
+
+
 def youtube_meta_royale(spec, world, summary):
     import random
     yt = spec.get("youtube", {})
@@ -118,6 +175,10 @@ def youtube_meta(spec, world, summary):
         return youtube_meta_royale(spec, world, summary)
     if spec.get("mode") == "soccer":
         return youtube_meta_soccer(spec, world, summary)
+    if spec.get("mode") == "horde":
+        return youtube_meta_horde(spec, world, summary)
+    if spec.get("mode") == "boss":
+        return youtube_meta_boss(spec, world, summary)
     yt = spec.get("youtube", {})
     a, b = world.mains
     fa, fb = spec["fighters"][0], spec["fighters"][1]
@@ -161,7 +222,13 @@ def winner_card_hold(spec, best):
     """Seconds to keep the winner card up: long enough for the winner's victory line."""
     hold = max(3.5, float(spec.get("end_hold", 3.5)))
     side = best.get("winner")
-    if spec.get("mode") == "soccer":
+    if spec.get("mode") == "horde":
+        return hold                      # the hero fell: no victory line, the leaderboard has the stage
+    if spec.get("mode") == "boss":
+        if best.get("winner") != 0:
+            return hold                  # raid failed: no hero line
+        side = best.get("mvp_index")       # the MVP says the victory line
+    elif spec.get("mode") == "soccer":
         side = best.get("mvp_index")       # the MVP says the victory line
     elif side is None or not best.get("winner_hp"):
         return hold                      # draw, or the winner's minions finished it (no line)
@@ -184,6 +251,8 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("what", nargs="*", help="two character ids, one spec .json, or: royale [ids...]")
+    ap.add_argument("--boss", choices=["dragon", "lich", "golem", "kraken", "mech"], help="boss raid: which boss")
+    ap.add_argument("--horde", choices=["skeletons", "zombies"], help="horde survival: which horde")
     ap.add_argument("--map", help="battle royale map (rocky_canyon, lava_ruins, pillar_hall)")
     ap.add_argument("--list", action="store_true", help="list roster characters")
     ap.add_argument("--seeds", type=int, help="how many seeds to search (default: spec search.seeds or 300)")
@@ -204,7 +273,21 @@ def main():
         return
 
     try:
-        if args.what and args.what[0] == "soccer":
+        if args.what and args.what[0] == "boss":
+            from fightsim.spec import build_boss
+            kind = args.boss or "dragon"
+            heroes = args.what[1:] or None
+            spec = finalize(build_boss(kind, heroes, salt=time.strftime("%Y-%m-%d")))
+            name = f"boss_{kind}_" + "-".join(f["id"] for f in spec["fighters"][:4])
+        elif args.what and args.what[0] == "horde":
+            from fightsim.spec import build_horde
+            if len(args.what) < 2:
+                print("usage: make_fight.py horde <hero> [--horde skeletons|zombies]")
+                sys.exit(2)
+            kind = args.horde or "skeletons"
+            spec = finalize(build_horde(args.what[1], kind))
+            name = f"horde_{kind}_{args.what[1]}"
+        elif args.what and args.what[0] == "soccer":
             from fightsim.spec import build_soccer
             ids = args.what[1:] or None
             spec = finalize(build_soccer(ids, salt=time.strftime("%Y-%m-%d")))
@@ -289,7 +372,7 @@ def main():
               f"{min(r['duration'] for r in decided):.0f}-{max(r['duration'] for r in decided):.0f}s"
               if decided else "      every fight timed out: the matchup needs more damage")
     def finish_t(r):  # the finishing blow, played in slow motion
-        return r.get("climax_t") if spec.get("mode") in ("royale", "soccer") else r.get("loser_main_death")
+        return r.get("climax_t") if spec.get("mode") in ("royale", "soccer", "horde", "boss") else r.get("loser_main_death")
 
     # the whole video (fight + end card) has to fit the shorts window
     hold = float(spec.get("end_hold", 3.5)) + float(spec.get("intro", 1.2))
@@ -316,6 +399,12 @@ def main():
 
     # 3. render
     resolved = copy.deepcopy(spec)
+    if resolved.get("mode") == "horde":
+        from fightsim.spec import horde_board
+        resolved["horde"]["board"] = horde_board(resolved["horde"]["kind"], os.path.join(HERE, "out"),
+                                                 current=(resolved["fighters"][0]["id"], best["kills"]),
+                                                 exclude=os.path.basename(os.path.normpath(out_dir)))
+        resolved["horde"]["score"] = {"kills": best["kills"], "wave": best["wave"]}
     if args.seed is None:  # a --seed replay must not clobber the tuned spec it replays
         with open(resolved_path, "w", encoding="utf-8") as f:
             json.dump(resolved, f, indent=2, ensure_ascii=False)

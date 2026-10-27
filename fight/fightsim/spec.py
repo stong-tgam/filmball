@@ -94,11 +94,47 @@ def stage_theme(ch):
         "pattern": arena.get("pattern", "checker"),
         "floor_art": f"characters/art/{ch['id']}/floor.png",
         "stage": arena.get("stage", ""),
-    }
+    } | _map_art(f"characters/art/{ch['id']}/map.png")
+
+
+def _map_art(rel):
+    """{"map_art": rel} when that whole-arena PixelLab map exists (it replaces the tiled floor)."""
+    return {"map_art": rel} if os.path.exists(os.path.join(ROOT, rel)) else {}
+
+
+# neutral 1v1 arenas (PixelLab floor + two props in the corners); art in art/arenas/<id>/
+ARENAS = {
+    "colosseum": ("The Colosseum", [150, 100, 60], [60, 36, 20], [205, 175, 130]),
+    "volcano": ("Volcano Core", [120, 40, 20], [40, 10, 6], [80, 60, 60]),
+    "frozen_lake": ("Frozen Lake", [90, 150, 210], [30, 60, 110], [200, 225, 245]),
+    "temple": ("Sun Temple", [170, 120, 50], [80, 50, 20], [215, 185, 130]),
+    "night_forest": ("Night Forest", [30, 60, 50], [10, 22, 18], [70, 100, 70]),
+    "rooftop": ("City Rooftop", [60, 60, 90], [20, 20, 34], [120, 120, 130]),
+    "dojo": ("The Dojo", [140, 60, 40], [60, 24, 16], [215, 180, 120]),
+    "desert": ("Desert Dunes", [220, 150, 70], [120, 70, 30], [230, 195, 130]),
+    "crystal_cave": ("Crystal Cave", [60, 40, 110], [20, 12, 40], [90, 80, 120]),
+    "beach": ("Sunny Beach", [70, 170, 220], [30, 90, 150], [240, 220, 170]),
+}
+
+
+def arena_theme(aid):
+    stage, top, bottom, fill = ARENAS[aid]
+    base = f"art/arenas/{aid}"
+    return {"bg_top": top, "bg_bottom": bottom, "arena_fill": fill, "arena_border": [12, 12, 16],
+            "pattern": "checker", "floor_art": f"{base}/floor.png", "stage": stage, "arena_id": aid,
+            "props": [f"{base}/deco0.png", f"{base}/deco1.png"]} | (
+        # a whole-arena PixelLab map replaces the tiled floor; its own edges replace the props
+        {"map_art": f"{base}/map.png", "props": []} if os.path.exists(os.path.join(ROOT, base, "map.png")) else {})
 
 
 def home_theme(ca, cb):
-    """The fight happens on one fighter's home stage, picked deterministically per matchup."""
+    """Half the matchups fight in a neutral arena, the rest on one fighter's home stage;
+    both picked deterministically per matchup (so a re-render looks the same)."""
+    h = zlib.crc32(f"arena|{ca['id']}|{cb['id']}".encode())
+    if h % 2 == 0 and ARENAS:
+        aid = sorted(ARENAS)[(h >> 1) % len(ARENAS)]
+        if os.path.exists(os.path.join(ROOT, "art", "arenas", aid, "floor.png")):
+            return arena_theme(aid)
     pick = [ca, cb][zlib.crc32(f"{ca['id']}|{cb['id']}".encode()) % 2]
     other = cb if pick is ca else ca
     theme = stage_theme(pick) or stage_theme(other)
@@ -292,7 +328,7 @@ def build_royale(ids, map_name=None, salt=""):
         "idea": f"{len(ids)}-fighter battle royale on {m['theme']['stage']}",
         "title": f"{len(ids)}-WAY BATTLE ROYALE",
         "map": map_name,
-        "theme": dict(m["theme"], floor="none"),
+        "theme": dict(m["theme"], floor="none") | _map_art(f"art/maps/royale_{map_name}.png"),
         "fighters": list(ids),
         "unit_scale": 0.72,
         "terrain": terrain,
@@ -349,6 +385,276 @@ def build_soccer(ids=None, teams=("light", "shadow"), salt=""):
         "end_hold": 3.5,
         "youtube": {"tags": ["soccer", "football", "ball battle", "simulation", "2v2", "shorts",
                              *[c["name"].lower() for c in chars]]},
+    }
+
+
+# Horde survival: one hero vs waves. Enemy templates are plain units (sprite = PixelLab art).
+def _enemy(id_, name, hp, r, speed, color, sprite, seek=140, body=2.0, boss=False, **extra):
+    t = {"id": id_, "name": name, "hp": hp, "radius": r * 1.4, "speed": speed, "color": color,
+         "sprite": f"art/horde/{sprite}.png", "stats": {"seek": seek, "body_damage": body}}
+    t["art_fit"] = {"scale": 1.15 if boss else 1.5}   # draw bigger than the hitbox so they read on a phone
+    if boss:
+        t["boss"] = True
+    t.update(extra)
+    return t
+
+
+HORDES = {
+    "skeletons": {
+        "title": "SKELETONS", "theme": "graveyard", "death_fx": "fx_bones", "death_sound": "bones",
+        "enemies": {
+            "basic": _enemy("skeleton", "Skeleton", 6, 28, 330, [220, 220, 210], "skeleton"),
+            # one new enemy joins per wave, in this order ("unlock" = first wave it appears)
+            "elites": [
+                _enemy("skeleton_archer", "Skeleton Archer", 5, 26, 300, [200, 200, 190], "skeleton_archer", seek=-25,
+                       body=1.0, unlock=2, abilities=[{"on": "timer", "every": 1.7, "do": [
+                           {"type": "shoot", "style": "arrow", "damage": 2, "speed": 800, "radius": 7,
+                            "color": [230, 230, 230]}]}]),
+                _enemy("skeleton_shield", "Shield Skeleton", 12, 30, 270, [190, 160, 110], "skeleton_shield",
+                       unlock=3, stats_extra={"armor": 0.45}),
+                _enemy("bone_hound", "Bone Hound", 4, 24, 560, [225, 220, 205], "bone_hound", body=1.5, unlock=4),
+                _enemy("skeleton_mage", "Skeleton Mage", 6, 26, 260, [170, 110, 220], "skeleton_mage", seek=-35,
+                       body=1.0, unlock=6, abilities=[{"on": "timer", "every": 2.2, "do": [
+                           {"type": "shoot", "style": "orb", "damage": 3, "speed": 520, "radius": 11,
+                            "color": [190, 110, 255]}]}]),
+                _enemy("ghost", "Ghost", 5, 26, 430, [170, 235, 245], "ghost", body=1.5, unlock=7),
+                _enemy("skeleton_knight", "Death Knight", 20, 36, 230, [90, 90, 110], "skeleton_knight", body=3.0,
+                       unlock=8, stats_extra={"armor": 0.35}),
+            ],
+            "boss": _enemy("bone_giant", "BONE GIANT", 70, 66, 230, [210, 230, 200], "bone_giant", body=5, boss=True,
+                           abilities=[{"on": "timer", "every": 3.0, "name": "Bone Slam", "do": [
+                               {"type": "shockwave", "radius": 170, "damage": 5, "color": [200, 255, 200]}]}]),
+        },
+    },
+    "zombies": {
+        "title": "ZOMBIES", "theme": "city", "death_fx": "fx_splat", "death_sound": "splat",
+        "enemies": {
+            "basic": _enemy("zombie", "Zombie", 7, 28, 300, [120, 170, 90], "zombie", body=2.2),
+            "elites": [
+                _enemy("zombie_runner", "Runner", 4, 26, 520, [150, 180, 110], "zombie_runner", body=1.6, unlock=2),
+                _enemy("zombie_exploder", "Exploder", 8, 32, 250, [140, 200, 80], "zombie_exploder", body=1.0,
+                       unlock=3, abilities=[{"on": "death", "do": [
+                           {"type": "shockwave", "radius": 150, "damage": 6, "color": [140, 255, 90]}]}]),
+                _enemy("zombie_dog", "Zombie Dog", 4, 24, 600, [120, 150, 80], "zombie_dog", body=1.5, unlock=4),
+                _enemy("zombie_spitter", "Spitter", 6, 28, 260, [150, 210, 70], "zombie_spitter", seek=-30, body=1.0,
+                       unlock=6, abilities=[{"on": "timer", "every": 2.0, "do": [
+                           {"type": "shoot", "style": "orb", "damage": 3, "speed": 560, "radius": 11,
+                            "color": [150, 255, 60]}]}]),
+                _enemy("zombie_riot", "Riot Zombie", 16, 34, 240, [90, 100, 120], "zombie_riot", body=2.5, unlock=7,
+                       stats_extra={"armor": 0.5}),
+                _enemy("zombie_bloater", "Bloater", 22, 42, 200, [150, 90, 170], "zombie_bloater", body=2.0, unlock=8,
+                       abilities=[{"on": "death", "do": [
+                           {"type": "shockwave", "radius": 210, "damage": 8, "color": [190, 110, 230]}]}]),
+            ],
+            "boss": _enemy("zombie_brute", "BRUTE", 80, 68, 240, [110, 150, 90], "zombie_brute", body=6, boss=True,
+                           abilities=[{"on": "timer", "every": 3.4, "name": "Ground Pound", "do": [
+                               {"type": "shockwave", "radius": 180, "damage": 5, "color": [180, 255, 140]}]}]),
+        },
+    },
+}
+for _h in HORDES.values():   # fold "stats_extra" into stats; enemies take two good hits
+    for _e in [_h["enemies"]["basic"], _h["enemies"]["boss"], *_h["enemies"]["elites"]]:
+        _e["stats"].update(_e.pop("stats_extra", {}))
+        _e["hp"] *= 2
+
+
+def build_horde(hero, kind="skeletons"):
+    """One hero vs endless waves of a horde; the number of kills is the score."""
+    h = HORDES[kind]
+    ch = load_character(hero)
+    theme = dict(ROYALE_THEMES[h["theme"]]["theme"], floor="none")
+    if kind == "skeletons":   # clean dark crypt stones: the graveyard's bone speckles look like enemies
+        theme.update(pattern="flagstone", arena_fill=[78, 76, 84], stage="Forgotten Crypt")
+    theme.update(_map_art(f"art/maps/horde_{kind}.png"))
+    return {
+        "mode": "horde",
+        "idea": f"How many {kind} can the {ch['name']} defeat?",
+        "title": f"{ch['name'].upper()} VS THE {h['title']}",
+        "theme": theme,
+        "arena": {"width": 960, "height": 1160},
+        "fighters": [hero],
+        "unit_scale": 0.9,
+        # hits/kills never stop here, so ultimates chain: only one full cut-in (banner, voice,
+        # big cue) every few seconds; the casts in between just show the effect
+        "cutin_gap": 5.0,
+        "horde": {"kind": kind, "title": h["title"], "death_fx": h["death_fx"], "death_sound": h["death_sound"],
+                  "enemies": copy.deepcopy(h["enemies"]), "first_wave": 0.2, "base": 6, "grow": 4, "gap": 3.6,
+                  "boss_waves": [5, 10], "max_alive": 40,
+                  "drops": {"chance": 0.07, "max": 3,
+                            "weights": {"potion": 3, "power": 2, "bomb": 1.5, "freeze": 0.6, "lightning": 0.7}}},
+        "duration": {"target": [17, 25], "max": 40},
+        "video_seconds": [20, 36],
+        "search": {"seeds": 200},
+        "balance": False,
+        "pace": {"seeds": 60, "range": [0.3, 6.0]},
+        "end_hold": 5.0,
+        "youtube": {"tags": ["horde survival", "ball battle", "simulation", "shorts", kind, ch["name"].lower()]},
+    }
+
+
+def horde_board(kind, out_dir_root, current=None, exclude=None):
+    """Top-10 leaderboard for a horde: every roster hero's best kills (None = no run yet).
+    current: (hero id, kills) of the run being rendered; exclude: its folder (when re-rendering)."""
+    best = {}
+    if os.path.isdir(out_dir_root):
+        for name in os.listdir(out_dir_root):
+            if name == exclude or name.startswith("_"):
+                continue
+            try:
+                spec = json.load(open(os.path.join(out_dir_root, name, "spec.resolved.json"), encoding="utf-8"))
+                rep = json.load(open(os.path.join(out_dir_root, name, "report.json"), encoding="utf-8"))["chosen"]
+            except (OSError, ValueError, KeyError):
+                continue
+            if spec.get("mode") != "horde" or spec.get("horde", {}).get("kind") != kind:
+                continue
+            hid = spec["fighters"][0]["id"]
+            best[hid] = max(best.get(hid, 0), int(rep.get("kills", 0)))
+    prev_record = max(best.values()) if best else 0
+    if current:
+        best[current[0]] = max(best.get(current[0], 0), current[1])
+    ids = list_characters() + ([current[0]] if current and current[0] not in list_characters() else [])
+    rows = [{"id": c, "name": load_character(c)["name"], "best": best.get(c)} for c in ids]
+    rows.sort(key=lambda r: (r["best"] is None, -(r["best"] or 0), r["name"]))
+    return {"rows": rows[:10], "new_record": bool(current and current[1] > prev_record), "prev_record": prev_record}
+
+
+# Boss raid: 4 heroes vs one giant boss with telegraphed skills and an enraged second phase
+BOSSES = {
+    "dragon": {
+        "boss": {"id": "dragon", "name": "Inferno Dragon", "hp": 400, "radius": 150, "speed": 170,
+                 "color": [220, 70, 40], "sprite": "art/boss/dragon.png", "art_fit": {"scale": 1.25},
+                 "stats": {"seek": 50, "body_damage": 8, "stability": 0.75}, "emoji": "🐉",
+                 "voice_intro": "dragon_intro", "voice_enraged": "dragon_enraged",
+                 "skills": [
+                     {"name": "FIRE BREATH", "type": "cone", "every": 3.2, "phase": 1, "warn": 0.85, "dmg": 26,
+                      "range": 620, "half": 30, "burn": 3, "fx": "fire_breath", "first": 1.0},
+                     {"name": "TAIL SWEEP", "type": "nova", "every": 4.6, "phase": 1, "warn": 0.8, "dmg": 21,
+                      "r": 330, "launch": 2.4},
+                     {"name": "METEOR RAIN", "type": "meteors", "every": 4.2, "phase": 2, "warn": 1.0, "dmg": 32,
+                      "r": 90, "count": 5, "fx": "meteor"},
+                     {"name": "SUMMON IMPS", "type": "summon", "every": 6.0, "phase": 2, "count": 3, "minion": "fire_imp"},
+                 ],
+                 "minions": {"fire_imp": {"id": "fire_imp", "name": "Fire Imp", "hp": 10, "radius": 36, "speed": 380,
+                                          "color": [230, 90, 50], "sprite": "art/boss/fire_imp.png",
+                                          "art_fit": {"scale": 1.4}, "stats": {"seek": 150, "body_damage": 2}}}},
+        "theme": {"stage": "Dragon's Lair", "bg_top": [110, 40, 20], "bg_bottom": [40, 12, 8],
+                  "arena_fill": [96, 70, 64], "arena_border": [24, 8, 6], "pattern": "flagstone", "floor": "none"},
+    },
+    "lich": {
+        "boss": {"id": "lich_king", "name": "Lich King", "hp": 380, "radius": 140, "speed": 160,
+                 "color": [120, 80, 200], "sprite": "art/boss/lich_king.png", "art_fit": {"scale": 1.25},
+                 "stats": {"seek": 45, "body_damage": 8, "stability": 0.75}, "emoji": "💀",
+                 "voice_intro": "lich_intro", "voice_enraged": "lich_enraged",
+                 "skills": [
+                     {"name": "SOUL BEAM", "type": "beam", "every": 3.0, "phase": 1, "warn": 0.85, "dmg": 48,
+                      "width": 150, "len": 1200, "fx": "soul_beam", "first": 1.0},
+                     {"name": "RAISE DEAD", "type": "summon", "every": 5.0, "phase": 1, "count": 3, "minion": "skeleton"},
+                     {"name": "FROST NOVA", "type": "nova", "every": 4.4, "phase": 1, "warn": 0.9, "dmg": 21,
+                      "r": 360, "freeze": 0.5, "fx": "frost_ring"},
+                     {"name": "SOUL RAIN", "type": "meteors", "every": 4.0, "phase": 2, "warn": 1.0, "dmg": 29,
+                      "r": 85, "count": 6, "fx": "soul_orb"},
+                 ],
+                 "minions": {"skeleton": {"id": "skeleton", "name": "Skeleton", "hp": 12, "radius": 38, "speed": 320,
+                                          "color": [220, 220, 210], "sprite": "art/horde/skeleton.png",
+                                          "art_fit": {"scale": 1.5}, "stats": {"seek": 140, "body_damage": 2}}}},
+        "theme": {"stage": "Frozen Throne", "bg_top": [50, 40, 90], "bg_bottom": [16, 12, 32],
+                  "arena_fill": [80, 82, 100], "arena_border": [12, 10, 24], "pattern": "flagstone", "floor": "none"},
+    },
+}
+
+BOSSES.update({
+    "golem": {
+        "boss": {"id": "golem", "name": "Stone Golem", "hp": 450, "radius": 155, "speed": 140,
+                 "color": [150, 130, 110], "sprite": "art/boss/golem.png", "art_fit": {"scale": 1.25},
+                 "stats": {"seek": 45, "body_damage": 9, "stability": 0.9}, "emoji": "🗿",
+                 "voice_intro": "golem_intro", "voice_enraged": "golem_enraged", "enrage": {"armor": 0.3},
+                 "skills": [
+                     {"name": "BOULDER THROW", "type": "meteors", "every": 3.0, "phase": 1, "warn": 1.0, "dmg": 34,
+                      "r": 120, "count": 1, "fx": "boulder", "first": 1.0},
+                     {"name": "GROUND POUND", "type": "nova", "every": 4.0, "phase": 1, "warn": 0.85, "dmg": 22,
+                      "r": 340, "launch": 2.6, "fx": "boulder"},
+                     {"name": "ROCKSLIDE", "type": "meteors", "every": 4.5, "phase": 2, "warn": 1.0, "dmg": 26,
+                      "r": 80, "count": 6, "fx": "boulder"},
+                     {"name": "GOLEMLINGS", "type": "summon", "every": 6.0, "phase": 2, "count": 3, "minion": "pebble"},
+                 ],
+                 "minions": {"pebble": {"id": "pebble", "name": "Golemling", "hp": 16, "radius": 38, "speed": 300,
+                                        "color": [140, 120, 100], "sprite": "art/boss/pebble.png",
+                                        "art_fit": {"scale": 1.4}, "stats": {"seek": 140, "body_damage": 3, "armor": 0.2}}}},
+        "theme": {"stage": "Crystal Canyon", "bg_top": [150, 100, 60], "bg_bottom": [70, 40, 22],
+                  "arena_fill": [196, 160, 112], "arena_border": [40, 24, 12], "pattern": "sand", "floor": "none"},
+    },
+    "kraken": {
+        "boss": {"id": "kraken", "name": "Kraken", "hp": 400, "radius": 150, "speed": 150,
+                 "color": [150, 70, 180], "sprite": "art/boss/kraken.png", "art_fit": {"scale": 1.25},
+                 "stats": {"seek": 40, "body_damage": 7, "stability": 0.8}, "emoji": "🐙",
+                 "voice_intro": "kraken_intro", "voice_enraged": "kraken_enraged",
+                 "skills": [
+                     {"name": "TENTACLE SLAM", "type": "beam", "origin": "edge", "every": 2.6, "phase": 1, "warn": 0.9,
+                      "dmg": 30, "width": 120, "len": 1500, "fx": "tentacle", "first": 1.0},
+                     {"name": "WHIRLPOOL", "type": "nova", "every": 5.0, "phase": 1, "warn": 0.9, "dmg": 14,
+                      "r": 400, "pull": 2.2, "fx": "whirlpool"},
+                     {"name": "INK BLAST", "type": "meteors", "every": 4.0, "phase": 2, "warn": 0.95, "dmg": 24,
+                      "r": 100, "count": 4, "fx": "ink_splash"},
+                     {"name": "TENTACLE STORM", "type": "beam", "origin": "edge", "count": 3, "every": 4.6, "phase": 2,
+                      "warn": 1.0, "dmg": 28, "width": 110, "len": 1500, "fx": "tentacle"},
+                 ],
+                 "minions": {}},
+        "theme": {"stage": "Sunken Dock", "bg_top": [30, 80, 130], "bg_bottom": [10, 30, 60],
+                  "arena_fill": [120, 90, 64], "arena_border": [10, 20, 40], "pattern": "planks", "floor": "none"},
+    },
+    "mech": {
+        "boss": {"id": "mech_titan", "name": "Mech Titan", "hp": 420, "radius": 150, "speed": 170,
+                 "color": [190, 60, 50], "sprite": "art/boss/mech_titan.png", "art_fit": {"scale": 1.25},
+                 "stats": {"seek": 50, "body_damage": 7, "stability": 0.85}, "emoji": "🤖",
+                 "voice_intro": "mech_intro", "voice_enraged": "mech_enraged",
+                 "skills": [
+                     {"name": "MISSILE BARRAGE", "type": "meteors", "every": 3.8, "phase": 1, "warn": 1.0, "dmg": 25,
+                      "r": 75, "count": 6, "fx": "missile", "first": 1.0},
+                     {"name": "LASER SWEEP", "type": "beam", "count": 3, "spread": 32, "every": 4.2, "phase": 1,
+                      "warn": 0.9, "dmg": 30, "width": 80, "len": 1300, "fx": "laser"},
+                     {"name": "DEPLOY TURRETS", "type": "summon", "every": 6.0, "phase": 2, "count": 2, "minion": "turret"},
+                     {"name": "OVERDRIVE SLAM", "type": "nova", "every": 4.4, "phase": 2, "warn": 0.8, "dmg": 20,
+                      "r": 320, "launch": 2.4},
+                 ],
+                 "minions": {"turret": {"id": "turret", "name": "Turret", "hp": 18, "radius": 36, "speed": 1,
+                                        "color": [160, 160, 170], "sprite": "art/boss/turret.png",
+                                        "art_fit": {"scale": 1.4}, "stats": {"seek": 0, "body_damage": 0},
+                                        "abilities": [{"on": "timer", "every": 1.2, "do": [
+                                            {"type": "shoot", "style": "bolt", "damage": 4, "speed": 950, "radius": 8,
+                                             "color": [255, 80, 60]}]}]}}},
+        "theme": {"stage": "Titan Base", "bg_top": [80, 95, 60], "bg_bottom": [30, 38, 22],
+                  "arena_fill": [150, 150, 140], "arena_border": [20, 22, 14], "pattern": "concrete", "floor": "none"},
+    },
+})
+
+
+def build_boss(kind="dragon", heroes=None, salt=""):
+    """4 heroes vs a boss. heroes: 4 roster ids, or picked at random (seeded by salt)."""
+    import random as _random
+    b = BOSSES[kind]
+    if not heroes:
+        heroes = _random.Random(f"boss|{kind}|{salt}").sample(list_characters(), 4)
+    chars = [load_character(c) for c in heroes]
+    # about 1 raid in 3 ends with the boss winning (picked per raid, so it's a real surprise)
+    boss_wins = zlib.crc32(f"bosswin|{kind}|{'|'.join(heroes)}|{salt}".encode()) % 100 < 35
+    return {
+        "mode": "boss",
+        "want_winner": 1 if boss_wins else 0,
+        "idea": f"{', '.join(c['name'] for c in chars)} vs the {b['boss']['name']}",
+        "title": f"RAID: {b['boss']['name'].upper()}",
+        "boss_kind": kind,
+        "theme": dict(b["theme"]) | _map_art(f"art/maps/boss_{kind}.png"),
+        "arena": {"width": 960, "height": 1160},
+        "fighters": list(heroes) + [copy.deepcopy(b["boss"])],
+        "unit_scale": 0.85,
+        "duration": {"target": [16, 24], "max": 40},
+        "video_seconds": [20, 34],
+        "search": {"seeds": 200},
+        "balance": {"side": 4, "target": 0.62, "seeds": 80, "iters": 6, "range": [0.3, 4.0]},
+        "pace": {"seeds": 60, "range": [0.3, 5.0]},
+        "end_hold": 4.0,
+        "youtube": {"tags": ["boss raid", "boss fight", "ball battle", "simulation", "shorts",
+                             b["boss"]["name"].lower(), *[c["name"].lower() for c in chars]]},
     }
 
 
@@ -459,7 +765,13 @@ def _check_unit(u, where, spec, errors):
 def validate(spec):
     errors = []
     fighters = spec.get("fighters", [])
-    if spec.get("mode") == "soccer":
+    if spec.get("mode") == "boss":
+        if len(fighters) != 5:
+            errors.append("a boss raid needs 4 heroes + the boss")
+    elif spec.get("mode") == "horde":
+        if len(fighters) != 1:
+            errors.append("horde survival needs exactly 1 hero")
+    elif spec.get("mode") == "soccer":
         if len(fighters) != 4:
             errors.append("2v2 soccer needs exactly 4 fighters")
     elif spec.get("mode") == "royale":
