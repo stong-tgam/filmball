@@ -1,0 +1,1452 @@
+[
+ {
+  "id": "archer",
+  "name": "Archer",
+  "emoji": "🏹",
+  "blurb": "Kites away and fires arrows that get stronger every hit. Ultimate: Arrow Rain.",
+  "color": [
+   60,
+   150,
+   70
+  ],
+  "hp": 75,
+  "radius": 62,
+  "speed": 620,
+  "decor": "hood",
+  "stats": {
+   "arrow_dmg": 5,
+   "seek": -25
+  },
+  "blades": [
+   {
+    "style": "bow",
+    "length": 34,
+    "width": 110,
+    "aim": true,
+    "solid": false,
+    "gap": 4,
+    "damage": 0
+   }
+  ],
+  "abilities": [
+   {
+    "on": "timer",
+    "every": 0.8,
+    "do": [
+     {
+      "type": "shoot",
+      "style": "arrow",
+      "damage": "$arrow_dmg",
+      "speed": 1150,
+      "radius": 9,
+      "color": [
+       230,
+       230,
+       230
+      ]
+     }
+    ]
+   },
+   {
+    "on": "projectile_hit",
+    "do": [
+     {
+      "type": "add_stat",
+      "stat": "arrow_dmg",
+      "amount": 0.6
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Arrow Rain",
+   "shout": "ARROW RAIN!",
+   "max": 100,
+   "per_hit": 14,
+   "on_full": [
+    {
+     "type": "shoot",
+     "style": "arrow",
+     "aim": "ring",
+     "count": 12,
+     "damage": "$arrow_dmg",
+     "speed": 1000,
+     "radius": 9,
+     "color": [
+      255,
+      220,
+      90
+     ]
+    }
+   ]
+  },
+  "hud": [
+   "Arrow Rain",
+   "Arrow DMG: {arrow_dmg:.1f}",
+   "Fires every 0.8s"
+  ],
+  "voice": {
+   "voice_name": "Lily",
+   "voice_id": "pFZP5JQG7iQjIQuC4Bku",
+   "lines": {
+    "ultimate": "Arrow rain!",
+    "victory": "Right on target."
+   }
+  },
+  "arena": {
+   "stage": "Whispering Woods",
+   "pattern": "grass",
+   "bg_top": [
+    40,
+    110,
+    70
+   ],
+   "bg_bottom": [
+    18,
+    52,
+    34
+   ],
+   "arena_fill": [
+    96,
+    148,
+    78
+   ]
+  },
+  "assets": {
+   "body": "heroes/archer/body.png",
+   "weapons": [
+    "heroes/archer/weapon_0.png"
+   ],
+   "projectiles": {
+    "arrow": "heroes/archer/projectile_arrow.png"
+   },
+   "summons": {},
+   "voice": {
+    "ultimate": "heroes/archer/voice_ultimate.mp3",
+    "victory": "heroes/archer/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/archer/ult_aura.png",
+   "ult_circle": "heroes/archer/ult_circle.png",
+   "ultimate_icon": "heroes/archer/ultimate_icon.png",
+   "hit_fx": "heroes/archer/hit_fx.png"
+  }
+ },
+ {
+  "id": "king",
+  "name": "King",
+  "emoji": "🤴",
+  "blurb": "Rams enemies, heals from his crown (stronger every time) and summons 4 pawns.",
+  "color": [
+   196,
+   30,
+   40
+  ],
+  "hp": 100,
+  "radius": 76,
+  "speed": 600,
+  "decor": "crown",
+  "stats": {
+   "body_damage": 8,
+   "crown_heal": 2,
+   "seek": 120
+  },
+  "abilities": [
+   {
+    "on": "timer",
+    "every": 2.0,
+    "do": [
+     {
+      "type": "heal",
+      "amount": "$crown_heal"
+     },
+     {
+      "type": "add_stat",
+      "stat": "crown_heal",
+      "amount": 1,
+      "max": 10
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Summons 4 pawns",
+   "shout": "PAWNS, ATTACK!",
+   "max": 100,
+   "per_second": 12,
+   "on_full": [
+    {
+     "type": "summon",
+     "unit": "pawn",
+     "count": 4
+    }
+   ]
+  },
+  "hud": [
+   "Summons 4 pawns",
+   "DMG: {body_damage:.1f}",
+   "Crown heal: +{crown_heal:.0f}"
+  ],
+  "summons": {
+   "pawn": {
+    "name": "Pawn",
+    "color": [
+     196,
+     30,
+     40
+    ],
+    "hp": 12,
+    "radius": 32,
+    "speed": 660,
+    "stats": {
+     "body_damage": 2,
+     "seek": 100
+    }
+   }
+  },
+  "voice": {
+   "voice_name": "Daniel",
+   "voice_id": "onwK4e9ZLuTAKqWW03F9",
+   "lines": {
+    "ultimate": "Pawns, attack!",
+    "victory": "Long live the King!"
+   }
+  },
+  "arena": {
+   "stage": "Royal Throne Room",
+   "pattern": "carpet",
+   "bg_top": [
+    120,
+    30,
+    40
+   ],
+   "bg_bottom": [
+    50,
+    12,
+    20
+   ],
+   "arena_fill": [
+    186,
+    74,
+    74
+   ]
+  },
+  "assets": {
+   "body": "heroes/king/body.png",
+   "weapons": [],
+   "projectiles": {},
+   "summons": {
+    "pawn": "heroes/king/summon_pawn.png"
+   },
+   "voice": {
+    "ultimate": "heroes/king/voice_ultimate.mp3",
+    "victory": "heroes/king/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/king/ult_aura.png",
+   "ult_circle": "heroes/king/ult_circle.png",
+   "ultimate_icon": "heroes/king/ultimate_icon.png",
+   "hit_fx": "heroes/king/hit_fx.png"
+  }
+ },
+ {
+  "id": "knight",
+  "name": "Knight",
+  "emoji": "🗡️",
+  "blurb": "Sword gets +2 damage every hit, gains armor when hurt, awakens a MEGA sword.",
+  "color": [
+   214,
+   214,
+   214
+  ],
+  "hp": 90,
+  "radius": 70,
+  "speed": 600,
+  "decor": "helmet",
+  "stats": {
+   "dmg": 3,
+   "armor": 0.15,
+   "seek": 120
+  },
+  "blades": [
+   {
+    "style": "sword",
+    "length": 130,
+    "width": 30,
+    "spin": 230,
+    "damage": "$dmg"
+   }
+  ],
+  "abilities": [
+   {
+    "on": "blade_hit",
+    "do": [
+     {
+      "type": "add_stat",
+      "stat": "dmg",
+      "amount": 2
+     }
+    ]
+   },
+   {
+    "on": "hurt",
+    "do": [
+     {
+      "type": "add_stat",
+      "stat": "armor",
+      "amount": 0.02,
+      "max": 0.6
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Awakens MEGA sword",
+   "shout": "MEGA SWORD!",
+   "max": 100,
+   "per_hit": 25,
+   "active_duration": 3,
+   "on_full": [
+    {
+     "type": "buff",
+     "stat": "blade_scale",
+     "mul": 2.6,
+     "duration": 3
+    },
+    {
+     "type": "buff",
+     "stat": "dmg",
+     "mul": 1.4,
+     "duration": 3,
+     "label": "x1.4 ULT"
+    }
+   ]
+  },
+  "hud": [
+   "Awakens MEGA sword",
+   "DMG: {dmg:.0f}{dmg_buffs}",
+   "Armor: {armor_pct:.0f}%"
+  ],
+  "voice": {
+   "voice_name": "Liam",
+   "voice_id": "TX3LPaxmHKxFdv7VOQHJ",
+   "lines": {
+    "ultimate": "Mega sword!",
+    "victory": "For honor!"
+   }
+  },
+  "arena": {
+   "stage": "Castle Courtyard",
+   "pattern": "flagstone",
+   "bg_top": [
+    80,
+    90,
+    110
+   ],
+   "bg_bottom": [
+    30,
+    34,
+    46
+   ],
+   "arena_fill": [
+    150,
+    155,
+    165
+   ]
+  },
+  "assets": {
+   "body": "heroes/knight/body.png",
+   "weapons": [
+    "heroes/knight/weapon_0.png"
+   ],
+   "projectiles": {},
+   "summons": {},
+   "voice": {
+    "ultimate": "heroes/knight/voice_ultimate.mp3",
+    "victory": "heroes/knight/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/knight/ult_aura.png",
+   "ult_circle": "heroes/knight/ult_circle.png",
+   "ultimate_icon": "heroes/knight/ultimate_icon.png",
+   "hit_fx": "heroes/knight/hit_fx.png"
+  }
+ },
+ {
+  "id": "necromancer",
+  "name": "Necromancer",
+  "emoji": "💀",
+  "blurb": "Raises a skeleton every 4s. Each fallen minion powers up Soul Drain, which hits everyone.",
+  "color": [
+   95,
+   70,
+   120
+  ],
+  "hp": 95,
+  "radius": 68,
+  "speed": 560,
+  "decor": [
+   "hood",
+   "skull"
+  ],
+  "stats": {
+   "dmg": 7,
+   "dark_power": 8,
+   "seek": 110
+  },
+  "blades": [
+   {
+    "style": "scythe",
+    "length": 120,
+    "width": 16,
+    "spin": 180,
+    "damage": "$dmg",
+    "color": [
+     190,
+     255,
+     200
+    ]
+   }
+  ],
+  "abilities": [
+   {
+    "on": "timer",
+    "every": 4.0,
+    "do": [
+     {
+      "type": "summon",
+      "unit": "skeleton",
+      "count": 1
+     }
+    ]
+   },
+   {
+    "on": "ally_death",
+    "do": [
+     {
+      "type": "add_stat",
+      "stat": "dark_power",
+      "amount": 1.5
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Soul Drain",
+   "shout": "SOUL DRAIN!",
+   "max": 100,
+   "per_second": 14,
+   "on_full": [
+    {
+     "type": "damage",
+     "target": "all_enemies",
+     "amount": "$dark_power"
+    },
+    {
+     "type": "heal",
+     "amount": "$dark_power"
+    }
+   ]
+  },
+  "hud": [
+   "Soul Drain",
+   "Dark power: {dark_power:.1f}",
+   "Skeleton every 4s"
+  ],
+  "summons": {
+   "skeleton": {
+    "name": "Skeleton",
+    "color": [
+     220,
+     215,
+     200
+    ],
+    "hp": 10,
+    "radius": 32,
+    "speed": 600,
+    "decor": "skull",
+    "stats": {
+     "seek": 100
+    },
+    "blades": [
+     {
+      "style": "sword",
+      "length": 60,
+      "width": 14,
+      "spin": 260,
+      "damage": 2,
+      "color": [
+       210,
+       205,
+       190
+      ],
+      "guard_color": [
+       90,
+       80,
+       70
+      ]
+     }
+    ]
+   }
+  },
+  "music": "dark spooky chiptune battle loop, 135 bpm, no vocals",
+  "voice": {
+   "voice_name": "George",
+   "voice_id": "JBFqnCBsd6RMkjVDRZzb",
+   "lines": {
+    "ultimate": "Soul drain!",
+    "victory": "Death always wins."
+   },
+   "pitch": -4
+  },
+  "arena": {
+   "stage": "Haunted Graveyard",
+   "pattern": "dirt",
+   "bg_top": [
+    60,
+    50,
+    80
+   ],
+   "bg_bottom": [
+    20,
+    16,
+    30
+   ],
+   "arena_fill": [
+    106,
+    96,
+    84
+   ]
+  },
+  "assets": {
+   "body": "heroes/necromancer/body.png",
+   "weapons": [
+    "heroes/necromancer/weapon_0.png"
+   ],
+   "projectiles": {},
+   "summons": {
+    "skeleton": "heroes/necromancer/summon_skeleton.png"
+   },
+   "voice": {
+    "ultimate": "heroes/necromancer/voice_ultimate.mp3",
+    "victory": "heroes/necromancer/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/necromancer/ult_aura.png",
+   "ult_circle": "heroes/necromancer/ult_circle.png",
+   "ultimate_icon": "heroes/necromancer/ultimate_icon.png",
+   "hit_fx": "heroes/necromancer/hit_fx.png"
+  }
+ },
+ {
+  "id": "ninja",
+  "name": "Ninja",
+  "emoji": "🥷",
+  "blurb": "Tiny and very fast. Poison dagger, bouncing shurikens, and Shadow Clones.",
+  "color": [
+   45,
+   45,
+   58
+  ],
+  "hp": 70,
+  "radius": 56,
+  "speed": 740,
+  "decor": "mask",
+  "stats": {
+   "dmg": 4,
+   "poison": 4,
+   "seek": 120
+  },
+  "blades": [
+   {
+    "style": "dagger",
+    "length": 80,
+    "width": 18,
+    "spin": 380,
+    "damage": "$dmg",
+    "color": [
+     180,
+     185,
+     195
+    ],
+    "guard_color": [
+     40,
+     40,
+     40
+    ]
+   }
+  ],
+  "abilities": [
+   {
+    "on": "blade_hit",
+    "do": [
+     {
+      "type": "poison",
+      "target": "other",
+      "dps": "$poison",
+      "duration": 2
+     },
+     {
+      "type": "add_stat",
+      "stat": "poison",
+      "amount": 0.5
+     }
+    ]
+   },
+   {
+    "on": "timer",
+    "every": 1.6,
+    "do": [
+     {
+      "type": "shoot",
+      "style": "shuriken",
+      "count": 2,
+      "spread": 24,
+      "damage": 3,
+      "speed": 950,
+      "radius": 11,
+      "bounces": 2
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Shadow Clones",
+   "shout": "SHADOW CLONES!",
+   "max": 100,
+   "per_hit": 15,
+   "on_full": [
+    {
+     "type": "summon",
+     "unit": "clone",
+     "count": 2
+    }
+   ]
+  },
+  "hud": [
+   "Shadow Clones",
+   "Poison: {poison:.1f}/s",
+   "Shurikens bounce 2x"
+  ],
+  "summons": {
+   "clone": {
+    "name": "Clone",
+    "color": [
+     70,
+     70,
+     90
+    ],
+    "hp": 9,
+    "radius": 40,
+    "speed": 760,
+    "decor": "mask",
+    "stats": {
+     "seek": 110
+    },
+    "blades": [
+     {
+      "style": "dagger",
+      "length": 60,
+      "width": 14,
+      "spin": 400,
+      "damage": 2,
+      "color": [
+       180,
+       185,
+       195
+      ],
+      "guard_color": [
+       40,
+       40,
+       40
+      ]
+     }
+    ]
+   }
+  },
+  "voice": {
+   "voice_name": "River",
+   "voice_id": "SAz9YHcvj6GT2YYXdXww",
+   "lines": {
+    "ultimate": "Shadow clones!",
+    "victory": "Too slow."
+   }
+  },
+  "arena": {
+   "stage": "Midnight Rooftops",
+   "pattern": "roof",
+   "bg_top": [
+    40,
+    44,
+    70
+   ],
+   "bg_bottom": [
+    12,
+    14,
+    26
+   ],
+   "arena_fill": [
+    78,
+    84,
+    104
+   ]
+  },
+  "assets": {
+   "body": "heroes/ninja/body.png",
+   "weapons": [
+    "heroes/ninja/weapon_0.png"
+   ],
+   "projectiles": {
+    "shuriken": "heroes/ninja/projectile_shuriken.png"
+   },
+   "summons": {
+    "clone": "heroes/ninja/summon_clone.png"
+   },
+   "voice": {
+    "ultimate": "heroes/ninja/voice_ultimate.mp3",
+    "victory": "heroes/ninja/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/ninja/ult_aura.png",
+   "ult_circle": "heroes/ninja/ult_circle.png",
+   "ultimate_icon": "heroes/ninja/ultimate_icon.png",
+   "hit_fx": "heroes/ninja/hit_fx.png"
+  }
+ },
+ {
+  "id": "paladin",
+  "name": "Paladin",
+  "emoji": "🛡️",
+  "blurb": "Mace and shield. Reflects damage, gets a Divine Shield when low, Holy Light heals.",
+  "color": [
+   235,
+   220,
+   170
+  ],
+  "hp": 105,
+  "radius": 74,
+  "speed": 560,
+  "decor": "halo",
+  "stats": {
+   "dmg": 7,
+   "armor": 0.05,
+   "thorns": 0.15,
+   "seek": 120
+  },
+  "blades": [
+   {
+    "style": "hammer",
+    "length": 105,
+    "width": 26,
+    "spin": 160,
+    "damage": "$dmg",
+    "color": [
+     230,
+     200,
+     90
+    ]
+   },
+   {
+    "style": "shield",
+    "length": 22,
+    "width": 70,
+    "spin": 160,
+    "damage": 0,
+    "offset_deg": 180,
+    "gap": 4,
+    "color": [
+     70,
+     110,
+     200
+    ],
+    "guard_color": [
+     235,
+     200,
+     80
+    ]
+   }
+  ],
+  "abilities": [
+   {
+    "on": "blade_hit",
+    "do": [
+     {
+      "type": "add_stat",
+      "stat": "dmg",
+      "amount": 1
+     }
+    ]
+   },
+   {
+    "on": "hp_below",
+    "frac": 0.35,
+    "name": "Divine Shield",
+    "do": [
+     {
+      "type": "buff",
+      "stat": "armor",
+      "add": 0.5,
+      "duration": 2,
+      "label": "DIVINE"
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Holy Light",
+   "shout": "HOLY LIGHT!",
+   "max": 100,
+   "per_hurt": 16,
+   "on_full": [
+    {
+     "type": "heal",
+     "amount": 10
+    },
+    {
+     "type": "shockwave",
+     "radius": 230,
+     "damage": 6,
+     "color": [
+      255,
+      235,
+      140
+     ]
+    }
+   ]
+  },
+  "hud": [
+   "Holy Light",
+   "DMG: {dmg:.1f}",
+   "Thorns: {thorns_pct:.0f}%"
+  ],
+  "voice": {
+   "voice_name": "Brian",
+   "voice_id": "nPczCjzI2devNBz1zQrb",
+   "lines": {
+    "ultimate": "Holy light!",
+    "ability": "Divine shield!",
+    "victory": "Justice prevails!"
+   }
+  },
+  "arena": {
+   "stage": "Sun Cathedral",
+   "pattern": "marble",
+   "bg_top": [
+    200,
+    170,
+    90
+   ],
+   "bg_bottom": [
+    90,
+    70,
+    30
+   ],
+   "arena_fill": [
+    226,
+    214,
+    182
+   ]
+  },
+  "assets": {
+   "body": "heroes/paladin/body.png",
+   "weapons": [
+    "heroes/paladin/weapon_0.png",
+    "heroes/paladin/weapon_1.png"
+   ],
+   "projectiles": {},
+   "summons": {},
+   "voice": {
+    "ability": "heroes/paladin/voice_ability.mp3",
+    "ultimate": "heroes/paladin/voice_ultimate.mp3",
+    "victory": "heroes/paladin/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/paladin/ult_aura.png",
+   "ult_circle": "heroes/paladin/ult_circle.png",
+   "ultimate_icon": "heroes/paladin/ultimate_icon.png",
+   "hit_fx": "heroes/paladin/hit_fx.png"
+  }
+ },
+ {
+  "id": "samurai",
+  "name": "Samurai",
+  "emoji": "⚔️",
+  "blurb": "Katana spins faster with every hit and steals life. Blade Dance doubles it all.",
+  "color": [
+   60,
+   70,
+   95
+  ],
+  "hp": 85,
+  "radius": 66,
+  "speed": 640,
+  "decor": [
+   "headband",
+   "eyes"
+  ],
+  "stats": {
+   "dmg": 6,
+   "lifesteal": 0.15,
+   "seek": 120
+  },
+  "blades": [
+   {
+    "style": "sword",
+    "length": 145,
+    "width": 20,
+    "spin": 300,
+    "damage": "$dmg",
+    "color": [
+     235,
+     240,
+     248
+    ],
+    "guard_color": [
+     30,
+     30,
+     30
+    ]
+   }
+  ],
+  "abilities": [
+   {
+    "on": "blade_hit",
+    "do": [
+     {
+      "type": "add_stat",
+      "stat": "spin_mult",
+      "amount": 0.08,
+      "max": 2.2
+     },
+     {
+      "type": "add_stat",
+      "stat": "dmg",
+      "amount": 0.8
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Blade Dance",
+   "shout": "BLADE DANCE!",
+   "max": 100,
+   "per_hit": 20,
+   "active_duration": 3,
+   "on_full": [
+    {
+     "type": "buff",
+     "stat": "spin_mult",
+     "mul": 2.0,
+     "duration": 3
+    },
+    {
+     "type": "buff",
+     "stat": "lifesteal",
+     "add": 0.4,
+     "duration": 3,
+     "label": "DANCE"
+    }
+   ]
+  },
+  "hud": [
+   "Blade Dance",
+   "DMG: {dmg:.1f}",
+   "Lifesteal: {lifesteal_pct:.0f}%{lifesteal_buffs}"
+  ],
+  "voice": {
+   "voice_name": "Eric",
+   "voice_id": "cjVigY5qzO86Huf0OWal",
+   "lines": {
+    "ultimate": "Blade dance!",
+    "victory": "The blade never lies."
+   }
+  },
+  "arena": {
+   "stage": "Moonlit Dojo",
+   "pattern": "tatami",
+   "bg_top": [
+    150,
+    60,
+    50
+   ],
+   "bg_bottom": [
+    50,
+    20,
+    18
+   ],
+   "arena_fill": [
+    196,
+    180,
+    128
+   ]
+  },
+  "assets": {
+   "body": "heroes/samurai/body.png",
+   "weapons": [
+    "heroes/samurai/weapon_0.png"
+   ],
+   "projectiles": {},
+   "summons": {},
+   "voice": {
+    "ultimate": "heroes/samurai/voice_ultimate.mp3",
+    "victory": "heroes/samurai/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/samurai/ult_aura.png",
+   "ult_circle": "heroes/samurai/ult_circle.png",
+   "ultimate_icon": "heroes/samurai/ultimate_icon.png",
+   "hit_fx": "heroes/samurai/hit_fx.png"
+  }
+ },
+ {
+  "id": "vampire",
+  "name": "Vampire",
+  "emoji": "🧛",
+  "blurb": "Twin daggers drain a third of the damage as life. Every kill raises max HP. Summons bats.",
+  "color": [
+   110,
+   20,
+   45
+  ],
+  "hp": 85,
+  "radius": 66,
+  "speed": 640,
+  "decor": "fangs",
+  "stats": {
+   "dmg": 5,
+   "lifesteal": 0.35,
+   "seek": 120
+  },
+  "blades": [
+   {
+    "style": "dagger",
+    "length": 85,
+    "width": 20,
+    "spin": 280,
+    "damage": "$dmg",
+    "color": [
+     200,
+     200,
+     215
+    ],
+    "guard_color": [
+     150,
+     20,
+     40
+    ]
+   },
+   {
+    "style": "dagger",
+    "length": 85,
+    "width": 20,
+    "spin": 280,
+    "damage": "$dmg",
+    "offset_deg": 180,
+    "color": [
+     200,
+     200,
+     215
+    ],
+    "guard_color": [
+     150,
+     20,
+     40
+    ]
+   }
+  ],
+  "abilities": [
+   {
+    "on": "kill",
+    "do": [
+     {
+      "type": "add_max_hp",
+      "amount": 6
+     }
+    ]
+   },
+   {
+    "on": "blade_hit",
+    "do": [
+     {
+      "type": "add_stat",
+      "stat": "dmg",
+      "amount": 0.4
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Bat Swarm",
+   "shout": "BAT SWARM!",
+   "max": 100,
+   "per_hit": 16,
+   "on_full": [
+    {
+     "type": "summon",
+     "unit": "bat",
+     "count": 3
+    }
+   ]
+  },
+  "hud": [
+   "Bat Swarm",
+   "DMG: {dmg:.1f}",
+   "Lifesteal: {lifesteal_pct:.0f}%"
+  ],
+  "summons": {
+   "bat": {
+    "name": "Bat",
+    "color": [
+     60,
+     20,
+     40
+    ],
+    "hp": 6,
+    "radius": 24,
+    "speed": 760,
+    "decor": "fangs",
+    "stats": {
+     "body_damage": 2,
+     "lifesteal": 1.0,
+     "seek": 120
+    }
+   }
+  },
+  "voice": {
+   "voice_name": "Callum",
+   "voice_id": "N2lVS1w4EtoT3dr4eOWO",
+   "lines": {
+    "ultimate": "Bat swarm!",
+    "victory": "Your blood is mine."
+   }
+  },
+  "arena": {
+   "stage": "Blood Crypt",
+   "pattern": "checker",
+   "bg_top": [
+    90,
+    20,
+    40
+   ],
+   "bg_bottom": [
+    30,
+    8,
+    16
+   ],
+   "arena_fill": [
+    120,
+    56,
+    66
+   ]
+  },
+  "assets": {
+   "body": "heroes/vampire/body.png",
+   "weapons": [
+    "heroes/vampire/weapon_0.png",
+    "heroes/vampire/weapon_1.png"
+   ],
+   "projectiles": {},
+   "summons": {
+    "bat": "heroes/vampire/summon_bat.png"
+   },
+   "voice": {
+    "ultimate": "heroes/vampire/voice_ultimate.mp3",
+    "victory": "heroes/vampire/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/vampire/ult_aura.png",
+   "ult_circle": "heroes/vampire/ult_circle.png",
+   "ultimate_icon": "heroes/vampire/ultimate_icon.png",
+   "hit_fx": "heroes/vampire/hit_fx.png"
+  }
+ },
+ {
+  "id": "viking",
+  "name": "Viking",
+  "emoji": "🪓",
+  "blurb": "Huge axe hits, goes BERSERK when low, ground-slams, and leaves 2 wolves when he dies.",
+  "color": [
+   190,
+   110,
+   40
+  ],
+  "hp": 110,
+  "radius": 80,
+  "speed": 560,
+  "decor": [
+   "horns",
+   "beard"
+  ],
+  "stats": {
+   "dmg": 14,
+   "armor": 0.2,
+   "seek": 120
+  },
+  "blades": [
+   {
+    "style": "axe",
+    "length": 125,
+    "width": 28,
+    "spin": 220,
+    "damage": "$dmg",
+    "color": [
+     160,
+     165,
+     175
+    ]
+   }
+  ],
+  "abilities": [
+   {
+    "on": "hp_below",
+    "frac": 0.4,
+    "name": "Berserk",
+    "do": [
+     {
+      "type": "add_stat",
+      "stat": "speed",
+      "amount": 160
+     },
+     {
+      "type": "add_stat",
+      "stat": "dmg",
+      "amount": 4
+     }
+    ]
+   },
+   {
+    "on": "death",
+    "do": [
+     {
+      "type": "summon",
+      "unit": "wolf",
+      "count": 2
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Ground Slam",
+   "shout": "GROUND SLAM!",
+   "max": 100,
+   "per_second": 12,
+   "on_full": [
+    {
+     "type": "shockwave",
+     "radius": 280,
+     "damage": 8,
+     "knockback": true,
+     "color": [
+      255,
+      200,
+      120
+     ]
+    }
+   ]
+  },
+  "hud": [
+   "Ground Slam",
+   "DMG: {dmg:.0f}",
+   "Speed: {speed:.0f}"
+  ],
+  "summons": {
+   "wolf": {
+    "name": "Wolf",
+    "color": [
+     120,
+     120,
+     130
+    ],
+    "hp": 10,
+    "radius": 34,
+    "speed": 680,
+    "decor": "eyes",
+    "stats": {
+     "body_damage": 3,
+     "seek": 110
+    }
+   }
+  },
+  "voice": {
+   "voice_name": "Roger",
+   "voice_id": "CwhRBWXzGAHq8TQ4Fs17",
+   "lines": {
+    "ultimate": "Ground slam!",
+    "ability": "Berserk!",
+    "victory": "Valhalla awaits!"
+   },
+   "pitch": -2
+  },
+  "arena": {
+   "stage": "Frozen Longship",
+   "pattern": "planks",
+   "bg_top": [
+    70,
+    100,
+    140
+   ],
+   "bg_bottom": [
+    25,
+    35,
+    55
+   ],
+   "arena_fill": [
+    150,
+    112,
+    80
+   ]
+  },
+  "assets": {
+   "body": "heroes/viking/body.png",
+   "weapons": [
+    "heroes/viking/weapon_0.png"
+   ],
+   "projectiles": {},
+   "summons": {
+    "wolf": "heroes/viking/summon_wolf.png"
+   },
+   "voice": {
+    "ability": "heroes/viking/voice_ability.mp3",
+    "ultimate": "heroes/viking/voice_ultimate.mp3",
+    "victory": "heroes/viking/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/viking/ult_aura.png",
+   "ult_circle": "heroes/viking/ult_circle.png",
+   "ultimate_icon": "heroes/viking/ultimate_icon.png",
+   "hit_fx": "heroes/viking/hit_fx.png"
+  }
+ },
+ {
+  "id": "wizard",
+  "name": "Wizard",
+  "emoji": "🧙",
+  "blurb": "Bouncing fireballs that grow hotter, and a Frost Nova that freezes everyone nearby.",
+  "color": [
+   90,
+   110,
+   210
+  ],
+  "hp": 80,
+  "radius": 66,
+  "speed": 580,
+  "decor": "wizard_hat",
+  "stats": {
+   "fire_dmg": 7,
+   "seek": -15
+  },
+  "blades": [
+   {
+    "style": "staff",
+    "length": 95,
+    "width": 22,
+    "aim": true,
+    "solid": false,
+    "damage": 0,
+    "color": [
+     255,
+     120,
+     40
+    ]
+   }
+  ],
+  "abilities": [
+   {
+    "on": "timer",
+    "every": 1.2,
+    "do": [
+     {
+      "type": "shoot",
+      "style": "fireball",
+      "damage": "$fire_dmg",
+      "speed": 720,
+      "radius": 17,
+      "bounces": 1,
+      "color": [
+       255,
+       120,
+       30
+      ]
+     }
+    ]
+   },
+   {
+    "on": "projectile_hit",
+    "do": [
+     {
+      "type": "add_stat",
+      "stat": "fire_dmg",
+      "amount": 1
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Frost Nova",
+   "shout": "FROST NOVA!",
+   "max": 100,
+   "per_second": 11,
+   "on_full": [
+    {
+     "type": "shockwave",
+     "radius": 340,
+     "damage": 8,
+     "knockback": true,
+     "color": [
+      170,
+      230,
+      255
+     ]
+    },
+    {
+     "type": "buff",
+     "target": "all_enemies",
+     "stat": "speed",
+     "mul": 0.5,
+     "duration": 2.5
+    }
+   ]
+  },
+  "hud": [
+   "Frost Nova",
+   "Fireball: {fire_dmg:.1f}",
+   "Bounces once"
+  ],
+  "voice": {
+   "voice_name": "Bill",
+   "voice_id": "pqHfZKP75CvOlQylNhV4",
+   "lines": {
+    "ultimate": "Frost nova!",
+    "victory": "Magic always wins."
+   }
+  },
+  "arena": {
+   "stage": "Arcane Tower",
+   "pattern": "runes",
+   "bg_top": [
+    50,
+    50,
+    120
+   ],
+   "bg_bottom": [
+    18,
+    18,
+    50
+   ],
+   "arena_fill": [
+    82,
+    92,
+    160
+   ]
+  },
+  "assets": {
+   "body": "heroes/wizard/body.png",
+   "weapons": [
+    "heroes/wizard/weapon_0.png"
+   ],
+   "projectiles": {
+    "fireball": "heroes/wizard/projectile_fireball.png"
+   },
+   "summons": {},
+   "voice": {
+    "ultimate": "heroes/wizard/voice_ultimate.mp3",
+    "victory": "heroes/wizard/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/wizard/ult_aura.png",
+   "ult_circle": "heroes/wizard/ult_circle.png",
+   "ultimate_icon": "heroes/wizard/ultimate_icon.png",
+   "hit_fx": "heroes/wizard/hit_fx.png"
+  }
+ }
+]

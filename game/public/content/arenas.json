@@ -1,0 +1,212 @@
+[
+ {
+  "id": "beach",
+  "name": "Sunny Beach",
+  "map": "arenas/beach.png",
+  "bg": [
+   30,
+   90,
+   150
+  ]
+ },
+ {
+  "id": "colosseum",
+  "name": "The Colosseum",
+  "map": "arenas/colosseum.png",
+  "bg": [
+   60,
+   36,
+   20
+  ]
+ },
+ {
+  "id": "crystal_cave",
+  "name": "Crystal Cave",
+  "map": "arenas/crystal_cave.png",
+  "bg": [
+   20,
+   12,
+   40
+  ]
+ },
+ {
+  "id": "desert",
+  "name": "Desert Dunes",
+  "map": "arenas/desert.png",
+  "bg": [
+   120,
+   70,
+   30
+  ]
+ },
+ {
+  "id": "dojo",
+  "name": "The Dojo",
+  "map": "arenas/dojo.png",
+  "bg": [
+   60,
+   24,
+   16
+  ]
+ },
+ {
+  "id": "frozen_lake",
+  "name": "Frozen Lake",
+  "map": "arenas/frozen_lake.png",
+  "bg": [
+   30,
+   60,
+   110
+  ]
+ },
+ {
+  "id": "night_forest",
+  "name": "Night Forest",
+  "map": "arenas/night_forest.png",
+  "bg": [
+   10,
+   22,
+   18
+  ]
+ },
+ {
+  "id": "rooftop",
+  "name": "City Rooftop",
+  "map": "arenas/rooftop.png",
+  "bg": [
+   20,
+   20,
+   34
+  ]
+ },
+ {
+  "id": "temple",
+  "name": "Sun Temple",
+  "map": "arenas/temple.png",
+  "bg": [
+   80,
+   50,
+   20
+  ]
+ },
+ {
+  "id": "volcano",
+  "name": "Volcano Core",
+  "map": "arenas/volcano.png",
+  "bg": [
+   40,
+   10,
+   6
+  ]
+ },
+ {
+  "id": "home_archer",
+  "name": "Whispering Woods",
+  "map": "arenas/home_archer.png",
+  "bg": [
+   18,
+   52,
+   34
+  ],
+  "home": "archer"
+ },
+ {
+  "id": "home_king",
+  "name": "Royal Throne Room",
+  "map": "arenas/home_king.png",
+  "bg": [
+   50,
+   12,
+   20
+  ],
+  "home": "king"
+ },
+ {
+  "id": "home_knight",
+  "name": "Castle Courtyard",
+  "map": "arenas/home_knight.png",
+  "bg": [
+   30,
+   34,
+   46
+  ],
+  "home": "knight"
+ },
+ {
+  "id": "home_necromancer",
+  "name": "Haunted Graveyard",
+  "map": "arenas/home_necromancer.png",
+  "bg": [
+   20,
+   16,
+   30
+  ],
+  "home": "necromancer"
+ },
+ {
+  "id": "home_ninja",
+  "name": "Midnight Rooftops",
+  "map": "arenas/home_ninja.png",
+  "bg": [
+   12,
+   14,
+   26
+  ],
+  "home": "ninja"
+ },
+ {
+  "id": "home_paladin",
+  "name": "Sun Cathedral",
+  "map": "arenas/home_paladin.png",
+  "bg": [
+   90,
+   70,
+   30
+  ],
+  "home": "paladin"
+ },
+ {
+  "id": "home_samurai",
+  "name": "Moonlit Dojo",
+  "map": "arenas/home_samurai.png",
+  "bg": [
+   50,
+   20,
+   18
+  ],
+  "home": "samurai"
+ },
+ {
+  "id": "home_vampire",
+  "name": "Blood Crypt",
+  "map": "arenas/home_vampire.png",
+  "bg": [
+   30,
+   8,
+   16
+  ],
+  "home": "vampire"
+ },
+ {
+  "id": "home_viking",
+  "name": "Frozen Longship",
+  "map": "arenas/home_viking.png",
+  "bg": [
+   25,
+   35,
+   55
+  ],
+  "home": "viking"
+ },
+ {
+  "id": "home_wizard",
+  "name": "Arcane Tower",
+  "map": "arenas/home_wizard.png",
+  "bg": [
+   18,
+   18,
+   50
+  ],
+  "home": "wizard"
+ }
+]

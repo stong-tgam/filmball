@@ -1,0 +1,51 @@
+{
+ "arena": {
+  "width": 960,
+  "height": 960
+ },
+ "meter_rate": 1.6,
+ "sounds": [
+  "blade_hit",
+  "bump",
+  "clash",
+  "block",
+  "shoot",
+  "projectile_hit",
+  "spell_hit",
+  "shockwave_hit",
+  "poison_hit",
+  "heal",
+  "debuff",
+  "summon",
+  "ultimate",
+  "ability",
+  "shockwave",
+  "death",
+  "death_main",
+  "victory",
+  "round",
+  "fight",
+  "freeze",
+  "wall",
+  "warn",
+  "enraged"
+ ],
+ "ui": [
+  "backdrop",
+  "button",
+  "button_hover",
+  "card",
+  "card_selected",
+  "cursor_p1",
+  "cursor_p2",
+  "emblem",
+  "hp_frame",
+  "meter_frame",
+  "panel",
+  "portrait",
+  "ribbon",
+  "round_pip",
+  "round_pip_won",
+  "vs_badge"
+ ]
+}
