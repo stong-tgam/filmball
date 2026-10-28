@@ -31,7 +31,7 @@ def jobs_for(a, rng, tag):
         for k in range(n):
             name, fargs = new_special(fmt, rng, f"{tag}{fmt[0]}{k}")
             jobs.append((name, fmt, fargs))
-    for kind in sorted(BOSSES):
+    for kind in (a.bosses.split(",") if a.bosses else sorted(BOSSES)):
         for k in range(a.boss_each):
             heroes = raid_party(kind, rng, k)
             jobs.append((f"boss_{kind}_{tag}{k}", "boss", ["boss", *heroes, "--boss", kind]))
@@ -49,6 +49,7 @@ def main():
     ap.add_argument("--soccer", type=int, default=0)
     ap.add_argument("--boss-each", type=int, default=0)
     ap.add_argument("--horde", type=int, default=0)
+    ap.add_argument("--bosses", help="only these bosses for --boss-each, e.g. werewolf,spider")
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--after")
     ap.add_argument("--dry-run", action="store_true")

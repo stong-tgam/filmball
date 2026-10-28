@@ -165,6 +165,30 @@ def queued(fmt):
     return sorted(names, key=rendered)
 
 
+def queued_bosses(n):
+    """n queued raids, spread over bosses: the boss with the fewest posted raids goes first, so new
+    bosses debut before old ones repeat."""
+    posted = {}
+    for name in os.listdir(os.path.join(ROOT, "out")):
+        if _has(name, "upload.json") and fmt_of(name) == "boss":
+            k = _boss_kind(name)
+            posted[k] = posted.get(k, 0) + 1
+    left, picks = queued("boss"), []
+    while left and len(picks) < n:
+        best = min(left, key=lambda x: posted.get(_boss_kind(x), 0))   # stable: oldest render on ties
+        left.remove(best)
+        picks.append(best)
+        posted[_boss_kind(best)] = posted.get(_boss_kind(best), 0) + 1
+    return picks
+
+
+def _boss_kind(name):
+    try:
+        return json.load(open(os.path.join(ROOT, "out", name, "spec.resolved.json"), encoding="utf-8")).get("boss_kind")
+    except (OSError, ValueError):
+        return None
+
+
 def _runs(mode, key):
     """How many rendered videos of a mode use each value of key(spec) (horde hero, boss kind)."""
     counts = {}
@@ -241,6 +265,8 @@ def main():
     ap.add_argument("--render-only", action="store_true", help="render ahead into the queue, upload nothing")
     ap.add_argument("--mix", help="per-format counts, e.g. 1v1=2,royale=2,soccer=2 (overrides --count); "
                                   "takes ready videos from the queue and renders new ones if short")
+    ap.add_argument("--spill", help="queue-only formats and where their empty slots go, e.g. horde=boss "
+                                    "(never renders new videos of that format)")
     ap.add_argument("--stagger", help="local release times, e.g. 07:30,10:00,12:30,15:30,18:00,20:30 "
                                       "(uploads now, YouTube publishes each at its slot)")
     args = ap.parse_args()
@@ -258,13 +284,18 @@ def main():
     jobs = []
     if args.mix:
         want = {k: int(v) for k, v in (x.split("=") for x in args.mix.split(","))}
+        spill = dict(x.split("=") for x in args.spill.split(",")) if args.spill else {}
         rng = random.Random(stamp.strftime("%Y-%m-%d"))
         per = {}
         for a, b in pick(want.get("1v1", 0), stamp.strftime("%Y-%m-%d"), args.render_only):
             per.setdefault("1v1", []).append((f"{a}_vs_{b}", "1v1", [sys.executable, "publish.py", a, b, "--no-upload"]))
         for fmt in ("royale", "soccer", "horde", "boss"):
             n = want.get(fmt, 0)
-            have = [] if args.render_only else queued(fmt)[:n]
+            have = [] if args.render_only else (queued_bosses(n) if fmt == "boss" else queued(fmt)[:n])
+            if fmt in spill and len(have) < n:           # queue-only format: its empty slots go to another
+                want[spill[fmt]] = want.get(spill[fmt], 0) + n - len(have)
+                log(f"{fmt}: {len(have)} queued, {n - len(have)} slot(s) given to {spill[fmt]}")
+                n = len(have)
             lst = [(name, fmt, None) for name in have]
             k = 0
             while len(lst) < n:
