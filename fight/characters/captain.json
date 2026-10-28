@@ -9,7 +9,7 @@
     200,
     30
   ],
-  "hp": 80,
+  "hp": 70,
   "radius": 66,
   "speed": 700,
   "decor": "helmet",
@@ -17,7 +17,8 @@
     "seek": 110,
     "body_damage": 4,
     "shot_dmg": 5,
-    "big_shot": 16
+    "big_shot": 16,
+    "dmg_mult": 0.9
   },
   "blades": [
     {

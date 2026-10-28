@@ -8,14 +8,15 @@
     214,
     214
   ],
-  "hp": 90,
+  "hp": 75,
   "radius": 70,
   "speed": 600,
   "decor": "helmet",
   "stats": {
     "dmg": 3,
     "armor": 0.15,
-    "seek": 120
+    "seek": 120,
+    "dmg_mult": 1.75
   },
   "blades": [
     {

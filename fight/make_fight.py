@@ -38,6 +38,27 @@ TITLE_HOOKS = [
     "{LEADS} lead changes?! {A} vs {B} {ea}{eb}",
     "{B} {eb} challenges {A} {ea} at the {STAGE}",
 ]
+HERO_CTA = ("🎨 CREATE A HERO: comment its NAME + POWER. Every Friday we build our favourite fan idea "
+            "into a real fighter! #FanHeroFriday")
+
+
+def fan_credit(spec, meta):
+    """Fan heroes ("fan": {"by": "@viewer"} in the character file): credit in the title and
+    description, plus the create-a-hero invite on every video."""
+    fans = [f for f in spec.get("fighters", []) if isinstance(f, dict) and (f.get("fan") or {}).get("by")]
+    lines = [f"⭐ {f['name']}: fan hero idea by {f['fan']['by']}" for f in fans]
+    if fans:
+        tag = f" (idea by {fans[0]['fan']['by']})"
+        if len(meta["title"]) + len(tag) <= 100:
+            meta["title"] += tag
+    body = meta["description"].split("\n")
+    tags = [body.pop()] if body and body[-1].startswith("#") else []     # hashtags stay last
+    while body and not body[-1].strip():
+        body.pop()
+    meta["description"] = "\n".join([*lines, *([""] if lines else []), *body, "", HERO_CTA, "", *tags]).strip()
+    return meta
+
+
 DESC_CTAS = [
     "Comment who you picked before the K.O.!",
     "Who should fight next? Drop a matchup in the comments.",
@@ -188,6 +209,10 @@ def youtube_meta_royale(spec, world, summary):
 
 def youtube_meta(spec, world, summary):
     """Title/description written from this fight's own story (never spoils the winner)."""
+    return fan_credit(spec, _youtube_meta(spec, world, summary))
+
+
+def _youtube_meta(spec, world, summary):
     import random
     if spec.get("mode") == "royale":
         return youtube_meta_royale(spec, world, summary)

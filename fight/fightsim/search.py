@@ -253,12 +253,12 @@ def drama_score(s, spec):
     d = s["duration"]
     dur_pen = 0.0 if lo <= d <= hi else min(abs(d - lo), abs(d - hi)) * 1.5  # length matters a lot in shorts
 
-    close = 1.0 - min(1.0, s["winner_frac"] * 4)          # 1.0 = won on a sliver
     leads = min(s["lead_changes"], 4) / 4.0
     comeback = min(1.0, s["comeback"] / 0.5)              # winner was way behind
     has_meter = [bool(f.get("meter")) for f in spec["fighters"][:2]]
     ult_ok = all(n > 0 for n, m in zip(s["ultimates"], has_meter) if m)
-    return 3.0 * close + 2.0 * leads + 2.0 * comeback + (1.0 if ult_ok else 0.0) - dur_pen
+    # no "close" bonus: fixed stats + a drawn winning margin (search) keep endings varied and honest
+    return 1.0 * leads + 1.0 * comeback + (1.0 if ult_ok else 0.0) - dur_pen
 
 
 def _one(args):
@@ -284,6 +284,12 @@ def win_rate(results):
     return w0, timeouts
 
 
+def _mobs(spec):
+    """Survival enemy templates: basic, boss, elites."""
+    en = spec["horde"]["enemies"]
+    return [en["basic"], en["boss"], *en.get("elites", [])]
+
+
 def pace(spec, workers=None, log=print):
     """Scale both fighters' HP so the median fight lands mid-target.
 
@@ -301,13 +307,26 @@ def pace(spec, workers=None, log=print):
     goal = (t_lo + t_hi) / 2
     max_d = spec.get("duration", {}).get("max", 90)
     nf = len(spec["fighters"]) if spec.get("mode") in ("royale", "boss") else (1 if spec.get("mode") == "horde" else 2)
-    base = [float(f["hp"]) for f in spec["fighters"][:nf]]
+    idx = [nf - 1] if cfg.get("only") == "last" else list(range(nf))
+    enemies = bool(cfg.get("enemies")) and spec.get("mode") == "horde"
+    if enemies:
+        idx = []
+        base_mobs = [float(e["hp"]) for e in _mobs(spec)]
+    by_damage = cfg.get("by") == "damage"
+    base = {i: float(spec["fighters"][i]["hp"]) for i in idx}
+    base_dm = {i: float((spec["fighters"][i].get("stats") or {}).get("dmg_mult", 1.0)) for i in idx}
     seeds = list(range(200000, 200000 + n))
 
     def with_mult(m):
         s = copy.deepcopy(spec)
-        for i in range(nf):
-            s["fighters"][i]["hp"] = max(1, round(base[i] * m))
+        for i in idx:
+            if by_damage:    # less damage for everyone = longer fight, same as more HP but truthful
+                s["fighters"][i].setdefault("stats", {})["dmg_mult"] = round(base_dm[i] / m, 4)
+            else:
+                s["fighters"][i]["hp"] = max(1, round(base[i] * m))
+        if enemies:      # tougher mobs = longer runs; "m" is read the other way round
+            for e, hp in zip(_mobs(s), base_mobs):
+                e["hp"] = max(1, round(hp / m))
         return s
 
     def median_duration(results):
@@ -333,6 +352,8 @@ def pace(spec, workers=None, log=print):
     out = with_mult(mult)
     info = {"hp_mult": round(mult, 3), "median_duration": med,
             "hp": [f["hp"] for f in out["fighters"][:nf]]}
+    if enemies:
+        info["mob_hp"] = [e["hp"] for e in _mobs(out)]
     if abs(med - goal) > (t_hi - t_lo) / 2:
         info["warning"] = (f"can't reach {goal:.0f}s by HP alone (median {med:.0f}s); "
                            "the fighters rarely hit each other: raise damage, seek or "
@@ -388,16 +409,21 @@ def search(spec, n_seeds, workers=None, start=1):
     results = run_many(spec, range(start, start + n_seeds), workers)
     for r in results:
         r["score"] = round(drama_score(r, spec), 3)
-    if spec.get("mode") == "boss" and results:
-        # fixed-HP raids: the party's real odds decide the ending. Draw heroes-win with the
-        # probability seen across all searched seeds, then keep the most dramatic seed of that kind.
+    if spec.get("mode") in ("boss", None) and len(spec["fighters"]) >= 2 and results:
+        # fixed stats: the real odds decide the ending. Draw side 0's win with the probability seen
+        # across all searched seeds, then keep the most dramatic seed of that kind.
         import random as _random
-        odds = sum(1 for r in results if r["winner"] == 0) / len(results)
+        decided = [r for r in results if not r["timeout"]] or results
+        odds = sum(1 for r in decided if r["winner"] == 0) / len(decided)
         party = "|".join(str(f.get("id")) for f in spec["fighters"])
         want = 0 if _random.Random(f"odds|{party}|{spec.get('salt', '')}").random() < odds else 1
+        rng = _random.Random(f"margin|{party}|{spec.get('salt', '')}")
+        margin = rng.uniform(0.04, 0.45)      # 1v1: how much HP the winner keeps varies, like real fights
         for r in results:
             r["hero_odds"] = round(odds, 3)
             if r["winner"] == want:
                 r["score"] = round(r["score"] + 6.0, 3)
+            if spec.get("mode") is None and not r["timeout"]:
+                r["score"] = round(r["score"] + 3.0 * (1.0 - min(1.0, 4 * abs(r["winner_frac"] - margin))), 3)
     results.sort(key=lambda r: r["score"], reverse=True)
     return results

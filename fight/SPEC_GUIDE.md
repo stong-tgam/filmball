@@ -35,10 +35,12 @@ fight that resolves fast.
    two of them, and keep each modest (lifesteal ≤ 0.35, heal ≤ 10 per proc, thorns ≤ 0.2).
 6. **Readable look.** Pick a distinct `color`, 1–2 `decor` pieces and a weapon style that
    says who the character is. Avoid two dark characters in the same palette.
-7. **Don't hand-balance HP.** Set sensible HP. Each matchup is auto-paced (HP scaled so fights
-   last about 16 s) and auto-balanced (about 50/50). Then
-   `python tools/roundrobin.py` checks the new character against the whole roster. Aim for
-   an overall raw win rate between 0.3 and 0.7.
+7. **Fixed stats, tuned once.** Set sensible HP, then run
+   `python tools/balance_roster.py --hero <id> --tune --write`. It sets the character's HP and
+   `stats.dmg_mult` so it wins 40-60% against the roster with ~15 s fights. Those numbers are what the
+   video and the game show: matchups are never rescaled, and the seed search draws the winner with the
+   matchup's real odds (some matchups are lopsided, like a real roster). `python tools/balance_roster.py`
+   alone prints the whole table.
 
 ## Numbers that work
 
@@ -239,7 +241,7 @@ Remove the flag once the test video is approved.
 - [ ] One growing stat shown in the HUD
 - [ ] The meter fills in about 6–9 s and has a `shout`
 - [ ] `seek` set (melee 100–120, ranged negative)
-- [ ] `python tools/roundrobin.py` puts it between 0.3 and 0.7 overall, with no stall flags
+- [ ] `python tools/balance_roster.py --hero <id> --tune --write` puts it at 40-60% with 12-18 s fights
 - [ ] `sfx` prompts for its signature sounds
 - [ ] An `art` block: `body`, `weapons` (in blade order), `projectiles`, `summons`,
   `summon_weapons`, `ultimate_icon`. Each is a one-sentence visual description; the shared

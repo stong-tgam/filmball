@@ -8,7 +8,7 @@
     220,
     170
   ],
-  "hp": 105,
+  "hp": 55,
   "radius": 74,
   "speed": 560,
   "decor": "halo",
@@ -16,7 +16,8 @@
     "dmg": 7,
     "armor": 0.05,
     "thorns": 0.15,
-    "seek": 120
+    "seek": 120,
+    "dmg_mult": 1.75
   },
   "blades": [
     {

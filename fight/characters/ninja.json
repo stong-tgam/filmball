@@ -15,7 +15,8 @@
   "stats": {
     "dmg": 4,
     "poison": 4,
-    "seek": 120
+    "seek": 120,
+    "dmg_mult": 1.15
   },
   "blades": [
     {

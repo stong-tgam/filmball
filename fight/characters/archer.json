@@ -8,13 +8,14 @@
     150,
     70
   ],
-  "hp": 75,
+  "hp": 70,
   "radius": 62,
   "speed": 620,
   "decor": "hood",
   "stats": {
     "arrow_dmg": 5,
-    "seek": -25
+    "seek": -25,
+    "dmg_mult": 0.95
   },
   "blades": [
     {

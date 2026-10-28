@@ -8,13 +8,14 @@
     110,
     210
   ],
-  "hp": 80,
+  "hp": 90,
   "radius": 66,
   "speed": 580,
   "decor": "wizard_hat",
   "stats": {
     "fire_dmg": 7,
-    "seek": -15
+    "seek": -15,
+    "dmg_mult": 1.1
   },
   "blades": [
     {

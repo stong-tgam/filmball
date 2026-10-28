@@ -36,6 +36,8 @@ HOMES = {   # each hero's home stage (characters/art/<id>/map.png)
     "samurai": "a moonlit dojo: straw tatami mats with dark wooden borders, cherry blossom petals, bamboo along the edges",
     "vampire": "a blood crypt: black and dark crimson marble checkerboard floor, coffins and red candles along the edges",
     "viking": "a frozen viking longship deck: wooden planks dusted with snow, shields along the rails, a mast at one edge",
+    "frog": "Lily Pad Swamp: murky green water with big floating lily pads, reeds, cattails and mossy logs along the edges",
+    "trump": "Golden Penthouse: polished gold and cream marble floor, golden pillars, red velvet ropes and city skyline windows along the edges",
     "wizard": "an arcane tower floor: dark blue stone tiles with a faint glowing rune circle, bookshelves and floating candles along the edges",
 }
 BOSS = {    # boss lairs (art/maps/boss_<kind>.png)

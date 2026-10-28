@@ -330,6 +330,12 @@ export class World {
       this.flush();
     }
     this.frame++;
+    if (this.done) {     // fight over: stretched weapons (a frog's ult tongue) snap back
+      for (const u of this.units) {
+        const stats = new Set(u.blades.map((bl) => bl.scaleStat));
+        u.buffs = u.buffs.filter((b) => !stats.has(b.stat));
+      }
+    }
     if (!this.done && this.t >= this.maxDuration) {   // time up: the higher HP share wins
       this.done = true;
       if (this.bossMode) {

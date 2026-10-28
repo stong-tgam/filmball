@@ -365,6 +365,9 @@ def main():
 
     from tools.catalog import sync
     catalog_url = sync(log=log)
+    from tools.fan_ideas import collect, invite
+    invite(log=log)                        # create-a-hero comment on newly public videos (never raises)
+    collect(log=log)                       # fan hero ideas from the comments (read-only, never raises)
     try:                                   # daily analytics snapshot for the weekly report
         from tools.analytics import snapshot
         snapshot(log=log)

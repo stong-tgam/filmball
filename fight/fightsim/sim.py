@@ -599,6 +599,10 @@ class World:
             self._per_frame(dt)
             self._flush()
         self.frame += 1
+        if self.done:     # fight over: stretched weapons (a frog's ult tongue) snap back for the K.O. card
+            for u in self.units:
+                stats = {bl.scale_stat for bl in u.blades}
+                u.buffs = [b for b in u.buffs if b["stat"] not in stats]
         if self.frame % 15 == 0 or self.done:
             self._sample()
         if not self.done and self.t >= self.max_duration:

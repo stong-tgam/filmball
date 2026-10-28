@@ -39,6 +39,7 @@ export class FightScene extends Phaser.Scene {
   private shots = new Map<number, Phaser.GameObjects.Image | Phaser.GameObjects.Arc>();
   private hud!: Phaser.GameObjects.Graphics;
   private readyText: Phaser.GameObjects.Text[] = [];
+  private hpText: Phaser.GameObjects.Text[] = [];     // actual HP on each bar ("62 / 90")
   private timerText!: Phaser.GameObjects.Text;
   private lastSound = new Map<string, number>();
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
@@ -50,6 +51,7 @@ export class FightScene extends Phaser.Scene {
     this.views = new Map();
     this.shots = new Map();
     this.readyText = [];
+    this.hpText = [];
     this.acc = 0;
     this.started = false;
     this.ended = false;
@@ -149,7 +151,7 @@ export class FightScene extends Phaser.Scene {
     const b = this.world.boss!;
     this.time.delayedCall(1500, () => {
       uiFrame(this, "panel", 640, 400, 600, 250).setDepth(60);
-      this.add.text(640, 330, won ? "VICTORY!" : `${r.boss.boss.name.toUpperCase()} SURVIVED (${Math.ceil((100 * b.hp) / b.maxHp)}% HP)`,
+      this.add.text(640, 330, won ? "VICTORY!" : `${r.boss.boss.name.toUpperCase()} SURVIVED (${Math.max(1, Math.ceil(b.hp))} HP)`,
         { fontFamily: FONT, fontSize: won ? "44px" : "26px", color: won ? "#ffd34d" : "#ff8a7a", stroke: "#000", strokeThickness: 6 })
         .setOrigin(0.5).setDepth(61);
       this.add.text(640, 385, `MVP: ${mvp?.name.toUpperCase() ?? "-"}  ·  ${Math.round(best)} DMG`,
@@ -592,6 +594,7 @@ export class FightScene extends Phaser.Scene {
       this.add.text(x, 250, h.name.toUpperCase(), { fontFamily: FONT, fontSize: "24px", color: "#ffffff",
         stroke: "#000", strokeThickness: 4 }).setOrigin(0.5).setDepth(51);
       uiFrame(this, "hp_frame", x, 292, 230, 34).setDepth(51);
+      this.hpText[side] = this.hpLabel(x, 292);
       uiFrame(this, "meter_frame", x, 340, 230, 26).setDepth(51);
       this.add.text(x, 368, h.meter?.shout ?? "", { fontFamily: FONT, fontSize: "14px", color: "#9fe8ff" })
         .setOrigin(0.5, 0).setDepth(51);
@@ -621,6 +624,7 @@ export class FightScene extends Phaser.Scene {
         this.add.text(x, 228, h.name.toUpperCase(), { fontFamily: FONT, fontSize: "22px", color: "#ffffff", stroke: "#000",
           strokeThickness: 4 }).setOrigin(0.5).setDepth(51);
         uiFrame(this, "hp_frame", x, 262, 230, 34).setDepth(51);
+        this.hpText[0] = this.hpLabel(x, 262);
         uiFrame(this, "meter_frame", x, 300, 230, 26).setDepth(51);
         this.readyText[0] = this.add.text(x, 318, "READY! [SPACE]", { fontFamily: FONT, fontSize: "18px", color: "#ffd34d",
           stroke: "#000", strokeThickness: 4 }).setOrigin(0.5, 0).setDepth(51).setVisible(false);
@@ -637,10 +641,20 @@ export class FightScene extends Phaser.Scene {
     this.add.text(bx, 262, r.boss.boss.name.toUpperCase(), { fontFamily: FONT, fontSize: "20px", color: "#ff8a6a",
       stroke: "#000", strokeThickness: 4, align: "center", wordWrap: { width: 240 } }).setOrigin(0.5).setDepth(51);
     uiFrame(this, "hp_frame", bx, 300, 230, 34).setDepth(51);
+    this.hpText[1] = this.hpLabel(bx, 300);
     this.readyText[1] = this.add.text(bx, 322, "", { fontFamily: FONT, fontSize: "18px", color: "#ff4d4d",
       stroke: "#000", strokeThickness: 4 }).setOrigin(0.5, 0).setDepth(51);
     this.add.text(bx, 370, r.boss.boss.skills.map((s: any) => s.name).join("\n"), { fontFamily: FONT, fontSize: "14px",
       color: "#d8d2ea", align: "center", lineSpacing: 6 }).setOrigin(0.5, 0).setDepth(51);
+  }
+
+  private hpLabel(x: number, y: number) {
+    return this.add.text(x, y, "", { fontFamily: FONT, fontSize: "15px", color: "#ffffff", stroke: "#000",
+      strokeThickness: 4 }).setOrigin(0.5).setDepth(53);
+  }
+
+  private static hpString(u: Unit) {
+    return `${Math.max(0, Math.ceil(u.hp - 1e-6))} / ${Math.round(u.maxHp)}`;
   }
 
   private drawRaidHud() {
@@ -662,7 +676,9 @@ export class FightScene extends Phaser.Scene {
     const b = w.boss!;
     bar(bx, 300, 200, b.hp / b.maxHp, 0xff4d4d);
     g.fillStyle(0xffffff, 0.8).fillRect(bx - 1, 292, 2, 16);   // the enrage line at 50%
-    this.readyText[1].setText(w.enraged ? "ENRAGED" : `${Math.ceil((100 * b.hp) / b.maxHp)}%`);
+    this.readyText[1].setText(w.enraged ? "ENRAGED" : "");
+    this.hpText[0].setText(FightScene.hpString(me));
+    this.hpText[1].setText(FightScene.hpString(b));
     this.timerText.setText(`${Math.max(0, Math.ceil(w.maxDuration - w.t))}`);
   }
 
@@ -675,6 +691,7 @@ export class FightScene extends Phaser.Scene {
       const hp = Math.max(0, u.hp / u.maxHp);
       g.fillStyle(hp > 0.3 ? 0x5ee06a : 0xff5a4d).fillRect(x - 100, 285, 200 * hp, 14);
       g.fillStyle(0x6ec8ff).fillRect(x - 100, 336, 200 * u.meterFraction(), 8);
+      this.hpText[side]?.setText(FightScene.hpString(u));
       const rt = this.readyText[side];
       rt.setVisible(u.ultReady && u.alive);
       if (u.ultReady) rt.setAlpha(0.6 + 0.4 * Math.sin(this.time.now / 120));

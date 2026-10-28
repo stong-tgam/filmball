@@ -1,0 +1,161 @@
+{
+  "id": "trump",
+  "name": "Donald Trump",
+  "emoji": "🦅",
+  "blurb": "Whips a golden comb-over that grows longer every hit and rains golden hair strands. Ultimate: Golden Hair Storm.",
+  "draft": true,
+  "color": [
+    240,
+    190,
+    60
+  ],
+  "hp": 85,
+  "radius": 68,
+  "speed": 620,
+  "decor": "eyes",
+  "stats": {
+    "dmg": 6,
+    "hair": 1,
+    "seek": 110
+  },
+  "blades": [
+    {
+      "style": "scythe",
+      "length": 110,
+      "width": 26,
+      "spin": 240,
+      "damage": "$dmg",
+      "scale_stat": "hair",
+      "color": [
+        250,
+        205,
+        70
+      ],
+      "guard_color": [
+        200,
+        150,
+        40
+      ]
+    }
+  ],
+  "abilities": [
+    {
+      "on": "blade_hit",
+      "do": [
+        {
+          "type": "add_stat",
+          "stat": "hair",
+          "amount": 0.1,
+          "max": 2.0
+        },
+        {
+          "type": "add_stat",
+          "stat": "dmg",
+          "amount": 0.9
+        }
+      ]
+    },
+    {
+      "on": "timer",
+      "every": 2.0,
+      "do": [
+        {
+          "type": "shoot",
+          "style": "bolt",
+          "count": 3,
+          "spread": 30,
+          "damage": 4,
+          "speed": 900,
+          "radius": 10,
+          "color": [
+            250,
+            210,
+            80
+          ]
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Golden Hair Storm",
+    "shout": "GOLDEN HAIR STORM!",
+    "max": 100,
+    "per_second": 9,
+    "per_hit": 10,
+    "active_duration": 3,
+    "on_full": [
+      {
+        "type": "shoot",
+        "style": "bolt",
+        "aim": "ring",
+        "count": 10,
+        "damage": 6,
+        "speed": 950,
+        "radius": 11,
+        "color": [
+          255,
+          220,
+          90
+        ]
+      },
+      {
+        "type": "buff",
+        "stat": "hair",
+        "mul": 1.6,
+        "duration": 3,
+        "label": "STORM"
+      }
+    ]
+  },
+  "hud": [
+    "Golden Hair Storm",
+    "Hair: {hair_pct:.0f}%{hair_buffs}",
+    "DMG: {dmg:.0f}"
+  ],
+  "sfx": {
+    "blade_hit": "whooshing hair whip crack",
+    "shoot": "shimmering golden strands flying",
+    "ultimate": "huge golden whoosh and a crowd cheer"
+  },
+  "voice": {
+    "voice_name": "Bill",
+    "voice_id": "pqHfZKP75CvOlQylNhV4",
+    "lines": {
+      "ultimate": "Golden hair storm!",
+      "victory": "A tremendous win!"
+    }
+  },
+  "arena": {
+    "stage": "Golden Penthouse",
+    "pattern": "checker",
+    "bg_top": [
+      120,
+      90,
+      30
+    ],
+    "bg_bottom": [
+      40,
+      28,
+      10
+    ],
+    "arena_fill": [
+      190,
+      160,
+      100
+    ]
+  },
+  "art": {
+    "floor": "polished gold and cream marble floor tiles of a luxury penthouse",
+    "body": "a cartoon caricature of a businessman: the perfectly round ball body is a tan face with a huge swooping golden blond comb-over hairdo on top, squinting eyes, pursed lips, a dark blue suit collar and a long red tie at the bottom",
+    "weapons": [
+      "a long swooping lock of shiny golden blond hair shaped like a curved whip blade, lying horizontally and pointing right"
+    ],
+    "projectiles": {
+      "bolt": "a single sharp shiny strand of golden blond hair flying to the right"
+    },
+    "ultimate_icon": "a huge golden blond hair swirl tornado with sparkles",
+    "ult_circle": "a golden circle seal with a swirling hair pattern and small stars",
+    "ult_aura": "a rising pillar of golden glitter and swirling blond hair strands",
+    "hit_fx": "a burst of golden hair strands and sparkles"
+  }
+}

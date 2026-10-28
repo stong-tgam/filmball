@@ -60,7 +60,7 @@ export class MenuScene extends Phaser.Scene {
     this.cards = [];
     this.showingBosses = bosses;
     const items = bosses ? this.content.bosses : this.content.heroes;
-    const cols = 5, cw = 200, ch = 200, x0 = 640 - ((cols - 1) * cw) / 2;
+    const cols = 6, cw = 200, ch = 200, x0 = 640 - ((cols - 1) * cw) / 2;
     items.forEach((it: Hero | BossEntry, i) => {
       const x = x0 + (i % cols) * cw, y = 300 + Math.floor(i / cols) * (ch + 10);
       const hero = bosses ? undefined : (it as Hero), boss = bosses ? (it as BossEntry) : undefined;
@@ -100,8 +100,8 @@ export class MenuScene extends Phaser.Scene {
   private key(code: string) {
     if (code === "Tab") return this.nextMode();
     const p = this.activePlayer(), two = this.mode === "2p";
-    const p1 = { KeyA: -1, KeyD: 1, KeyW: -5, KeyS: 5 } as Record<string, number>;
-    const p2 = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -5, ArrowDown: 5 } as Record<string, number>;
+    const p1 = { KeyA: -1, KeyD: 1, KeyW: -6, KeyS: 6 } as Record<string, number>;
+    const p2 = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -6, ArrowDown: 6 } as Record<string, number>;
     // without a second player, P1 can use either set of keys
     const move = p === 0 ? (p1[code] ?? (two ? undefined : p2[code])) : p2[code];
     const n = this.cards.length;

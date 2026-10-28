@@ -1,0 +1,160 @@
+{
+  "id": "donut_titan",
+  "name": "Ultra Donutman",
+  "emoji": "🍩",
+  "blurb": "A silver-and-red space hero who fires spinning donut rings. Every hit glazes the enemy, slowing them, and his donuts hit harder. Ultimate: Donut Beam.",
+  "color": [
+    200,
+    40,
+    50
+  ],
+  "hp": 90,
+  "radius": 64,
+  "speed": 600,
+  "decor": "eyes",
+  "stats": {
+    "dmg": 4,
+    "seek": 70
+  },
+  "abilities": [
+    {
+      "on": "timer",
+      "every": 1.35,
+      "do": [
+        {
+          "type": "shoot",
+          "style": "orb",
+          "aim": "nearest",
+          "count": 2,
+          "damage": "$dmg",
+          "speed": 800,
+          "radius": 16,
+          "bounces": 0,
+          "color": [
+            240,
+            150,
+            200
+          ],
+          "spread": 14
+        }
+      ]
+    },
+    {
+      "on": "projectile_hit",
+      "do": [
+        {
+          "type": "buff",
+          "target": "other",
+          "stat": "speed",
+          "mul": 0.8,
+          "duration": 0.8,
+          "label": "GLAZED"
+        },
+        {
+          "type": "add_stat",
+          "stat": "dmg",
+          "amount": 0.35,
+          "max": 10
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Donut Beam",
+    "shout": "DONUT BEAM!",
+    "max": 100,
+    "per_second": 9,
+    "per_hit": 7,
+    "on_full": [
+      {
+        "type": "shoot",
+        "style": "orb",
+        "aim": "nearest",
+        "damage": {
+          "stat": "dmg",
+          "mul": 2.0
+        },
+        "speed": 1300,
+        "radius": 34,
+        "pierce": true,
+        "color": [
+          255,
+          120,
+          190
+        ],
+        "launch": {
+          "mult": 1.8,
+          "duration": 0.35
+        }
+      },
+      {
+        "type": "shoot",
+        "style": "orb",
+        "aim": "ring",
+        "count": 8,
+        "damage": 3,
+        "speed": 760,
+        "radius": 14,
+        "color": [
+          250,
+          200,
+          120
+        ]
+      }
+    ]
+  },
+  "hud": [
+    "Donut Beam",
+    "Donut DMG: {dmg:.0f}",
+    "Glaze slows the enemy"
+  ],
+  "sfx": {
+    "blade_hit": "squishy dough impact with a sugary sparkle",
+    "ultimate": "rising sci-fi energy beam charge with a bakery bell ding"
+  },
+  "voice": {
+    "voice_name": "Brian",
+    "voice_id": "nPczCjzI2devNBz1zQrb",
+    "pitch": -1,
+    "lines": {
+      "ultimate": "Donut beam!",
+      "victory": "Glazed and defeated."
+    }
+  },
+  "arena": {
+    "stage": "Giant Hero City",
+    "pattern": "asphalt",
+    "bg_top": [
+      60,
+      90,
+      140
+    ],
+    "bg_bottom": [
+      20,
+      30,
+      55
+    ],
+    "arena_fill": [
+      90,
+      95,
+      105
+    ]
+  },
+  "art": {
+    "floor": "an empty evacuated city plaza at dusk: wide cracked asphalt with faded crosswalk lines and no people, no cars; tall skyscrapers with lit windows and rooftops crowding all four edges, a few damaged buildings with smoke",
+    "body": "an original space hero: the perfectly round ball body is shiny silver metal with bold red stripe panels curving around it, a glowing cyan visor across the middle, and a pink frosted donut ring floating like a halo on top; no fin, no chest light",
+    "weapons": [],
+    "ultimate_icon": "a giant glowing pink frosted donut firing a bright beam, with sprinkles bursting outward",
+    "ult_circle": "a pink frosting magic circle with rainbow sprinkle runes",
+    "ult_aura": "a rising pillar of pink glaze light and floating sprinkles",
+    "hit_fx": "a pink glaze splat with rainbow sprinkles",
+    "projectiles": {
+      "orb": "a small spinning pink frosted donut with rainbow sprinkles"
+    }
+  },
+  "fan": {
+    "by": "@zhuqiuqiu007",
+    "comment_id": "UgxiUmJNuoWoRsNiBRl4AaABAg",
+    "idea": "Love the video. It would be fun to see Ultraman shoot donut"
+  }
+}

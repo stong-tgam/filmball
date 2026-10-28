@@ -8,14 +8,15 @@
     20,
     45
   ],
-  "hp": 85,
+  "hp": 60,
   "radius": 66,
   "speed": 640,
   "decor": "fangs",
   "stats": {
     "dmg": 5,
     "lifesteal": 0.35,
-    "seek": 120
+    "seek": 120,
+    "dmg_mult": 1.8
   },
   "blades": [
     {

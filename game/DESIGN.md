@@ -1,107 +1,93 @@
-# Pixel Hero Fights, the game: design doc (v1)
+# Pixel Hero Fights, the game: design doc
 
-*Draft 2, 2026-10-27. v1 is the Arena: fights straight out of the Shorts. The exploration game
-"Shattered Realms" (draft 1) becomes a later phase, built on top of v1.*
+*Draft 3, 2026-10-27. Earlier drafts: Shattered Realms (exploration) and the Arena (player-steered duels and
+raids). Playtest verdict on the Arena: steering a ball isn't fun, and the fun of the Shorts is
+**watching**. The current code (sim port, Duel, Boss Raid, UI) becomes the "test arena" of this design.*
 
-## The pitch
+## The core
 
-**Play the Shorts.** Pick a hero from the channel and fight in the same arenas, with the same skills,
-cut-ins and bosses viewers already watch. Every hero, boss, skill and map made for the game can also be
-used in new videos, and the other way round.
+**You invent a hero. The AI builds it. You watch it fight.**
 
-## The big rule: one set of content, two outputs
+1. **Describe:** "a frog samurai who's always sleepy". Pick a **main ability** in your own words: "when hit,
+   he wakes up angry and spins twice as fast".
+2. **The AI builds the rest:** name, stats, weapon, the abilities around your idea, an ultimate, colours,
+   a short blurb, and the pixel art (body, weapon, projectile, ult icon), all within the same rules as the
+   official heroes.
+3. **Test:** your hero is thrown into the arena against the roster and the bosses. You **watch**: no
+   controls, the same fights as the Shorts.
+4. **Result card:** win rate, best and worst matchups, "beat the Lich King in 31 s", MVP moments.
+5. **Iterate:** "make the ult bigger", "he's too slow". The AI edits the hero, and you re-test.
+
+**The play point** is creativity plus the "will my idea work?" suspense. Every test is a mini Short
+starring *your* character.
+
+## Why this fits
+
+- It is **the video pipeline turned into a product.** `fight/SPEC_GUIDE.md` is already the guide for
+  writing a hero, PixelLab already makes the art, and `fightsim/search.py` already balances.
+- **It feeds the channel:** "Fan hero of the week vs the Lich King" Shorts, and the best creations join
+  the official roster. Viewers make content, and content brings viewers.
+- **No skill wall, works on phones:** typing an idea and watching suits casual Shorts viewers.
+
+## Player loop
 
 ```
-            fight/characters/*.json   (heroes: stats, blades, abilities, ult meter)
-            fight/fightsim/spec.py    (bosses, arenas)  →  exported to  content/*.json
-            fight/art, characters/art (sprites, maps, FX)
-                     │                                   │
-          Python video sim + renderer             Phaser game (TypeScript)
-          → YouTube Shorts                        → playable in the browser
+ idea ─► AI builds hero (≈30–60 s, shows art + card) ─► TEST: gauntlet vs roster ─► result card
+   ▲                                                                                   │
+   └──────────────── tweak in words ("faster", "ult freezes everyone") ◄───────────────┘
+                                         │
+                              save to "My Heroes" ─► challenge bosses / other creations
 ```
 
-- **The content files are the single source of truth.** A new hero or boss is added once and shows up in
-  both the videos and the game.
-- The game reads the **same rules**: blade damage, `on: blade_hit / hurt / timer` abilities, ult meters,
-  boss skills (cone, beam, nova, meteors, summon, leap, mark) with their warn times and telegraphs.
-- Step 1 adds a small export script: `fight/tools/export_content.py` writes `bosses.json` and
-  `arenas.json`, which `spec.py` currently keeps in Python code. Heroes are already JSON.
-- **Test of success:** the same matchup played by two AIs in the game should look and feel like the
-  Short.
+**Tests, from quick to deep**
+- **Quick duel:** your hero vs a random roster hero (one fight, about 20 s, watched live).
+- **Gauntlet:** vs all 10 heroes. Watch the first fight, then a sped-up sweep of the rest gives the win rate.
+- **Boss trial:** your hero + 2 random heroes vs a chosen boss (the raid mode we have).
 
-## v1 modes
+## Rules the AI must follow (so heroes stay fair and the sim can run them)
 
-| Mode | What you do | Why first |
-|---|---|---|
-| **Duel (1v1)** | Your hero vs one other hero, in the hero's own arena | The core of the channel (32 of 61 queued videos) |
-| **Boss Raid** | You + 2 AI heroes vs one of the 10 bosses, fixed HP | The boss skills and art are the most "epic" content |
-| Later: Royale, Soccer | 4-hero free-for-all, 2v2 ball | Same engine, more fighters |
-
-**Who's the opponent in a Duel?**
-- **vs AI** (default). The AI uses the video sim's own movement: seek, bounce, stability.
-- **Local 2-player**, on one keyboard. P1 uses WASD + Space, P2 uses the arrows + Enter.
-- **Online PvP** is *not* in v1. It needs a server, netcode and anti-cheat, and it's a big step that
-  can come after people enjoy the game.
-
-## How it plays (close to the videos, but you're in control)
-
-- **You steer, the weapon spins.** Fighters are the round "ball" heroes from the Shorts. You steer with
-  WASD, and the momentum and bounces off the arena walls stay physical, like the sim. Blades still spin on
-  their own (Knight's sword, Samurai's katana), and ranged heroes fire on their own timers (Wizard's
-  fireballs, Archer's arrows).
-- **Your skill = positioning and timing.** You choose when to close in or run, use walls to bounce, and
-  dodge the red boss telegraphs.
-- **Space fires the ult** once its meter is full, instead of it firing automatically. You choose the
-  moment for MEGA SWORD or FROST NOVA. The cut-in banner plays, just like the Shorts.
-- **Rounds:** a Duel is best of 3 rounds of about 20–30 s each, the same length as a Short. A raid is one
-  attempt; the boss enrages at 50%.
-- The **HUD looks like the videos**: the top HP bars, the boss bar with phase marker, the hero cards
-  with X on death, damage numbers, shouts.
-
-## Screens
-
-1. **Title:** "PIXEL HERO FIGHTS", Duel / Boss Raid / Settings.
-2. **Hero pick:** a grid of the 10 heroes with portrait, blurb and ult name (from the JSON).
-3. **Opponent pick:** a hero (and AI or Player 2), or one of the 10 bosses plus 2 allies (random, or
-   picked).
-4. **Fight:** the arena map, an intro (landing cracks, "FIGHT!"), the fight, then the result (with MVP
-   and damage).
-5. **Result:** rematch / change hero / menu. Your **win record per hero and boss** is stored locally.
-
-## What's reused vs. new
-
-| Reused as-is | New |
-|---|---|
-| All 10 hero bodies, weapons, ult art, voice lines | Title screen and pick screens (UI) |
-| 10 bosses, minions, all skill FX, cast sigils, telegraph art | Player-control tuning (steer force, top speed) |
-| Whole-arena maps (1v1 arenas, boss maps) | Synth SFX exported to WAV once |
-| Announcer lines ("FIGHT!", "K.O.") | `export_content.py` (bosses and arenas to JSON) |
-
-**No new PixelLab art is needed for v1.**
+- Output is a hero JSON in the exact format of `fight/characters/*.json`, using only supported
+  triggers, effects, targets, blade and projectile styles (the list in SPEC_GUIDE / `spec.py`).
+- **Your main ability is kept as written**, translated into one or more ability entries. The AI fills in
+  the rest around it.
+- **Auto-balance:** after generation, a headless sim runs the hero vs the roster (as `search.py`
+  balance does). HP and damage are scaled until it lands in a fair band (about 40–60% win rate).
+  Broken ideas still work, they just get tuned. The card says so: "your hero was too strong: HP 140 → 95".
+- Validation: anything the sim can't run is rejected and regenerated automatically, never shown to the
+  player as an error.
 
 ## Tech
 
-- **Phaser 3 + TypeScript + Vite**, in `game/`. It runs locally with `npm run dev`.
-- `game/src/sim/` is a TypeScript port of `fightsim/sim.py`: same rules, driven by the content JSON.
-  The renderer is Phaser instead of pygame.
-- A script copies the art and audio from `fight/` into `game/public/assets/`, so the video pipeline
-  is never touched.
-- Later option: once the TypeScript sim matches the Python one, the game itself could record matches
-  for videos (player-vs-AI "can you beat this?" Shorts).
+- **The browser game** (this folder) shows everything and runs the fights: the sim port in
+  `src/sim/world.ts`, already working.
+- **A small server is needed:** API keys can't live in the browser. For the local MVP: a Node server
+  (or a Vite dev-server plugin) with two endpoints:
+  - `POST /hero`: description + main ability → the **Claude API** writes the hero JSON (SPEC_GUIDE as
+    the system prompt, the JSON schema enforced), then validation, then balance.
+  - `POST /art`: hero → **PixelLab** body / weapon / projectile / ult icon (key 3), cleaned like the
+    video art (trim, straighten).
+- Created heroes are saved locally (`game/heroes/<id>.json` + art), in the same format, so a good one can
+  be copied into `fight/characters/` and star in a Short with **no conversion**.
 
-## Build order (each step is playable)
+**Cost per hero, roughly:** 1–3 Claude calls (cents) + 4–5 PixelLab images. That's fine for you
+locally. For a public version you'd need accounts, daily limits and a content filter, later.
 
-1. **Content export + project setup:** one hero in its arena, steering with physics and wall bounces.
-2. **Duel vs AI:** blades, hits, HP, the abilities system, the AI, a win screen. Knight vs Wizard first.
-3. **Ults + juice:** the meter, Space to fire, the cut-in, shouts, damage numbers, hit sparks, sound.
-4. **All 10 heroes + hero pick:** every hero's abilities working from its JSON; local 2-player.
-5. **Boss Raid:** the boss engine (telegraphs, 7 skill types, enrage, summons), 2 AI allies. Werewolf
-   first, then all 10.
-6. **Polish:** title screen, best-of-3 rounds, the local win record, settings (volume, keys).
+## MVP scope
+
+1. Creator screen: a text box for the idea + a text box for the main ability → "CREATE".
+2. Server: Claude → hero JSON → validate → auto-balance; PixelLab → 4 images.
+3. Hero card reveal: art, name, ult, stats, blurb.
+4. Test: Quick duel (watched) + Gauntlet (win rate vs all 10).
+5. Tweak in words → regenerate → re-test.
+6. "My Heroes" list (local).
+
+**Out of MVP:** online sharing, a leaderboard of creations, player-vs-player challenges, accounts.
 
 ## Open questions
 
-1. **Steering:** full control (WASD moves you directly), or "nudge" control (you push the ball and it
-   keeps bouncing like the videos)? My pick is nudge: it keeps the Shorts' feel and is easier to make fun.
-2. **The Captain** (draft character): include it, or only the 10 finished heroes?
-3. **Phone controls later?** A virtual joystick + ult button would work with this design.
+1. **Balance:** auto-tune every hero to fair (recommended: it keeps tests meaningful), or allow
+   overpowered "fun" heroes in a separate sandbox?
+2. **Art:** always generate new PixelLab art (unique, costs ~5 images per hero), or offer "quick mode"
+   reusing existing weapons and effects with only a new body?
+3. **How much control over the build:** only the main ability, or also optional "weapon" and "ult" hints?
+4. **Channel tie-in:** collect creations for a weekly "fan hero" Short from day one?

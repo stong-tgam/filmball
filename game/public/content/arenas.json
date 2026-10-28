@@ -111,6 +111,28 @@
   "home": "archer"
  },
  {
+  "id": "home_donut_titan",
+  "name": "Giant Hero City",
+  "map": "arenas/home_donut_titan.png",
+  "bg": [
+   20,
+   30,
+   55
+  ],
+  "home": "donut_titan"
+ },
+ {
+  "id": "home_frog",
+  "name": "Lily Pad Swamp",
+  "map": "arenas/home_frog.png",
+  "bg": [
+   18,
+   44,
+   30
+  ],
+  "home": "frog"
+ },
+ {
   "id": "home_king",
   "name": "Royal Throne Room",
   "map": "arenas/home_king.png",

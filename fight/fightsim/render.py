@@ -822,6 +822,8 @@ class Renderer:
             self._draw_intro()
         elif self.cta_on and not self.soccer and not w.done and cta.PREDICT[0] <= w.t < cta.PREDICT[1]:
             self._draw_predict_strip(w.t)
+        if self.cta_on and self.phase != "intro" and not w.done and cta.PREDICT[0] <= w.t < cta.PREDICT[1] + 1.0:
+            self._draw_fan_credit(w.t)
         if self.ko_t is not None and self.t - self.ko_t < 0.9:
             self._draw_center_text("DEFEATED!" if self.horde else ("BOSS DOWN!" if self.boss_mode and self.world.winner_side == 0
                                    else ("WIPED OUT!" if self.boss_mode else "K.O.!")), 6 if not self.horde else 5, RED_HI,
@@ -3261,8 +3263,8 @@ class Renderer:
             img = self.text.fit(f"MVP: {m.name.upper()} . {dmg} DAMAGE", 2, CREAM, cw - 90)
             self.surface.blit(img, (x + 72, y + ch - 40 - img.get_height() // 2))
         elif not won:
-            hp = math.ceil(100 * max(0.0, w.boss.hp) / w.boss.max_hp)
-            img = self.text.fit(f"{w.boss.name.upper()} SURVIVED WITH {hp}% HP", 2, CREAM, cw - 24)
+            hp = max(1, math.ceil(w.boss.hp - 1e-6))
+            img = self.text.fit(f"{w.boss.name.upper()} SURVIVED WITH {hp} HP", 2, CREAM, cw - 24)
             self.surface.blit(img, (x + (cw - img.get_width()) // 2, y + ch - 44))
 
     def _intro_boss(self, p, black):
@@ -3696,6 +3698,45 @@ class Renderer:
         k = min(1.0, max(0.0, (since - cta.CTA_AT) / 0.2))
         return 1 - (1 - k) ** 3
 
+    def _draw_fan_credit(self, t):
+        """Fan heroes: a card that pops up in the lower arena with the prediction strip:
+        "<HERO> . HERO IDEA BY" over a big "@viewer" (the viewer's moment)."""
+        fans = [f for f in self.spec.get("fighters", []) if isinstance(f, dict) and (f.get("fan") or {}).get("by")]
+        if not fans:
+            return
+        a, b = cta.PREDICT
+        b += 1.0
+        if not a <= t < b:
+            return
+        age, left = t - a, b - t
+        fade = max(0.0, min(1.0, left / 0.25))
+        # pop: 0.55 -> 1.15 -> 1.0 in the first 0.4 s, then a slow pulse
+        if age < 0.22:
+            sc = 0.55 + 0.6 * age / 0.22
+        elif age < 0.4:
+            sc = 1.15 - 0.15 * (age - 0.22) / 0.18
+        else:
+            sc = 1.0 + 0.03 * math.sin((age - 0.4) * 6)
+        f = fans[0]
+        maxw = self.arena_w - 40
+        top = self.text.fit(f"{f['name'].upper()} . HERO IDEA BY", 2, CREAM, maxw)
+        handle = self.text.fit(f["fan"]["by"].upper(), 4, YELLOW, maxw)
+        w = max(top.get_width(), handle.get_width()) + 36
+        h = top.get_height() + handle.get_height() + 30
+        card = pygame.Surface((w, h), pygame.SRCALPHA)
+        card.fill((*NIGHT, 225))
+        pygame.draw.rect(card, YELLOW, card.get_rect(), 4)
+        pygame.draw.rect(card, (*NIGHT, 255), card.get_rect().inflate(-8, -8), 2)
+        card.blit(top, ((w - top.get_width()) // 2, 10))
+        card.blit(handle, ((w - handle.get_width()) // 2, 18 + top.get_height()))
+        if abs(sc - 1.0) > 1e-3:
+            card = pygame.transform.scale_by(card, sc)
+        if fade < 1:
+            card.set_alpha(int(255 * fade))
+        cx = self.ax + self.arena_w / 2
+        cy = self.ay + self.arena_h * 0.74
+        self.surface.blit(card, (int(cx - card.get_width() / 2), int(cy - card.get_height() / 2)))
+
     def _draw_predict_strip(self, t):
         """Prediction prompt: a see-through banner across the top of the arena."""
         a, b = cta.PREDICT
@@ -3719,11 +3760,9 @@ class Renderer:
         x = int(self.ax + (self.arena_w - cw) / 2)
         y = int(self.ay + 14 + 156 + 14 + (1 - pop) * 60)
         self._panel((x, y, cw, ch), trim=GOLD)
-        t1 = self.text.fit("WHICH BOSS NEXT?" if self.boss_mode else ("WHO'S NEXT?" if self.horde else "WHO FIGHTS NEXT?"),
-                           3, YELLOW, cw - 24)
+        t1 = self.text.fit("WHICH BOSS NEXT?" if self.boss_mode else "CREATE A HERO!", 3, YELLOW, cw - 24)
         surf.blit(t1, (x + (cw - t1.get_width()) // 2, y + 14))
-        t2 = self.text.fit("COMMENT A BOSS!" if self.boss_mode else ("COMMENT A HERO!" if self.horde else "COMMENT 2 FIGHTERS!"),
-                           2, CREAM, cw - 50)
+        t2 = self.text.fit("COMMENT A BOSS!" if self.boss_mode else "COMMENT: NAME + POWER", 3, CREAM, cw - 50)
         ty = y + 22 + t1.get_height()
         surf.blit(t2, (x + (cw - t2.get_width()) // 2, ty))
         bob = int(3 * math.sin(since * 12))      # little arrows pointing down at the comments

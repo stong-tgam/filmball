@@ -9,13 +9,14 @@
    150,
    70
   ],
-  "hp": 75,
+  "hp": 70,
   "radius": 62,
   "speed": 620,
   "decor": "hood",
   "stats": {
    "arrow_dmg": 5,
-   "seek": -25
+   "seek": -25,
+   "dmg_mult": 0.95
   },
   "blades": [
    {
@@ -132,6 +133,342 @@
   }
  },
  {
+  "id": "donut_titan",
+  "name": "Ultra Donutman",
+  "emoji": "🍩",
+  "blurb": "A silver-and-red space hero who fires spinning donut rings. Every hit glazes the enemy, slowing them, and his donuts hit harder. Ultimate: Donut Beam.",
+  "color": [
+   200,
+   40,
+   50
+  ],
+  "hp": 90,
+  "radius": 64,
+  "speed": 600,
+  "decor": "eyes",
+  "stats": {
+   "dmg": 4,
+   "seek": 70
+  },
+  "abilities": [
+   {
+    "on": "timer",
+    "every": 1.35,
+    "do": [
+     {
+      "type": "shoot",
+      "style": "orb",
+      "aim": "nearest",
+      "count": 2,
+      "damage": "$dmg",
+      "speed": 800,
+      "radius": 16,
+      "bounces": 0,
+      "color": [
+       240,
+       150,
+       200
+      ],
+      "spread": 14
+     }
+    ]
+   },
+   {
+    "on": "projectile_hit",
+    "do": [
+     {
+      "type": "buff",
+      "target": "other",
+      "stat": "speed",
+      "mul": 0.8,
+      "duration": 0.8,
+      "label": "GLAZED"
+     },
+     {
+      "type": "add_stat",
+      "stat": "dmg",
+      "amount": 0.35,
+      "max": 10
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Donut Beam",
+   "shout": "DONUT BEAM!",
+   "max": 100,
+   "per_second": 9,
+   "per_hit": 7,
+   "on_full": [
+    {
+     "type": "shoot",
+     "style": "orb",
+     "aim": "nearest",
+     "damage": {
+      "stat": "dmg",
+      "mul": 2.0
+     },
+     "speed": 1300,
+     "radius": 34,
+     "pierce": true,
+     "color": [
+      255,
+      120,
+      190
+     ],
+     "launch": {
+      "mult": 1.8,
+      "duration": 0.35
+     }
+    },
+    {
+     "type": "shoot",
+     "style": "orb",
+     "aim": "ring",
+     "count": 8,
+     "damage": 3,
+     "speed": 760,
+     "radius": 14,
+     "color": [
+      250,
+      200,
+      120
+     ]
+    }
+   ]
+  },
+  "hud": [
+   "Donut Beam",
+   "Donut DMG: {dmg:.0f}",
+   "Glaze slows the enemy"
+  ],
+  "voice": {
+   "voice_name": "Brian",
+   "voice_id": "nPczCjzI2devNBz1zQrb",
+   "pitch": -1,
+   "lines": {
+    "ultimate": "Donut beam!",
+    "victory": "Glazed and defeated."
+   }
+  },
+  "arena": {
+   "stage": "Giant Hero City",
+   "pattern": "asphalt",
+   "bg_top": [
+    60,
+    90,
+    140
+   ],
+   "bg_bottom": [
+    20,
+    30,
+    55
+   ],
+   "arena_fill": [
+    90,
+    95,
+    105
+   ]
+  },
+  "fan": {
+   "by": "@zhuqiuqiu007",
+   "comment_id": "UgxiUmJNuoWoRsNiBRl4AaABAg",
+   "idea": "Love the video. It would be fun to see Ultraman shoot donut"
+  },
+  "assets": {
+   "body": "heroes/donut_titan/body.png",
+   "weapons": [],
+   "projectiles": {
+    "orb": "heroes/donut_titan/projectile_orb.png"
+   },
+   "summons": {},
+   "voice": {
+    "ultimate": "heroes/donut_titan/voice_ultimate.mp3",
+    "victory": "heroes/donut_titan/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/donut_titan/ult_aura.png",
+   "ult_circle": "heroes/donut_titan/ult_circle.png",
+   "ultimate_icon": "heroes/donut_titan/ultimate_icon.png",
+   "hit_fx": "heroes/donut_titan/hit_fx.png"
+  }
+ },
+ {
+  "id": "frog",
+  "name": "Frog",
+  "emoji": "🐸",
+  "blurb": "Snaps a sticky tongue at enemies that slows them and hits harder every time. Ultimate: Mega Tongue.",
+  "color": [
+   96,
+   186,
+   72
+  ],
+  "hp": 90,
+  "radius": 64,
+  "speed": 640,
+  "decor": "eyes",
+  "stats": {
+   "dmg": 5,
+   "tongue": 1,
+   "seek": 105,
+   "dmg_mult": 1.1
+  },
+  "blades": [
+   {
+    "style": "spear",
+    "length": 44,
+    "width": 22,
+    "aim": true,
+    "solid": false,
+    "damage": 0,
+    "scale_stat": "tongue",
+    "color": [
+     236,
+     110,
+     140
+    ],
+    "guard_color": [
+     180,
+     60,
+     90
+    ]
+   }
+  ],
+  "abilities": [
+   {
+    "on": "timer",
+    "every": 1.3,
+    "do": [
+     {
+      "type": "buff",
+      "stat": "tongue",
+      "mul": 6.5,
+      "duration": 0.25
+     },
+     {
+      "type": "shoot",
+      "style": "orb",
+      "aim": "nearest",
+      "damage": "$dmg",
+      "speed": 1500,
+      "radius": 15,
+      "life": 0.22,
+      "color": [
+       236,
+       110,
+       140
+      ]
+     }
+    ]
+   },
+   {
+    "on": "projectile_hit",
+    "do": [
+     {
+      "type": "buff",
+      "target": "other",
+      "stat": "speed",
+      "mul": 0.7,
+      "duration": 0.9,
+      "label": "STICKY"
+     },
+     {
+      "type": "add_stat",
+      "stat": "dmg",
+      "amount": 1.0
+     }
+    ]
+   }
+  ],
+  "meter": {
+   "label": "Mega Tongue",
+   "shout": "MEGA TONGUE!",
+   "max": 100,
+   "per_second": 9,
+   "per_hit": 10,
+   "on_full": [
+    {
+     "type": "buff",
+     "stat": "tongue",
+     "mul": 11,
+     "duration": 0.5
+    },
+    {
+     "type": "shoot",
+     "style": "orb",
+     "aim": "nearest",
+     "damage": {
+      "stat": "dmg",
+      "mul": 2.5
+     },
+     "speed": 1700,
+     "radius": 30,
+     "life": 0.35,
+     "pierce": true,
+     "color": [
+      255,
+      90,
+      130
+     ],
+     "launch": {
+      "mult": 1.8,
+      "duration": 0.35
+     }
+    }
+   ]
+  },
+  "hud": [
+   "Mega Tongue",
+   "Tongue DMG: {dmg:.0f}",
+   "Licks slow the enemy"
+  ],
+  "voice": {
+   "voice_name": "Charlie",
+   "voice_id": "IKne3meq5aSn9XLyUdCD",
+   "pitch": -1,
+   "lines": {
+    "ultimate": "Mega tongue!",
+    "victory": "Ribbit. Too easy."
+   }
+  },
+  "arena": {
+   "stage": "Lily Pad Swamp",
+   "pattern": "grass",
+   "bg_top": [
+    60,
+    120,
+    80
+   ],
+   "bg_bottom": [
+    18,
+    44,
+    30
+   ],
+   "arena_fill": [
+    70,
+    130,
+    90
+   ]
+  },
+  "assets": {
+   "body": "heroes/frog/body.png",
+   "weapons": [
+    "heroes/frog/weapon_0.png"
+   ],
+   "projectiles": {
+    "orb": "heroes/frog/projectile_orb.png"
+   },
+   "summons": {},
+   "voice": {
+    "ultimate": "heroes/frog/voice_ultimate.mp3",
+    "victory": "heroes/frog/voice_victory.mp3"
+   },
+   "ult_aura": "heroes/frog/ult_aura.png",
+   "ult_circle": "heroes/frog/ult_circle.png",
+   "ultimate_icon": "heroes/frog/ultimate_icon.png",
+   "hit_fx": "heroes/frog/hit_fx.png"
+  }
+ },
+ {
   "id": "king",
   "name": "King",
   "emoji": "🤴",
@@ -141,7 +478,7 @@
    30,
    40
   ],
-  "hp": 100,
+  "hp": 85,
   "radius": 76,
   "speed": 600,
   "decor": "crown",
@@ -257,14 +594,15 @@
    214,
    214
   ],
-  "hp": 90,
+  "hp": 75,
   "radius": 70,
   "speed": 600,
   "decor": "helmet",
   "stats": {
    "dmg": 3,
    "armor": 0.15,
-   "seek": 120
+   "seek": 120,
+   "dmg_mult": 1.75
   },
   "blades": [
    {
@@ -379,7 +717,7 @@
    70,
    120
   ],
-  "hp": 95,
+  "hp": 65,
   "radius": 68,
   "speed": 560,
   "decor": [
@@ -389,7 +727,8 @@
   "stats": {
    "dmg": 7,
    "dark_power": 8,
-   "seek": 110
+   "seek": 110,
+   "dmg_mult": 1.35
   },
   "blades": [
    {
@@ -551,7 +890,8 @@
   "stats": {
    "dmg": 4,
    "poison": 4,
-   "seek": 120
+   "seek": 120,
+   "dmg_mult": 1.15
   },
   "blades": [
    {
@@ -718,7 +1058,7 @@
    220,
    170
   ],
-  "hp": 105,
+  "hp": 55,
   "radius": 74,
   "speed": 560,
   "decor": "halo",
@@ -726,7 +1066,8 @@
    "dmg": 7,
    "armor": 0.05,
    "thorns": 0.15,
-   "seek": 120
+   "seek": 120,
+   "dmg_mult": 1.75
   },
   "blades": [
    {
@@ -871,7 +1212,7 @@
    70,
    95
   ],
-  "hp": 85,
+  "hp": 75,
   "radius": 66,
   "speed": 640,
   "decor": [
@@ -881,7 +1222,8 @@
   "stats": {
    "dmg": 6,
    "lifesteal": 0.15,
-   "seek": 120
+   "seek": 120,
+   "dmg_mult": 1.15
   },
   "blades": [
    {
@@ -1001,14 +1343,15 @@
    20,
    45
   ],
-  "hp": 85,
+  "hp": 60,
   "radius": 66,
   "speed": 640,
   "decor": "fangs",
   "stats": {
    "dmg": 5,
    "lifesteal": 0.35,
-   "seek": 120
+   "seek": 120,
+   "dmg_mult": 1.8
   },
   "blades": [
    {
@@ -1162,7 +1505,7 @@
    110,
    40
   ],
-  "hp": 110,
+  "hp": 70,
   "radius": 80,
   "speed": 560,
   "decor": [
@@ -1172,7 +1515,8 @@
   "stats": {
    "dmg": 14,
    "armor": 0.2,
-   "seek": 120
+   "seek": 120,
+   "dmg_mult": 1.35
   },
   "blades": [
    {
@@ -1318,13 +1662,14 @@
    110,
    210
   ],
-  "hp": 80,
+  "hp": 90,
   "radius": 66,
   "speed": 580,
   "decor": "wizard_hat",
   "stats": {
    "fire_dmg": 7,
-   "seek": -15
+   "seek": -15,
+   "dmg_mult": 1.1
   },
   "blades": [
    {

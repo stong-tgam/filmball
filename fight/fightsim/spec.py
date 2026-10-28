@@ -153,6 +153,10 @@ def build_matchup(a, b):
         "title": f"{ca['name']} VS {cb['name']}",
         "theme": theme,
         "fighters": [a, b],
+        # fixed stats: HP / dmg_mult come from the character files (tools/balance_roster.py tunes
+        # the whole roster); the seed search draws the winner with the matchup's real odds
+        "pace": False,
+        "balance": False,
         "youtube": {
             "tags": ["ball battle", "simulation", f"{ca['name']} vs {cb['name']}".lower(),
                      "satisfying", "shorts"],
@@ -341,7 +345,7 @@ def build_royale(ids, map_name=None, salt=""):
         "video_seconds": [24, 36],
         "search": {"seeds": 200},
         "balance": False,
-        "pace": {"seeds": 60, "range": [0.3, 3.0]},
+        "pace": {"seeds": 60, "range": [0.3, 4.5], "by": "damage"},   # everyone's damage, same factor: HP stays real
         "end_hold": 3.5,
         "youtube": {"tags": ["battle royale", "ball battle", "simulation", "free for all", "shorts",
                              *[c["name"].lower() for c in chars]]},
@@ -486,7 +490,7 @@ def build_horde(hero, kind="skeletons"):
         "video_seconds": [20, 36],
         "search": {"seeds": 200},
         "balance": False,
-        "pace": {"seeds": 60, "range": [0.3, 6.0]},
+        "pace": {"seeds": 60, "range": [0.3, 6.0], "enemies": True},   # mob HP; the hero stays fixed
         "end_hold": 5.0,
         "youtube": {"tags": ["horde survival", "ball battle", "simulation", "shorts", kind, ch["name"].lower()]},
     }
@@ -762,7 +766,7 @@ def build_boss(kind="dragon", heroes=None, salt=""):
         "video_seconds": [20, 34],
         "search": {"seeds": 200},
         "balance": False,
-        "pace": {"seeds": 60, "range": [0.3, 5.0]},
+        "pace": {"seeds": 60, "range": [0.3, 5.0], "only": "last"},   # the boss; heroes stay fixed
         "end_hold": 4.0,
         "youtube": {"tags": ["boss raid", "boss fight", "ball battle", "simulation", "shorts",
                              b["boss"]["name"].lower(), *[c["name"].lower() for c in chars]]},

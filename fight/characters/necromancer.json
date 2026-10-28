@@ -8,7 +8,7 @@
     70,
     120
   ],
-  "hp": 95,
+  "hp": 65,
   "radius": 68,
   "speed": 560,
   "decor": [
@@ -18,7 +18,8 @@
   "stats": {
     "dmg": 7,
     "dark_power": 8,
-    "seek": 110
+    "seek": 110,
+    "dmg_mult": 1.35
   },
   "blades": [
     {

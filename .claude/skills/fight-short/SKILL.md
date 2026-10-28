@@ -23,8 +23,9 @@ Project: `fight/` (run everything from that folder with `.venv\Scripts\python`).
     Alice `Xb7hH8MSUJpSbSDYk0k2`, Matilda `XrExE9yKIg1WjnnlVkGX`, Jessica `cgSgspJ2msm6clMCkdW9`.
     Use `"pitch": -2..-4` for monsters. Lines: `ultimate` (the meter shout), `victory`, and
     optionally `ability`.
-- Check balance before rendering: `python tools/roundrobin.py 12` (look for "lopsided"/"stalls"
-  on the new character's rows and tune its numbers).
+- Balance before rendering: `python tools/balance_roster.py --hero <id> --tune --write` gives the new
+  character its fixed HP and `stats.dmg_mult` (40-60% overall, 12-18 s fights) while the rest of the
+  roster stays put. Every hero keeps these stats in every video and in the game: videos never rescale HP.
 
 ## 2. Render (no upload yet)
 `python publish.py <a> <b> --no-upload` generates missing voices (ElevenLabs), tries missing art
