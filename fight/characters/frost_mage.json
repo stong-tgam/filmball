@@ -1,0 +1,139 @@
+{
+  "id": "frost_mage",
+  "name": "Frost Mage",
+  "emoji": "❄️",
+  "blurb": "Teleports to a safe spot when hit. Ultimate: Blizzard drops ice balls on the enemy.",
+  "color": [
+    130,
+    215,
+    245
+  ],
+  "hp": 60,
+  "radius": 66,
+  "speed": 580,
+  "decor": "hood",
+  "stats": {
+    "ice_dmg": 8,
+    "seek": -15,
+    "dmg_mult": 1.05
+  },
+  "blades": [
+    {
+      "style": "staff",
+      "length": 95,
+      "width": 22,
+      "aim": true,
+      "solid": false,
+      "damage": 0,
+      "color": [
+        170,
+        235,
+        255
+      ]
+    }
+  ],
+  "abilities": [
+    {
+      "on": "timer",
+      "every": 1.1,
+      "do": [
+        {
+          "type": "shoot",
+          "style": "orb",
+          "aim": "nearest",
+          "damage": "$ice_dmg",
+          "speed": 820,
+          "radius": 15,
+          "color": [
+            170,
+            235,
+            255
+          ]
+        }
+      ]
+    },
+    {
+      "on": "hurt",
+      "cooldown": 0.9,
+      "do": [
+        {
+          "type": "teleport",
+          "immune": 1.0
+        }
+      ]
+    }
+  ],
+  "meter": {
+    "label": "Blizzard",
+    "shout": "BLIZZARD!",
+    "max": 100,
+    "per_second": 11,
+    "on_full": [
+      {
+        "type": "area_rain",
+        "radius": 210,
+        "duration": 2.0,
+        "count": 10,
+        "damage": "$ice_dmg",
+        "blast": 80
+      }
+    ]
+  },
+  "hud": [
+    "TELEPORTS TO SAFETY WHEN HIT"
+  ],
+  "sfx": {
+    "shoot": "sharp icy shard whoosh cast",
+    "ultimate": "howling blizzard wind with icy crystalline burst",
+    "projectile_hit": "ice crystal shattering pop"
+  },
+  "voice": {
+    "voice_name": "Matilda",
+    "voice_id": "XrExE9yKIg1WjnnlVkGX",
+    "lines": {
+      "ultimate": "Blizzard!",
+      "victory": "Stay frozen."
+    }
+  },
+  "arena": {
+    "stage": "Frozen Tower",
+    "pattern": "runes",
+    "bg_top": [
+      90,
+      150,
+      200
+    ],
+    "bg_bottom": [
+      24,
+      50,
+      90
+    ],
+    "arena_fill": [
+      150,
+      195,
+      220
+    ]
+  },
+  "art": {
+    "floor": "pale blue frosted stone floor tiles with faint ice cracks",
+    "body": "a female frost mage: a perfectly round ball body wearing elegant white and icy blue robes with silver trim, long flowing golden blonde hair, a calm young woman's face with bright blue eyes, a small silver circlet, a high collar",
+    "weapons": [
+      "a slim silver wizard staff with a glowing pale blue ice crystal at the right end"
+    ],
+    "projectiles": {
+      "orb": "a sharp glowing pale blue ice shard crystal with a small frost trail"
+    },
+    "ultimate_icon": "a single large pale blue six-pointed snowflake with white sparkles",
+    "ult_circle": "a pale blue frost circle with snowflake runes",
+    "ult_aura": "a swirling white snowstorm aura with floating ice shards",
+    "hit_fx": "a small burst of pale blue ice shards"
+  },
+  "fan": {
+    "by": "@CastyjamesBontol",
+    "comment_id": "UgyMxxRMS062N3dd04l4AaABAg",
+    "idea": "Add wizard",
+    "verb": "requested"
+  },
+  "no_cast_fx": true,
+  "landing": "snow"
+}

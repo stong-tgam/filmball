@@ -1,0 +1,300 @@
+{
+  "_doc": "Simple rules (make_fight.py --simple): each hero has one visible rule plus its ultimate. Top-level keys replace the character's; meter keys merge. hp and stats.dmg_mult come from tools/balance_roster.py --simple.",
+  "archer": {
+    "blurb": "Arrows get stronger every hit.",
+    "hud": [
+      "ARROW DMG {arrow_dmg_real:.0f}, UP EVERY HIT"
+    ],
+    "hp": 60,
+    "dmg_mult": 0.85
+  },
+  "donut_titan": {
+    "blurb": "Donuts get stronger every hit.",
+    "abilities": [
+      {
+        "on": "timer",
+        "every": 1.35,
+        "do": [
+          {
+            "type": "shoot",
+            "style": "orb",
+            "aim": "nearest",
+            "count": 2,
+            "damage": "$dmg",
+            "speed": 800,
+            "radius": 16,
+            "bounces": 0,
+            "color": [
+              240,
+              150,
+              200
+            ],
+            "spread": 14
+          }
+        ]
+      },
+      {
+        "on": "projectile_hit",
+        "do": [
+          {
+            "type": "add_stat",
+            "stat": "dmg",
+            "amount": 0.35,
+            "max": 10
+          }
+        ]
+      }
+    ],
+    "hud": [
+      "DONUT DMG {dmg_real:.0f}, UP EVERY HIT"
+    ],
+    "hp": 80,
+    "dmg_mult": 0.85
+  },
+  "frog": {
+    "blurb": "Tongue gets stronger every hit.",
+    "abilities": [
+      {
+        "on": "timer",
+        "every": 1.3,
+        "do": [
+          {
+            "type": "buff",
+            "stat": "tongue",
+            "mul": 6.5,
+            "duration": 0.25
+          },
+          {
+            "type": "shoot",
+            "style": "orb",
+            "aim": "nearest",
+            "damage": "$dmg",
+            "speed": 1500,
+            "radius": 15,
+            "life": 0.22,
+            "color": [
+              236,
+              110,
+              140
+            ]
+          }
+        ]
+      },
+      {
+        "on": "projectile_hit",
+        "do": [
+          {
+            "type": "add_stat",
+            "stat": "dmg",
+            "amount": 1.0
+          }
+        ]
+      }
+    ],
+    "hud": [
+      "TONGUE DMG {dmg_real:.0f}, UP EVERY HIT"
+    ],
+    "hp": 70,
+    "dmg_mult": 0.75
+  },
+  "king": {
+    "blurb": "Crown heal grows every 2 seconds.",
+    "hud": [
+      "CROWN HEALS +{crown_heal:.0f}, UP EVERY 2s"
+    ],
+    "hp": 60,
+    "dmg_mult": 0.7
+  },
+  "knight": {
+    "blurb": "Sword gets stronger every hit.",
+    "stats": {
+      "dmg": 3,
+      "seek": 120
+    },
+    "abilities": [
+      {
+        "on": "blade_hit",
+        "do": [
+          {
+            "type": "add_stat",
+            "stat": "dmg",
+            "amount": 2
+          }
+        ]
+      }
+    ],
+    "meter": {
+      "on_full": [
+        {
+          "type": "buff",
+          "stat": "blade_scale",
+          "mul": 2.6,
+          "duration": 3
+        }
+      ]
+    },
+    "hud": [
+      "SWORD DMG {dmg_real:.0f}, UP EVERY HIT"
+    ],
+    "hp": 85,
+    "dmg_mult": 1.8
+  },
+  "necromancer": {
+    "blurb": "Raises a skeleton every 4 seconds.",
+    "abilities": [
+      {
+        "on": "timer",
+        "every": 4.0,
+        "do": [
+          {
+            "type": "summon",
+            "unit": "skeleton",
+            "count": 1
+          }
+        ]
+      }
+    ],
+    "hud": [
+      "RAISES A SKELETON EVERY 4s"
+    ],
+    "hp": 50,
+    "dmg_mult": 1.3
+  },
+  "ninja": {
+    "blurb": "Poison gets stronger every hit.",
+    "abilities": [
+      {
+        "on": "blade_hit",
+        "do": [
+          {
+            "type": "poison",
+            "target": "other",
+            "dps": "$poison",
+            "duration": 2
+          },
+          {
+            "type": "add_stat",
+            "stat": "poison",
+            "amount": 0.5
+          }
+        ]
+      }
+    ],
+    "hud": [
+      "POISON {poison:.0f}/s, UP EVERY HIT"
+    ],
+    "hp": 75,
+    "dmg_mult": 1.25
+  },
+  "paladin": {
+    "blurb": "Reflects damage back at the attacker.",
+    "stats": {
+      "dmg": 7,
+      "thorns": 0.3,
+      "seek": 120
+    },
+    "abilities": [],
+    "hud": [
+      "REFLECTS {thorns_pct:.0f}% OF DAMAGE"
+    ],
+    "hp": 50,
+    "dmg_mult": 1.65
+  },
+  "samurai": {
+    "blurb": "Katana spins faster every hit.",
+    "stats": {
+      "dmg": 6,
+      "seek": 120
+    },
+    "abilities": [
+      {
+        "on": "blade_hit",
+        "do": [
+          {
+            "type": "add_stat",
+            "stat": "spin_mult",
+            "amount": 0.08,
+            "max": 2.2
+          }
+        ]
+      }
+    ],
+    "meter": {
+      "on_full": [
+        {
+          "type": "buff",
+          "stat": "spin_mult",
+          "mul": 2.0,
+          "duration": 3,
+          "label": "DANCE"
+        }
+      ]
+    },
+    "hud": [
+      "KATANA SPINS FASTER EVERY HIT"
+    ],
+    "hp": 80,
+    "dmg_mult": 1.65
+  },
+  "vampire": {
+    "blurb": "Drains life with every hit.",
+    "stats": {
+      "dmg": 5,
+      "lifesteal": 0.35,
+      "seek": 120
+    },
+    "abilities": [],
+    "hud": [
+      "DRAINS {lifesteal_pct:.0f}% OF DAMAGE AS HP"
+    ],
+    "hp": 50,
+    "dmg_mult": 1.95
+  },
+  "viking": {
+    "blurb": "Goes berserk below 40% HP.",
+    "stats": {
+      "dmg": 14,
+      "seek": 120
+    },
+    "abilities": [
+      {
+        "on": "hp_below",
+        "frac": 0.4,
+        "name": "Berserk",
+        "do": [
+          {
+            "type": "add_stat",
+            "stat": "speed",
+            "amount": 160
+          },
+          {
+            "type": "add_stat",
+            "stat": "dmg",
+            "amount": 4
+          }
+        ]
+      }
+    ],
+    "hud": [
+      "BERSERK BELOW 40% HP"
+    ],
+    "hp": 75,
+    "dmg_mult": 1.1
+  },
+  "wizard": {
+    "blurb": "Fireballs get stronger every hit.",
+    "hud": [
+      "FIREBALL DMG {fire_dmg_real:.0f}, UP EVERY HIT"
+    ],
+    "hp": 75,
+    "dmg_mult": 0.85
+  },
+  "frost_mage": {
+    "blurb": "Teleports to a safe spot when hit.",
+    "hud": [
+      "TELEPORTS TO SAFETY WHEN HIT"
+    ],
+    "hp": 55,
+    "dmg_mult": 0.95
+  }
+}

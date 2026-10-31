@@ -15,6 +15,7 @@ import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHAR_DIR = os.path.join(ROOT, "characters")
+SIMPLE_RULES = os.path.join(CHAR_DIR, "simple", "rules.json")
 
 TRIGGERS = {
     "start", "timer", "hit", "blade_hit", "body_hit", "projectile_hit", "shockwave_hit",
@@ -22,7 +23,7 @@ TRIGGERS = {
     "death", "ally_death", "hp_below", "ultimate",
 }
 EFFECTS = {"add_stat", "mul_stat", "heal", "add_max_hp", "buff", "add_meter", "launch",
-           "summon", "shockwave", "shoot", "poison", "damage"}
+           "summon", "shockwave", "shoot", "poison", "damage", "teleport", "area_rain"}
 TARGETS = {"self", "other", "nearest_enemy", "all_enemies", "allies", "team"}
 BLADE_STYLES = {"sword", "dagger", "spear", "hammer", "axe", "staff", "scythe", "shield", "bow", "stick"}
 PROJECTILE_STYLES = {"arrow", "orb", "fireball", "shuriken", "bolt", "puck"}
@@ -58,6 +59,10 @@ THEMES = [
 ]
 
 
+PLAIN_THEME = {"bg_top": [24, 26, 34], "bg_bottom": [24, 26, 34], "arena_fill": [52, 56, 68],
+               "arena_border": [12, 12, 16], "plain": True, "stage": ""}
+
+
 class SpecError(ValueError):
     pass
 
@@ -80,7 +85,29 @@ def load_character(cid):
     with open(path, encoding="utf-8") as f:
         ch = json.load(f)
     ch.setdefault("id", cid)
+    if simple_mode():
+        rules = simple_rules().get(cid)
+        if rules:
+            meter = dict(ch.get("meter") or {}, **rules.get("meter", {}))
+            ch.update(rules)
+            ch["meter"] = meter
+            # the tuned multiplier lives next to the stats, whichever of the two defines them
+            if "dmg_mult" in rules:
+                ch.setdefault("stats", {})["dmg_mult"] = rules["dmg_mult"]
+            else:
+                ch.get("stats", {}).pop("dmg_mult", None)
+            ch.pop("dmg_mult", None)
     return ch
+
+
+def simple_mode():
+    """--simple: plain floor, one visible rule per hero. An env var so worker processes inherit it."""
+    return os.environ.get("FIGHT_RULES") == "simple"
+
+
+def simple_rules():
+    with open(SIMPLE_RULES, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def stage_theme(ch):
@@ -130,6 +157,8 @@ def arena_theme(aid):
 def home_theme(ca, cb):
     """Half the matchups fight in a neutral arena, the rest on one fighter's home stage;
     both picked deterministically per matchup (so a re-render looks the same)."""
+    if simple_mode():
+        return dict(PLAIN_THEME)
     h = zlib.crc32(f"arena|{ca['id']}|{cb['id']}".encode())
     if h % 2 == 0 and ARENAS:
         aid = sorted(ARENAS)[(h >> 1) % len(ARENAS)]
@@ -870,7 +899,7 @@ def _check_unit(u, where, spec, errors):
             if field is None:
                 continue
             base = field
-            for suf in ("_pct", "_base", "_buffs"):
+            for suf in ("_pct", "_base", "_buffs", "_real"):
                 if base.endswith(suf):
                     base = base[: -len(suf)]
             if base not in stats and base not in ("hp", "max_hp"):

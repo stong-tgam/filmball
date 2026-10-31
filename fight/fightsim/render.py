@@ -259,6 +259,7 @@ class Renderer:
 
         self.popups = []   # x, y, text, color, t0
         self.rings = []    # x, y, r0, r1, t0, dur, color, width
+        self.blinks = []   # teleports: x0, y0, x1, y1, t0
         self.sparks = []   # x, y, t0, attacker uid (or None)
         self.shouts = []   # x, y, text, color, t0  (big ability call-outs)
         self.casts = []    # uid, t0, shout: main fighters' ultimates (cut-in, circle, aura)
@@ -329,6 +330,9 @@ class Renderer:
     def _floor(self):
         w, h = int(self.arena_w), int(self.arena_h)
         f = pygame.Surface((w, h))
+        if self.theme.get("plain"):   # nothing competes with the fighters
+            f.fill(tuple(self.theme["arena_fill"]))
+            return f
         tile_img = None
         whole = self.sprites.load(self.theme["map_art"]) if self.theme.get("map_art") else None
         if whole is not None:         # one PixelLab image of the whole arena, scaled up (no tiling)
@@ -649,6 +653,12 @@ class Renderer:
                 self.rings.append((ev["x"], ev["y"], 20, 190, self.t, 0.3, (255, 255, 255), 8))
                 self.shake_until = self.t + 0.25
                 self.shake_amp = 11 * self.S
+            elif t == "teleport":
+                self.rings.append((ev["x"], ev["y"], 10, 170, self.t, 0.3, (255, 255, 255), 8))
+                self.blinks.append((ev["x0"], ev["y0"], ev["x"], ev["y"], self.t, ev["unit"]))
+            elif t == "rain_drop":
+                self.rings.append((ev["x"], ev["y"], 10, ev["radius"], self.t, 0.22, (235, 248, 255), 6))
+                self.bursts.append(("art/fx/freeze/ice_shatter.png", ev["x"], ev["y"], ev["radius"] * 0.9, self.t, 0.18, 0.0, "over"))
             elif t == "summon":
                 self.rings.append((ev["x"], ev["y"], 20, 160, self.t, 0.35, (255, 230, 150), 6))
             elif t == "death":
@@ -673,7 +683,8 @@ class Renderer:
             elif t == "ultimate":
                 u = by_uid.get(ev["unit"])
                 col = _mix(u.color, (255, 255, 255), 0.5) if u else (255, 255, 255)
-                self.rings.append((ev["x"], ev["y"], 30, 260, self.t, 0.5, col, 10))
+                if not (u is not None and u.tpl.get("no_cast_fx")):
+                    self.rings.append((ev["x"], ev["y"], 30, 260, self.t, 0.5, col, 10))
                 if u is not None and u.is_main:
                     for name, layer, mult, dur in ULT_FX.get(_art_id(u), []):
                         self.bursts.append((f"art/fx/ult/{name}.png", ev["x"], ev["y"], u.radius * mult,
@@ -743,6 +754,9 @@ class Renderer:
         for c, u in casting:
             self._draw_cast_under(u, self.t - c[1])
         self._track_projectiles()
+        self.surface.set_clip(pygame.Rect(int(self.ax), int(self.ay), int(self.arena_w), int(self.arena_h)))
+        self._draw_rain_area()
+        self.surface.set_clip(None)
         self._draw_bursts("under")
         if self.boss_mode and w.boss is not None and w.boss.alive and getattr(w, "enraged", False):
             self._draw_enraged_aura(w.boss)
@@ -1610,6 +1624,15 @@ class Renderer:
             pygame.draw.circle(surf, col, (self.sx(x), self.sy(y)), r, wpx)
         self.rings = keep
 
+        self.blinks = [b for b in self.blinks if t - b[4] < 0.4]
+        for x0, y0, x1, y1, t0, uid in self.blinks:
+            self._draw_blink(x0, y0, x1, y1, (t - t0) / 0.4, self._unit(uid))
+        self._draw_rain_balls()
+
+        for u in self.world.units:                  # frost shield while a teleport protects them
+            if u.alive and self.world.t < u.immune_until:
+                pygame.draw.circle(surf, ICE, (self.sx(u.x), self.sy(u.y)), (u.radius + 14) * self.k, max(1, int(3 * self.S)))
+
         keep = []
         for sp in self.sparks:
             x, y, t0, src = sp
@@ -1762,7 +1785,8 @@ class Renderer:
         for u in self.world.mains:
             label = (u.meter or {}).get("label") or (u.hud[0] if u.hud else u.name)
             lines = u.hud[1:] if u.hud and u.hud[0] == label else list(u.hud)
-            rows.append((label, []))     # stat lines dropped: nobody reads them mid-fight
+            # stat lines dropped: nobody reads them mid-fight (plain mode keeps its one rule)
+            rows.append((label, lines if self.theme.get("plain") else []))
         ph = 58 + 20 * max(len(lines) for _, lines in rows) + 4
         for side, u in enumerate(self.world.mains):
             label, lines = rows[side]
@@ -1846,6 +1870,80 @@ class Renderer:
             self._tint_cache[key] = img
         return img
 
+    def _glow(self, x, y, r, alpha):
+        d = max(2, int(r * 2))
+        g = pygame.Surface((d, d), pygame.SRCALPHA)
+        pygame.draw.circle(g, (*ICE, alpha // 2), (d // 2, d // 2), d // 2)
+        pygame.draw.circle(g, (255, 255, 255, alpha), (d // 2, d // 2), d // 3)
+        self.surface.blit(g, (int(x - d / 2), int(y - d / 2)))
+
+    def _draw_blink(self, x0, y0, x1, y1, p, u):
+        """Teleport: a fading ghost where they stood, a white pop at both ends, ice sparkles between."""
+        sx0, sy0, sx1, sy1 = self.sx(x0), self.sy(y0), self.sx(x1), self.sy(y1)
+        r = (u.radius if u else 60) * self.k
+        if u is not None:
+            self._token_squash(u, sx0, sy0, r, alpha=int(190 * (1 - p)))
+        pop = max(0.0, 1 - p * 2.5)
+        if pop > 0:
+            self._glow(sx0, sy0, r * (1.2 + 1.2 * (1 - pop)), int(230 * pop))
+            self._glow(sx1, sy1, r * (1.2 + 1.2 * (1 - pop)), int(230 * pop))
+        for i in range(1, 14):
+            f = i / 14
+            age = p - f * 0.25                      # the trail lights up from start to end, then fades
+            if age <= 0 or age >= 0.7:
+                continue
+            k = 1 - age / 0.7
+            wob = math.sin(i * 2.4) * 16 * self.S
+            x, y = sx0 + (sx1 - sx0) * f + wob, sy0 + (sy1 - sy0) * f - wob * 0.6 - age * 30 * self.S
+            s = max(1, int((3 + (i % 3) * 2) * self.S * k))
+            pygame.draw.polygon(self.surface, (255, 255, 255) if i % 2 else ICE,
+                                [(x, y - s), (x + s, y), (x, y + s), (x - s, y)])
+
+    def _sprite_at(self, path, x, y, size, alpha, deg=0):
+        img = self.sprites.scaled(path, size, size, trim=True)
+        if img is None:
+            return
+        img = pygame.transform.rotate(img, deg) if deg else img.copy()
+        img.set_alpha(alpha)
+        self.surface.blit(img, img.get_rect(center=(int(x), int(y))))
+
+    def _draw_rain_area(self):
+        """The blizzard on the floor, under the fighters: a snowfield, one big turning snowflake,
+        and small flakes circling its edge."""
+        icon = "characters/art/frost_mage/ultimate_icon.png"
+        flake = "art/fx/freeze/snowflake.png"
+        wt = self.world.t
+        for rain in self.world.rains:
+            x, y, r = self.sx(rain["x"]), self.sy(rain["y"]), rain["r"] * self.k
+            age = wt - rain["t0"]
+            grow = 1 - (1 - min(1.0, age / 0.2)) ** 3
+            fade = min(1.0, max(0.0, (rain["until"] - wt) / 0.3))
+            self._sprite_at("art/fx/freeze/frost_patch.png", x, y, r * 2.15 * grow, int(120 * fade))
+            self._sprite_at(icon, x, y, r * 1.35 * grow, int(150 * fade), int(age * 40) // 6 * 6)
+            for i in range(8):
+                ang = i * math.pi / 4 + age * 1.3
+                self._sprite_at(flake, x + math.cos(ang) * r * 0.86 * grow, y + math.sin(ang) * r * 0.86 * grow,
+                                r * 0.2, int(230 * fade))
+
+    def _draw_rain_balls(self):
+        """Each ball drops from above onto its landing spot; its shadow grows as it nears the floor."""
+        wt = self.world.t
+        for rain in self.world.rains:
+            for d in rain["drops"]:
+                left = d["t"] - wt
+                if d.get("done") or left > rain["fall"]:
+                    continue
+                k = 1 - left / rain["fall"]
+                x, y = self.sx(d["x"]), self.sy(d["y"])
+                sh = pygame.Surface((int(40 * self.S), int(16 * self.S)), pygame.SRCALPHA)
+                pygame.draw.ellipse(sh, (0, 0, 0, int(150 * k)), sh.get_rect())
+                self.surface.blit(sh, sh.get_rect(center=(int(x), int(y))))
+                by = y - (1 - k) * 340 * self.k
+                rr = max(2, int(13 * self.S))
+                pygame.draw.line(self.surface, ICE, (x, by - rr * 3), (x, by), max(1, int(2 * self.S)))
+                pygame.draw.circle(self.surface, (225, 245, 255), (int(x), int(by)), rr)
+                pygame.draw.circle(self.surface, (90, 160, 225), (int(x), int(by)), rr, max(1, int(2 * self.S)))
+
     def _char_fx(self, uid_or_unit, kind):
         """characters/art/<id>/<kind>.png for a unit (summons use their owner's art), or None."""
         u = self._unit(uid_or_unit) if isinstance(uid_or_unit, int) else uid_or_unit
@@ -1856,6 +1954,8 @@ class Renderer:
 
     def _draw_cast_under(self, u, dt):
         """Behind the caster: a spinning rune circle opening up, and a flame aura while the ult lasts."""
+        if u.tpl.get("no_cast_fx"):
+            return
         cx, cy, r = self.sx(u.x), self.sy(u.y), u.radius * self.k
         col = _readable(u.color)
         own_circle = self._char_fx(u, "ult_circle")
@@ -1887,6 +1987,8 @@ class Renderer:
 
     def _draw_cast_over(self, u, dt):
         """Over the caster: sparks rising, the ultimate icon popping above its head, a colour flash."""
+        if u.tpl.get("no_cast_fx"):
+            return
         cx, cy, r = self.sx(u.x), self.sy(u.y), u.radius * self.k
         col = _readable(u.color)
         if dt < 1.6 and self.sprites.load("art/fx/energy_spark.png") is not None:
@@ -3353,8 +3455,23 @@ class Renderer:
                             for _ in range(22)]
         return self._cracks, self._debris
 
-    def _fx_cracks(self, cx, cy, since, scale=1.0):
+    def _fx_snow_hole(self, cx, cy, since, scale):
+        """A hero landing in snow: a white patch with a dark icy hole, flat on the floor."""
+        d = self.arena_w * 0.5 * scale * (0.6 + 0.4 * min(1.0, since / 0.07))
+        img = self.sprites.scaled("art/fx/freeze/frost_patch.png", d, d * 0.5, trim=True)
+        if img is not None:
+            self.surface.blit(img, img.get_rect(center=(int(cx), int(cy))))
+        w, h = max(2, int(d * 0.5)), max(2, int(d * 0.2))
+        hole = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.ellipse(hole, (120, 170, 215), hole.get_rect())
+        pygame.draw.ellipse(hole, (40, 72, 112), hole.get_rect().inflate(-w // 8, -h // 4))
+        self.surface.blit(hole, hole.get_rect(center=(int(cx), int(cy))))
+
+    def _fx_cracks(self, cx, cy, since, scale=1.0, who=None):
         if since < 0:
+            return
+        if who is not None and who.tpl.get("landing") == "snow":
+            self._fx_snow_hole(cx, cy, since, scale)
             return
         crack = "art/fx/intro/crack_flash.png"
         if self.sprites.load(crack, trim=True) is not None:
@@ -3541,7 +3658,7 @@ class Renderer:
         for side in (0, 1):                      # craters, dust and burst under each landing
             sgn = -1 if side == 0 else 1
             lx, since = cx0 + sgn * 0.24 * aw, p - hits[side]
-            self._fx_cracks(lx, land_y + big * 0.8, since, 0.55)
+            self._fx_cracks(lx, land_y + big * 0.8, since, 0.55, self.world.mains[side])
             if 0 <= since < 0.4:
                 k = since / 0.4
                 rect = pygame.Rect(0, 0, int(big * (2 + 3 * k)), int(big * (0.5 + 0.8 * k)))

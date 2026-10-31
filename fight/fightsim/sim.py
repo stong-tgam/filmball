@@ -158,6 +158,7 @@ class Unit:
         decor = tpl.get("decor") or []
         self.decor = [decor] if isinstance(decor, str) else list(decor)
         self.hud = list(tpl.get("hud", []))
+        self.immune_until = 0.0   # teleport: no damage until this time
         self.base_radius = float(tpl.get("radius", 50))
         self.max_hp = float(tpl.get("hp", 100))
         self.hp = self.max_hp
@@ -247,6 +248,7 @@ class Unit:
             vals[k + "_pct"] = v * 100
             vals[k + "_base"] = self.base_stats[k]
             vals[k + "_buffs"] = self.buff_label(k)
+            vals[k + "_real"] = v * self.stat("dmg_mult", 1.0)   # what a hit actually deals
         vals["hp"] = max(0.0, self.hp)
         vals["max_hp"] = self.max_hp
         return vals
@@ -285,6 +287,7 @@ class World:
         self._uid = 0
         self.units = []
         self.projectiles = []
+        self.rains = []     # area_rain: a fixed circle with balls landing over time
         self.events = []
         self.frame_events = []
         self.pending = []
@@ -597,6 +600,7 @@ class World:
                 break
         if not self.done:
             self._per_frame(dt)
+            self._rain_tick()
             self._flush()
         self.frame += 1
         if self.done:     # fight over: stretched weapons (a frog's ult tongue) snap back for the K.O. card
@@ -1381,7 +1385,7 @@ class World:
     # ── combat ───────────────────────────────────────────────────────────
 
     def damage(self, attacker, target, amount, source, hx=None, hy=None):
-        if not target.alive or amount <= 0:
+        if not target.alive or amount <= 0 or self.t < target.immune_until:
             return
         armor = max(0.0, min(0.9, target.stat("armor")))
         dealt = amount * (1 - armor) * attacker.stat("dmg_mult", 1.0)
@@ -1560,6 +1564,12 @@ class World:
         if kind == "shoot":
             self.pending.append(("shoot", u, eff, u.x, u.y))
             return
+        if kind == "teleport":
+            self.pending.append(("teleport", u, eff, u.x, u.y))
+            return
+        if kind == "area_rain":
+            self.pending.append(("area_rain", u, eff, u.x, u.y))
+            return
         if kind == "add_meter":
             self._add_meter(u, self.resolve(eff.get("amount", 10), u))
             return
@@ -1615,6 +1625,69 @@ class World:
             else:
                 raise ValueError(f"unknown effect type: {kind!r}")
 
+    def _safe_spot(self, u):
+        """The candidate point farthest from enemies that no enemy shot will cross in the next second."""
+        enemies = [e for e in self.units if e.alive and e.side != u.side]
+        shots = [p for p in self.projectiles if p.alive and p.side != u.side]
+        best, best_score = (u.x, u.y), -1e9
+        r = u.radius
+        for _ in range(40):
+            x, y = self.rng.uniform(r, self.W - r), self.rng.uniform(r, self.H - r)
+            if self._blocked(x, y, r):
+                continue
+            clear = min((math.hypot(e.x - x, e.y - y) - e.radius for e in enemies), default=1e4)
+            for p in shots:
+                for k in range(1, 11):      # where each shot will be, every 0.1 s
+                    if math.hypot(p.x + p.vx * k * 0.1 - x, p.y + p.vy * k * 0.1 - y) < r + p.radius + 30:
+                        clear -= 1e3
+                        break
+            if clear > best_score:
+                best, best_score = (x, y), clear
+        return best
+
+    def _area_rain(self, u, eff):
+        """Marks a circle where the enemy stands now; it does not follow them. Balls land in it over time."""
+        e = self.nearest_enemy(u)
+        if e is None:
+            return
+        r = float(eff.get("radius", 210))
+        x = min(max(e.x, r), self.W - r)
+        y = min(max(e.y, r), self.H - r)
+        n, dur, fall = int(eff.get("count", 10)), float(eff.get("duration", 2.0)), float(eff.get("fall", 0.35))
+        drops = []
+        for i in range(n):
+            a, d = self.rng.uniform(0, 2 * math.pi), r * math.sqrt(self.rng.random())
+            land = self.t + fall + (dur - fall) * i / max(1, n - 1)
+            drops.append({"t": land, "x": x + math.cos(a) * d, "y": y + math.sin(a) * d})
+        self.rains.append({"owner": u, "x": x, "y": y, "r": r, "t0": self.t, "until": self.t + dur + 0.2, "fall": fall,
+                           "blast": float(eff.get("blast", 80)), "damage": self.resolve(eff.get("damage", 5), u),
+                           "drops": drops})
+        self.emit("area_rain", unit=u.uid, x=x, y=y, radius=r)
+
+    def _rain_tick(self):
+        for rain in self.rains:
+            for d in rain["drops"]:
+                if not d.get("done") and self.t >= d["t"]:
+                    d["done"] = True
+                    self.emit("rain_drop", unit=rain["owner"].uid, x=d["x"], y=d["y"], radius=rain["blast"])
+                    for e in list(self.units):
+                        if e.alive and e.side != rain["owner"].side and math.hypot(e.x - d["x"], e.y - d["y"]) < rain["blast"] + e.radius:
+                            self.damage(rain["owner"], e, rain["damage"], "projectile", d["x"], d["y"])
+        self.rains = [r for r in self.rains if self.t < r["until"]]
+
+    def _teleport(self, u, eff):
+        if not u.alive:
+            return
+        x0, y0 = u.x, u.y
+        u.x, u.y = self._safe_spot(u)
+        u.immune_until = self.t + float(eff.get("immune", 1.0))
+        e = self.nearest_enemy(u)
+        if e is not None:                # keep moving, but away from the enemy
+            speed = math.hypot(u.vx, u.vy)
+            d = math.hypot(u.x - e.x, u.y - e.y) or 1.0
+            u.vx, u.vy = (u.x - e.x) / d * speed, (u.y - e.y) / d * speed
+        self.emit("teleport", unit=u.uid, x0=x0, y0=y0, x=u.x, y=u.y)
+
     def _flush(self):
         while self.pending and not self.done:
             kind, u, eff, x, y = self.pending.pop(0)
@@ -1624,6 +1697,10 @@ class World:
                 self._shockwave(u, eff, x, y)
             elif kind == "shoot":
                 self._shoot(u, eff, x, y)
+            elif kind == "teleport":
+                self._teleport(u, eff)
+            elif kind == "area_rain":
+                self._area_rain(u, eff)
         self._check_win()
 
     def _summon(self, src, eff, x, y):

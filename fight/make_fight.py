@@ -308,7 +308,10 @@ def main():
     ap.add_argument("--out", help="output folder (default out/<spec name>)")
     ap.add_argument("--intro", choices=["smash", "drop", "faceoff", "rally"],
                     help="force the intro hook style (default: picked per matchup)")
+    ap.add_argument("--simple", action="store_true", help="plain floor, one visible rule per hero")
     args = ap.parse_args()
+    if args.simple:
+        os.environ["FIGHT_RULES"] = "simple"
 
     if args.list or not args.what:
         for cid in list_characters():

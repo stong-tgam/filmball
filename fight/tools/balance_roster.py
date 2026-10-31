@@ -23,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from fightsim.search import _one  # noqa: E402
-from fightsim.spec import build_matchup, finalize, list_characters, load_character  # noqa: E402
+from fightsim.spec import SIMPLE_RULES, build_matchup, finalize, list_characters, load_character  # noqa: E402
 
 TARGET = 15.0          # median 1v1 fight length, s (videos keep seeds that land in 12-21 s)
 CAP = 40               # sim cap while measuring; a timeout counts as CAP seconds
@@ -126,6 +126,17 @@ def tune(roster, focus=None, rounds=6, seeds=12, log=print):
     return {h: stats[h] for h in movable}
 
 
+def write_simple(stats, log=print):
+    with open(SIMPLE_RULES, encoding="utf-8") as f:
+        rules = json.load(f)
+    for h, s in stats.items():
+        rules[h]["hp"] = s["hp"]
+        rules[h]["dmg_mult"] = s["dmg_mult"]
+        log(f"  {h}: hp {s['hp']}, dmg x{s['dmg_mult']}")
+    with open(SIMPLE_RULES, "w", encoding="utf-8") as f:
+        json.dump(rules, f, indent=2, ensure_ascii=False)
+
+
 def write(stats, log=print):
     for h, s in stats.items():
         p = char_file(h)
@@ -150,14 +161,17 @@ def main():
     ap.add_argument("--write", action="store_true", help="with --tune: save the stats to characters/*.json")
     ap.add_argument("--rounds", type=int, default=6)
     ap.add_argument("--seeds", type=int, default=12)
+    ap.add_argument("--simple", action="store_true", help="balance the one-rule heroes (characters/simple/rules.json)")
     a = ap.parse_args()
-    roster = list_characters(include_drafts=True)
+    if a.simple:
+        os.environ["FIGHT_RULES"] = "simple"
+    roster = list_characters(include_drafts=not a.simple)
     if a.hero and a.hero not in roster:
         raise SystemExit(f"no hero {a.hero}")
     if a.tune:
         stats = tune(roster, a.hero, a.rounds, a.seeds)
         if a.write:
-            write(stats)
+            (write_simple if a.simple else write)(stats)
         else:
             print(json.dumps(stats, indent=1))
             return

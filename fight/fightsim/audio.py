@@ -82,6 +82,11 @@ def build_cues(world):
                 add(t, per_unit("shoot", u), 0.5, u)
         elif kind == "launch":
             add(t, "check", min(1.0, ev.get("mult", 2) / 3), by_uid.get(ev["unit"]))
+        elif kind == "teleport":
+            add(t, "freeze", 0.8, by_uid.get(ev["unit"]))
+        elif kind == "rain_drop":
+            u = by_uid.get(ev["unit"])
+            add(t, per_unit("projectile_hit", u), 0.6, u)
         elif kind == "poisoned":
             add(t, "poison", 0.5, by_uid.get(ev["unit"]))
         elif kind == "debuff":

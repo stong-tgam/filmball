@@ -142,8 +142,25 @@ def _channel_videos(yt, ch=None):
             return videos
 
 
+def _record(cid, vid, s, me, titles, parent=None):
+    status, why = classify(s.get("textDisplay", ""))
+    rec = {
+        "id": cid, "video_id": vid, "video": titles.get(vid, ""),
+        "author": s.get("authorDisplayName", ""),
+        "author_channel": (s.get("authorChannelId") or {}).get("value", ""),
+        "by_owner": (s.get("authorChannelId") or {}).get("value") == me,
+        "text": s.get("textDisplay", ""), "likes": s.get("likeCount", 0),
+        "published": s.get("publishedAt", ""), "status": status, "why": why,
+        "fetched": datetime.datetime.now().isoformat(timespec="seconds"),
+    }
+    if parent:
+        rec["parent"] = parent           # a reply under the channel's own comment
+    return rec
+
+
 def fetch(db, log=print):
-    """Pull top-level comments on all the channel's videos, newest first, until known ones."""
+    """Pull top-level comments on all the channel's videos, newest first, until known ones,
+    plus viewers' replies under the channel's invites and fan tags."""
     from googleapiclient.discovery import build
     # the read-only scope can't read comments at all (403), so this uses the channel sign-in
     creds = credentials(interactive=False, token=REPLY_TOKEN, scopes=REPLY_SCOPES)
@@ -170,20 +187,24 @@ def fetch(db, log=print):
                 continue
             if cid in ours:
                 continue
-            status, why = classify(s.get("textDisplay", ""))
-            seen[cid] = {
-                "id": cid, "video_id": vid, "video": titles.get(vid, ""),
-                "author": s.get("authorDisplayName", ""),
-                "author_channel": (s.get("authorChannelId") or {}).get("value", ""),
-                "by_owner": (s.get("authorChannelId") or {}).get("value") == me,
-                "text": s.get("textDisplay", ""), "likes": s.get("likeCount", 0),
-                "published": s.get("publishedAt", ""), "status": status, "why": why,
-                "fetched": datetime.datetime.now().isoformat(timespec="seconds"),
-            }
+            seen[cid] = _record(cid, vid, s, me, titles)
             new += 1
         page = r.get("nextPageToken")
         if stop or not page:
             break
+    # viewers often answer the create-a-hero invite (or a fan tag) with a reply: read those threads too
+    vid_of = {c: v for v, c in _invites().items()}
+    for pid in ours:                     # 1 unit each
+        try:
+            r = yt.comments().list(part="snippet", parentId=pid, maxResults=100, textFormat="plainText").execute()
+        except Exception:                # deleted or hidden
+            continue
+        for rp in r.get("items", []):
+            cid, s = rp["id"], rp["snippet"]
+            if cid in seen or (s.get("authorChannelId") or {}).get("value") == me:
+                continue
+            seen[cid] = _record(cid, s.get("videoId") or vid_of.get(pid, ""), s, me, titles, parent=pid)
+            new += 1
     db["last_run"] = datetime.datetime.now().isoformat(timespec="seconds")
     db["videos_checked"] = len(videos)
     return new
@@ -246,7 +267,11 @@ def reply(cid, text, log=print):
     if creds is None:
         raise SystemExit("replies not connected (run: python tools/fan_ideas.py --auth-reply)")
     yt = build("youtube", "v3", credentials=creds, cache_discovery=False)
-    r = yt.comments().insert(part="snippet", body={"snippet": {"parentId": cid, "textOriginal": text}}).execute()
+    c = _load()["comments"].get(cid) or {}
+    parent = c.get("parent") or cid      # YouTube threads are one level deep: reply under the top comment
+    if c.get("parent") and c.get("author") and c["author"] not in text:
+        text = f"{c['author']} {text}"   # mention them so they get notified
+    r = yt.comments().insert(part="snippet", body={"snippet": {"parentId": parent, "textOriginal": text}}).execute()
     log(f"replied to {cid}: {text}")
     return r["id"]
 
@@ -300,7 +325,7 @@ def invite(only=None, dry_run=False, log=print):
         return 0
 
 
-def tag_fan(video_id, author, idea, log=print):
+def tag_fan(video_id, author, idea, log=print, verb="created"):
     """On a fan hero's Short: a channel comment crediting the viewer (and inviting the next idea)."""
     from googleapiclient.discovery import build
     creds = credentials(interactive=False, token=REPLY_TOKEN, scopes=REPLY_SCOPES)
@@ -309,7 +334,7 @@ def tag_fan(video_id, author, idea, log=print):
         return None
     yt = build("youtube", "v3", credentials=creds, cache_discovery=False)
     short = idea if len(idea) <= 90 else idea[:87] + "..."
-    text = (f"⭐ This hero was created by {author}! Their idea: \"{short}\" "
+    text = (f"⭐ This hero was {verb} by {author}! Their idea: \"{short}\" "
             "Want YOUR hero in the next fight? Comment a NAME + POWER below! 👇")
     r = yt.commentThreads().insert(part="snippet", body={"snippet": {
         "videoId": video_id, "topLevelComment": {"snippet": {"textOriginal": text}}}}).execute()

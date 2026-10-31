@@ -194,8 +194,9 @@ def cmd_post(a):
     sync(log=log)
     fan_ideas.set_status(c["id"], "posted", log=log, url=r["url"], note="")
     fan_ideas.invite(only=r["video_id"], log=log)          # the create-a-hero comment, like every video
-    fan_ideas.tag_fan(r["video_id"], c["author"], c["text"], log=log)   # credit the viewer in the comments
     hero = c.get("hero")
+    verb = (load_hero(hero).get("fan") or {}).get("verb", "created") if hero else "created"
+    fan_ideas.tag_fan(r["video_id"], c["author"], c["text"], log=log, verb=verb)   # credit the viewer in the comments
     if hero and os.path.exists(char_path(hero)):      # joins the roster now that its debut is live
         data = load_hero(hero)
         data.pop("draft", None)
